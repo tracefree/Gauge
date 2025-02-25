@@ -5,5 +5,5 @@
 using namespace Gauge;
 
 void App::run() {
-    std::print("Running {}", name);
+    std::println("Running {}", name);
 }
