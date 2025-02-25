@@ -1,15 +1,5 @@
 #pragma once
 
-#include <string>
-#include "../src/config.hpp"
-
-namespace Gauge {
-
-    class App {
-        public:
-        std::string name;
-
-        void run();
-    };
-
-}
+#include "../src/core/app.hpp"
+#include "../src/core/config.hpp"
+#include "../src/ui/window.hpp"
