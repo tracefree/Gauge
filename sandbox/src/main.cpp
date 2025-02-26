@@ -1,6 +1,7 @@
 #include <gauge.hpp>
 #include "game.hpp"
 
+
 int main() {
     Gauge::ProjectSettings project_settings = Gauge::load_project_settings("project.yaml");
     Sandbox::Game game;

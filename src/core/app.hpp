@@ -1,12 +1,13 @@
 #pragma once
 
+#include "../renderer/renderer.hpp"
 #include <string>
 
 namespace Gauge {
 
     struct App {
     public:
-        std::string name;
+        std::string name {"Gauge App"};
 
         void initialize();
 
@@ -19,5 +20,4 @@ namespace Gauge {
         virtual int run() = 0;
         virtual void update() {}
     };
-
 }

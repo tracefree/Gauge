@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.31)
 project(gauge VERSION 0.0.1 LANGUAGES CXX)
 
-# Setup
+# --- Setup ---
 find_program(CCACHE_FOUND ccache)
 include(FetchContent)
 
@@ -9,10 +9,23 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif()
 
-# Dependencies
+# --- Dependencies ---
 
+# SDL3
 find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
 
+# Vulkan
+find_package(Vulkan REQUIRED)
+
+# VulkanBootstrap
+FetchContent_Declare(
+    fetch_vk_bootstrap
+    GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap
+    GIT_TAG        v1.4.307
+)
+FetchContent_MakeAvailable(fetch_vk_bootstrap)
+
+# yaml-cpp
 FetchContent_Declare(
   yaml-cpp
   GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
@@ -20,7 +33,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
-# Gauge
+# --- Gauge ---
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
@@ -29,11 +42,14 @@ add_library(gauge
     src/core/app.cpp
     src/core/config.cpp
     src/ui/window.cpp
+    src/renderer/renderer.cpp
 )
 
 target_include_directories(gauge PUBLIC include)
 
-target_link_libraries(gauge PRIVATE
-  yaml-cpp::yaml-cpp
+target_link_libraries(gauge PUBLIC
   SDL3::SDL3
+  Vulkan::Vulkan
+  vk-bootstrap::vk-bootstrap
+  yaml-cpp::yaml-cpp
 )
