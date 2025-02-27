@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../renderer/renderer.hpp"
+#include <gauge/renderer/renderer.hpp>
 #include <string>
 
 namespace Gauge {

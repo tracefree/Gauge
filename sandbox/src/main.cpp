@@ -1,4 +1,5 @@
-#include <gauge.hpp>
+#include <gauge/core/app.hpp>
+#include <gauge/core/config.hpp>
 #include "game.hpp"
 
 

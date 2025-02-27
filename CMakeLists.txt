@@ -39,13 +39,13 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 add_library(gauge
-    src/core/app.cpp
-    src/core/config.cpp
-    src/ui/window.cpp
-    src/renderer/renderer.cpp
+    gauge/core/app.cpp
+    gauge/core/config.cpp
+    gauge/ui/window.cpp
+    gauge/renderer/renderer.cpp
 )
 
-target_include_directories(gauge PUBLIC include)
+target_include_directories(gauge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(gauge PUBLIC
   SDL3::SDL3

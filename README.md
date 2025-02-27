@@ -20,7 +20,7 @@ To build both the engine library and the example application using it, run:
 
 ```
 git clone https://github.com/tracefree/Gauge.git
-cd gauge/sandbox
+cd Gauge/sandbox
 cmake . -B build -G Ninja
 cmake --build build
 ./build/sandbox

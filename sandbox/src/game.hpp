@@ -1,4 +1,5 @@
-#include <gauge.hpp>
+#include <gauge/core/app.hpp>
+#include <gauge/ui/window.hpp>
 
 using namespace Gauge;
 

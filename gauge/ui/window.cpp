@@ -1,6 +1,6 @@
 #include "window.hpp"
 
-#include "../core/app.hpp"
+#include <gauge/core/app.hpp>
 
 #include <SDL3/SDL_vulkan.h>
 #include <print>
