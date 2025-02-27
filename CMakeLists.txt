@@ -34,6 +34,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(yaml-cpp)
 
 # --- Gauge ---
+add_compile_options("-g")
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
