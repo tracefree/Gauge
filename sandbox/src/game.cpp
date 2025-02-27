@@ -10,11 +10,12 @@ int Sandbox::Game::run() {
     window = Window(name);
     window.initialize();
 
-    std::string input;
+    // Main loop
     while (!quit_requested) {
         update();
     }
 
+    // Exit
     SDL_Quit();
     return 0;
 }

@@ -8,16 +8,19 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif()
 
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(BUILD_SHARED_LIBS True)
 
 # --- Dependencies ---
 # Gauge
 FetchContent_Declare(
     gauge
-    SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../"
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../"
 )
 FetchContent_MakeAvailable(gauge)
 
 # --- Project ---
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(sandbox
     src/main.cpp
