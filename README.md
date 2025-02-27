@@ -23,7 +23,7 @@ git clone https://github.com/tracefree/Gauge.git
 cd Gauge/sandbox
 cmake . -B build -G Ninja
 cmake --build build
-./build/sandbox
+./sandbox
 ```
 
 ## License
