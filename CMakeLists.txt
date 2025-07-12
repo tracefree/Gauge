@@ -11,27 +11,17 @@ endif()
 
 # --- Dependencies ---
 
+# VulkanBootstrap
+add_subdirectory(thirdparty/vk-bootstrap)
+
 # SDL3
 find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
 
 # Vulkan
 find_package(Vulkan REQUIRED)
+find_package(VulkanHeaders REQUIRED CONFIG)
 
-# VulkanBootstrap
-FetchContent_Declare(
-    fetch_vk_bootstrap
-    GIT_REPOSITORY https://github.com/charles-lunarg/vk-bootstrap
-    GIT_TAG        v1.4.307
-)
-FetchContent_MakeAvailable(fetch_vk_bootstrap)
 
-# yaml-cpp
-FetchContent_Declare(
-  yaml-cpp
-  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-  GIT_TAG 0.8.0
-)
-FetchContent_MakeAvailable(yaml-cpp)
 
 # --- Gauge ---
 add_compile_options("-g")
@@ -52,5 +42,4 @@ target_link_libraries(gauge PUBLIC
   SDL3::SDL3
   Vulkan::Vulkan
   vk-bootstrap::vk-bootstrap
-  yaml-cpp::yaml-cpp
 )

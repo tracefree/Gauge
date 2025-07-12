@@ -13,11 +13,7 @@ set(BUILD_SHARED_LIBS True)
 
 # --- Dependencies ---
 # Gauge
-FetchContent_Declare(
-    gauge
-    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../"
-)
-FetchContent_MakeAvailable(gauge)
+add_subdirectory(gauge)
 
 # --- Project ---
 add_compile_options("-g")
