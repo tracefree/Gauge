@@ -1,4 +1,3 @@
 build/
-sandbox/build/
 .vscode/
-sandbox
+.cache/

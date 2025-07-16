@@ -1,5 +1,9 @@
 #include "app.hpp"
 
+#include <SDL3/SDL_messagebox.h>
+#include <gauge/renderer/vulkan/renderer_vulkan.hpp>
+
+#include <memory>
 #include <print>
 #include <SDL3/SDL.h>
 #include <vulkan/vulkan.h>
@@ -17,7 +21,8 @@ void App::initialize() {
         std::println("SDL could not initialize! SDL error: %s\n", SDL_GetError());
     }
 
-    Renderer::initialize();
+    renderer = std::make_unique<RendererVulkan>();
+    renderer->set_frames_in_flight(3);
 }
 
 void App::quit() {

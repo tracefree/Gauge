@@ -1,14 +1,24 @@
 #pragma once
 
+#include "thirdparty/volk/volk.h"
 #include <VkBootstrap.h>
+#include <SDL3/SDL_video.h>
 
 namespace Gauge {
     struct Renderer {
-        static vkb::Instance instance;
-        static vkb::PhysicalDevice physical_device;
-        static vkb::Device device;
-        static VkQueue graphics_queue;
+    protected:
+        bool initialized = false;
+        uint max_frames_in_flight = 3;
+    
+    public:
+        virtual bool initialize(SDL_Window* p_sdl_window) { return false; };
+        virtual void draw() {};
+        virtual void create_surface(SDL_Window* window) {};
 
-        static bool initialize();
+        Renderer() {}
+        ~Renderer() {}
+
+        uint get_frames_in_flight() const;
+        void set_frames_in_flight(uint p_max_frames_in_flight);
     };
 }

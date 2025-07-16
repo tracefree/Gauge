@@ -2,27 +2,36 @@
 
 #include <SDL3/SDL.h>
 #include <string>
-#include <vulkan/vulkan.h>
 
 namespace Gauge {
     struct Window {
     public:
+        struct Resolution {
+            uint width;
+            uint height;
+        };
+
         std::string title {"New Window"};
-        uint width {1280};
-        uint height {720};
+        Resolution resolution;
+        bool fullscreen;
 
     private:
         SDL_Window* sdl_window {nullptr};
-        VkSurfaceKHR surface;
+        bool visible = true;
 
     public:
         void initialize(bool p_create_hidden = false);
         void show();
+        void hide();
+        SDL_Window* get_sdl_window() const;
 
-        Window(const std::string& p_title = "New Window", uint p_width = 1280, uint p_height = 720, bool p_create_hidden = false) {
+        Window(
+            const std::string& p_title = "New Window",
+            Resolution p_resolution = Resolution {.width = 1920, .height = 1080},
+            bool p_create_hidden = false
+        ) {
             title = p_title;
-            width = p_width;
-            height = p_height;
+            resolution = p_resolution;
         }
 
         ~Window() {
