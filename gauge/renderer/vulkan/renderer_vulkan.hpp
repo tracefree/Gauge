@@ -1,9 +1,11 @@
 #pragma once
 
-#include <gauge/renderer/renderer.hpp>
-#include "thirdparty/volk/volk.h"
-#include <VkBootstrap.h>
 #include <vector>
+
+#include <gauge/renderer/renderer.hpp>
+
+#include "thirdparty/volk/volk.h"
+#include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
 
 namespace Gauge {
@@ -46,3 +48,14 @@ namespace Gauge {
         FrameData get_current_frame() const;
     };
 }
+
+#define VK_CHECK(result, message)                   \
+    if(result != VK_SUCCESS) [[unlikely]] {         \
+        std::println("Gauge Error: {}", message);   \
+    }
+
+#define VK_CHECK_RET(result, message, return_value) \
+    if (result != VK_SUCCESS) [[unlikely]] {        \
+        std::println("Gauge Error: {}", message);   \
+        return return_value;                        \
+    }

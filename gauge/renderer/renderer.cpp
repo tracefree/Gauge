@@ -1,4 +1,5 @@
 #include "renderer.hpp"
+#include <cassert>
 
 using namespace Gauge;
 

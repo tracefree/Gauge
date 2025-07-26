@@ -1,8 +1,7 @@
 #pragma once
 
-#include "thirdparty/volk/volk.h"
-#include <VkBootstrap.h>
 #include <SDL3/SDL_video.h>
+
 
 namespace Gauge {
     struct Renderer {

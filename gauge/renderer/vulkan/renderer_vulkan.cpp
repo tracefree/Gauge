@@ -1,4 +1,5 @@
 #include "renderer_vulkan.hpp"
+#include "VkBootstrap.h"
 
 #include <gauge/core/app.hpp>
 
@@ -8,17 +9,38 @@
 #include <cstdint>
 #include <cassert>
 #include <print>
+#include <vulkan/vulkan_core.h>
+
+#define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
 
 using namespace Gauge;
 
 extern App* gApp;
 
+#ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
+VkBool32 validation_layer_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT p_message_severity,
+	VkDebugUtilsMessageTypeFlagsEXT p_message_type,
+	const VkDebugUtilsMessengerCallbackDataEXT* p_callback_data,
+	void *p_user_data
+) {
+    const char* severity = vkb::to_string_message_severity(p_message_severity);
+    const char* type = vkb::to_string_message_type(p_message_type);
+    std::println("[{}] {}: {}", type, severity, p_callback_data->pMessage);
+    return VK_FALSE;
+}
+#endif
+
 bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     // Instance
-    vkb::InstanceBuilder builder;
-    builder = builder
+    vkb::InstanceBuilder instance_builder;
+    instance_builder = instance_builder
         .request_validation_layers()
+#ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
+        .set_debug_callback(validation_layer_callback)
+#else
         .use_default_debug_messenger()
+#endif // CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
         .set_app_name(gApp->name.c_str())
         .set_app_version(0, 1, 0)
         .set_engine_name("Gauge")
@@ -28,9 +50,9 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     
     uint sdl_extension_count {0};
     char const * const * extensions = SDL_Vulkan_GetInstanceExtensions(&sdl_extension_count);
-    builder.enable_extensions(sdl_extension_count, extensions);
+    instance_builder.enable_extensions(sdl_extension_count, extensions);
 
-    auto instance_ret = builder.build();
+    auto instance_ret = instance_builder.build();
     if (!instance_ret) {
         return false;
     }
@@ -108,6 +130,7 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     auto swapchain_ret = swapchain_builder
         .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
         .set_desired_extent(1920, 1080)
+        .set_desired_min_image_count(3)
         .build();
     if (!swapchain_ret) {
         return false;
@@ -118,6 +141,7 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     swapchain_image_views = vkb_swapchain.get_image_views().value();
 
     initialized = true;
+    
     return true;
 }
 
@@ -128,7 +152,9 @@ VkCommandPool RendererVulkan::create_command_pool() const {
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
     };
     VkCommandPool cmd_pool;
-    VkResult result = vkCreateCommandPool(device, &cmd_pool_create_info, nullptr, &cmd_pool);
+    VK_CHECK(vkCreateCommandPool(device, &cmd_pool_create_info, nullptr, &cmd_pool),
+    "Could not create command pool");
+
     return cmd_pool;
 }
 
@@ -142,7 +168,9 @@ VkCommandBuffer RendererVulkan::create_command_buffer(VkCommandPool p_cmd_pool) 
     };
 
     VkCommandBuffer cmd;
-    VkResult result = vkAllocateCommandBuffers(device, &cmd_allocate_info, &cmd);
+    VK_CHECK(vkAllocateCommandBuffers(device, &cmd_allocate_info, &cmd),
+    "Could not allocate command buffer");
+
     return cmd;
 }
 
@@ -151,7 +179,8 @@ void RendererVulkan::draw() {
     vkAcquireNextImageKHR(device.device, swapchain, UINT64_MAX, VK_NULL_HANDLE, VK_NULL_HANDLE, &next_image_index);
 
     VkCommandBuffer cmd = get_current_frame().cmd;
-    vkResetCommandBuffer(cmd, 0);
+    VK_CHECK(vkResetCommandBuffer(cmd, 0),
+    "Could not reset command buffer: Out of device memory?");
 
     const VkCommandBufferBeginInfo cmd_begin_info {
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -159,7 +188,7 @@ void RendererVulkan::draw() {
         .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
         .pInheritanceInfo = nullptr,
     };
-    VkResult result = vkBeginCommandBuffer(cmd, &cmd_begin_info);
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info), "Could not begin command buffer");
     // -- Begin recording commands ---
 
     VkRenderingAttachmentInfo rendering_attachement_info {
@@ -173,7 +202,7 @@ void RendererVulkan::draw() {
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_NONE,
         .clearValue = {
-            .color = {1.0f, 0.0f, 0.0f, 1.0f},
+            .color = {1.0f, 0.5f, 0.0f, 1.0f},
         }
     };
 
@@ -224,7 +253,8 @@ void RendererVulkan::draw() {
         .signalSemaphoreInfoCount = 0,
         .pSignalSemaphoreInfos = nullptr,
     };
-    vkQueueSubmit2(graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+    VK_CHECK(vkQueueSubmit2(graphics_queue, 1, &submit_info, VK_NULL_HANDLE),
+    "Could not submit command buffer to graphics queue");
 
     VkPresentInfoKHR present_info {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -237,7 +267,10 @@ void RendererVulkan::draw() {
         .pResults = nullptr,
     };
 
-    vkQueuePresentKHR(graphics_queue, &present_info);
+    VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
+    if (present_result == VK_ERROR_OUT_OF_DATE_KHR) [[unlikely]] {
+        // recreate swapchain
+    }
 
     current_frame_index++;
 }
@@ -251,8 +284,8 @@ RendererVulkan::FrameData RendererVulkan::get_current_frame() const {
 }
 
 void RendererVulkan::create_surface(SDL_Window* p_window) {
-    bool success = SDL_Vulkan_CreateSurface(p_window, instance.instance, nullptr, &surface);
-    if (!success) {
+    if (!SDL_Vulkan_CreateSurface(p_window, instance.instance, nullptr, &surface)) [[unlikely]] {
         std::println("{}", SDL_GetError());
     }
 }
+
