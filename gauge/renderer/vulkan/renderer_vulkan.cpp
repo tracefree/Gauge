@@ -4,11 +4,14 @@
 
 #include <cassert>
 #include <cstdint>
+#include <expected>
 #include <print>
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_vulkan.h>
+#include <vulkan/vulkan_core.h>
 #include <gauge/core/app.hpp>
+#include <string>
 
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
 
@@ -116,12 +119,22 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     // Frames in flight
     frames_in_flight.reserve(max_frames_in_flight);
     for (uint i = 0; i < max_frames_in_flight; i++) {
-        VkCommandPool cmd_pool = create_command_pool();
-        VkCommandBuffer cmd = create_command_buffer(cmd_pool);
-        frames_in_flight.emplace_back(FrameData{
-            .cmd_pool = cmd_pool,
-            .cmd = cmd,
-        });
+        VkCommandPool cmd_pool;
+        create_command_pool()  // NOLINT
+            .and_then([this, &cmd_pool](VkCommandPool p_cmd_pool) {
+                cmd_pool = p_cmd_pool;
+                return create_command_buffer(cmd_pool);
+            })
+            .transform([this, &cmd_pool](VkCommandBuffer p_cmd) {
+                frames_in_flight.emplace_back(FrameData{
+                    .cmd_pool = cmd_pool,
+                    .cmd = p_cmd,
+                });
+            })
+            .transform_error([](const std::string& p_message) {
+                std::println("Error: {}", p_message);
+                return std::expected<void, std::string>{};
+            });
     }
 
     // Swapchain
@@ -144,21 +157,23 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     return true;
 }
 
-VkCommandPool RendererVulkan::create_command_pool() const {
+std::expected<VkCommandPool, std::string>
+RendererVulkan::create_command_pool() const {
     const VkCommandPoolCreateInfo cmd_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
         .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
     };
     VkCommandPool cmd_pool;
-    VK_CHECK(
+    VK_CHECK_RET(
         vkCreateCommandPool(device, &cmd_pool_create_info, nullptr, &cmd_pool),
         "Could not create command pool");
 
     return cmd_pool;
 }
 
-VkCommandBuffer RendererVulkan::create_command_buffer(
+std::expected<VkCommandBuffer, std::string>
+RendererVulkan::create_command_buffer(
     VkCommandPool p_cmd_pool) const {
     const VkCommandBufferAllocateInfo cmd_allocate_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -169,8 +184,8 @@ VkCommandBuffer RendererVulkan::create_command_buffer(
     };
 
     VkCommandBuffer cmd;
-    VK_CHECK(vkAllocateCommandBuffers(device, &cmd_allocate_info, &cmd),
-             "Could not allocate command buffer");
+    VK_CHECK_RET(vkAllocateCommandBuffers(device, &cmd_allocate_info, &cmd),
+                 "Could not allocate command buffer");
 
     return cmd;
 }
@@ -280,17 +295,21 @@ void RendererVulkan::draw() {
     current_frame_index++;
 }
 
-vkb::Instance const* RendererVulkan::get_instance() const {
+vkb::Instance const*
+RendererVulkan::get_instance() const {
     return &instance;
 }
 
-RendererVulkan::FrameData RendererVulkan::get_current_frame() const {
+RendererVulkan::FrameData
+RendererVulkan::get_current_frame() const {
     return frames_in_flight[current_frame_index % max_frames_in_flight];
 }
 
-void RendererVulkan::create_surface(SDL_Window* p_window) {
+std::expected<void, std::string>
+RendererVulkan::create_surface(SDL_Window* p_window) {
     if (!SDL_Vulkan_CreateSurface(p_window, instance.instance, nullptr,
                                   &surface)) [[unlikely]] {
-        std::println("{}", SDL_GetError());
+        return std::unexpected(SDL_GetError());
     }
+    return {};
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <vector>
 
 #include <gauge/renderer/renderer.hpp>
@@ -39,11 +40,11 @@ struct RendererVulkan : public Renderer {
 
     bool initialize(SDL_Window* p_sdl_window) override;
     void draw() override;
-    void create_surface(SDL_Window* window) override;
+    std::expected<void, std::string> create_surface(SDL_Window* window) override;
 
    private:
-    VkCommandPool create_command_pool() const;
-    VkCommandBuffer create_command_buffer(VkCommandPool p_cmd_pool) const;
+    std::expected<VkCommandPool, std::string> create_command_pool() const;
+    std::expected<VkCommandBuffer, std::string> create_command_buffer(VkCommandPool p_cmd_pool) const;
     FrameData get_current_frame() const;
 };
 }  // namespace Gauge
@@ -53,8 +54,7 @@ struct RendererVulkan : public Renderer {
         std::println("Gauge Error: {}", message); \
     }
 
-#define VK_CHECK_RET(result, message, return_value) \
-    if (result != VK_SUCCESS) [[unlikely]] {        \
-        std::println("Gauge Error: {}", message);   \
-        return return_value;                        \
+#define VK_CHECK_RET(result, return_value)    \
+    if (result != VK_SUCCESS) [[unlikely]] {  \
+        return std::unexpected(return_value); \
     }
