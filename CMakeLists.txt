@@ -6,8 +6,9 @@ find_program(CCACHE_FOUND ccache)
 include(FetchContent)
 
 if(CCACHE_FOUND)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --- Dependencies ---
 
@@ -38,9 +39,9 @@ add_library(gauge_renderer STATIC
 )
 
 add_library(gauge STATIC
-    gauge/core/app.cpp
-    gauge/core/config.cpp
-    gauge/ui/window.cpp
+  gauge/core/app.cpp
+  gauge/core/config.cpp
+  gauge/ui/window.cpp
 )
 
 set_source_files_properties(

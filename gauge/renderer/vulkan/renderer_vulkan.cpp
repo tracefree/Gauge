@@ -2,13 +2,13 @@
 
 #include "VkBootstrap.h"
 
-#include <SDL3/SDL_error.h>
-#include <SDL3/SDL_vulkan.h>
-#include <gauge/core/app.hpp>
-
 #include <cassert>
 #include <cstdint>
 #include <print>
+
+#include <SDL3/SDL_error.h>
+#include <SDL3/SDL_vulkan.h>
+#include <gauge/core/app.hpp>
 
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
 

@@ -3,10 +3,11 @@
 #include <SDL3/SDL_messagebox.h>
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 
-#include <SDL3/SDL.h>
-#include <vulkan/vulkan.h>
 #include <memory>
 #include <print>
+
+#include <SDL3/SDL.h>
+#include <vulkan/vulkan.h>
 
 using namespace Gauge;
 
