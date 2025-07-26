@@ -202,7 +202,7 @@ void RendererVulkan::draw() {
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_NONE,
         .clearValue = {
-            .color = {1.0f, 0.5f, 0.0f, 1.0f},
+            .color = {{1.0f, 0.5f, 0.0f, 1.0f}},
         }
     };
 

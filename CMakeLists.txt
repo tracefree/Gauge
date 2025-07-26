@@ -22,6 +22,8 @@ find_package(VulkanHeaders REQUIRED CONFIG)
 # Other
 add_subdirectory(thirdparty)
 
+add_compile_options(-Wall)
+
 # --- Gauge ---
 add_compile_options("-g")
 

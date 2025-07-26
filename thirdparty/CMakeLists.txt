@@ -1,3 +1,6 @@
+# Disable warnings originating from third party dependencies
+add_compile_options(-w)
+
 # VulkanBootstrap
 add_subdirectory(vk-bootstrap)
 

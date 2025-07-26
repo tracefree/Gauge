@@ -14,8 +14,8 @@ namespace Gauge {
         virtual void draw() {};
         virtual void create_surface(SDL_Window* window) {};
 
-        Renderer() {}
-        ~Renderer() {}
+        Renderer() = default;
+        virtual ~Renderer() = default;
 
         uint get_frames_in_flight() const;
         void set_frames_in_flight(uint p_max_frames_in_flight);
