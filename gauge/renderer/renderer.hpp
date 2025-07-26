@@ -10,7 +10,7 @@ struct Renderer {
     uint max_frames_in_flight = 3;
 
    public:
-    virtual bool initialize(SDL_Window* p_sdl_window) = 0;
+    virtual std::expected<void, std::string> initialize(SDL_Window* p_sdl_window) = 0;
     virtual void draw() = 0;
     virtual std::expected<void, std::string> create_surface(SDL_Window* window) = 0;
 

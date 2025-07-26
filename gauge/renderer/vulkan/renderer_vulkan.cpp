@@ -4,14 +4,15 @@
 
 #include <cassert>
 #include <cstdint>
-#include <expected>
+#include <iostream>
 #include <print>
+#include <string>
 
 #include <SDL3/SDL_error.h>
+#include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vulkan_core.h>
 #include <gauge/core/app.hpp>
-#include <string>
 
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
 
@@ -32,7 +33,8 @@ VkBool32 validation_layer_callback(
 }
 #endif
 
-bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
+std::expected<void, std::string>
+RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     // Instance
     vkb::InstanceBuilder instance_builder;
     instance_builder = instance_builder
@@ -56,10 +58,15 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
-        return false;
+        return std::unexpected("Could not create Vulkan instance.");
     }
     instance = instance_ret.value();
-    create_surface(p_sdl_window);
+
+    // Surface
+    auto surface_res = create_surface(p_sdl_window);
+    if (!surface_res) {
+        return surface_res;
+    }
 
     // Features
     VkPhysicalDeviceVulkan13Features device_features_13{
@@ -90,7 +97,7 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
             .add_required_extension("VK_EXT_shader_object")
             .select();
     if (!physical_device_ret) {
-        return false;
+        return std::unexpected("Could not create Vulkan physical device.");
     }
     physical_device = physical_device_ret.value();
 
@@ -98,12 +105,12 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     vkb::DeviceBuilder device_builder{physical_device};
     auto device_ret = device_builder.build();
     if (!device_ret) {
-        return false;
+        return std::unexpected("Could not create Vulkan logical device.");
     }
     device = device_ret.value();
 
     if (volkInitialize() != VK_SUCCESS) {
-        return false;
+        return std::unexpected("Could not initialize volk.");
     }
 
     volkLoadInstance(instance.instance);
@@ -112,49 +119,79 @@ bool RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     // Graphics Queue
     auto graphics_queue_ret = device.get_queue(vkb::QueueType::graphics);
     if (!graphics_queue_ret) {
-        return false;
+        return std::unexpected("Could not get graphics queue.");
     }
     graphics_queue = graphics_queue_ret.value();
 
     // Frames in flight
     frames_in_flight.reserve(max_frames_in_flight);
     for (uint i = 0; i < max_frames_in_flight; i++) {
-        VkCommandPool cmd_pool;
-        create_command_pool()  // NOLINT
-            .and_then([this, &cmd_pool](VkCommandPool p_cmd_pool) {
-                cmd_pool = p_cmd_pool;
-                return create_command_buffer(cmd_pool);
-            })
-            .transform([this, &cmd_pool](VkCommandBuffer p_cmd) {
-                frames_in_flight.emplace_back(FrameData{
-                    .cmd_pool = cmd_pool,
-                    .cmd = p_cmd,
-                });
-            })
-            .transform_error([](const std::string& p_message) {
-                std::println("Error: {}", p_message);
-                return std::expected<void, std::string>{};
-            });
+        FrameData frame{};
+        auto result = create_command_pool()
+                          .and_then([this, &frame](VkCommandPool p_cmd_pool) {
+                              frame.cmd_pool = p_cmd_pool;
+                              return create_command_buffer(frame.cmd_pool);
+                          })
+                          .transform([&frame](VkCommandBuffer p_cmd) {
+                              frame.cmd = p_cmd;
+                          });
+        if (!result) {
+            return result;
+        }
+
+        VkSemaphoreCreateInfo semaphore_info{
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+        };
+        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.present_complete_semaphore),
+                     "Could not create presentation complete semaphore.");
+        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.render_complete_semaphore),
+                     "Could not create render complete semaphore.");
+
+        VkFenceCreateInfo fence_info{
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .pNext = nullptr,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        };
+        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.draw_fence), "Could not create render fence.");
     }
 
     // Swapchain
+    auto swapchain_res = create_swapchain(p_sdl_window);
+    if (!swapchain_res) {
+        return swapchain_res;
+    }
+
+    initialized = true;
+    return {};
+}
+
+std::expected<void, std::string>
+RendererVulkan::create_swapchain(SDL_Window* p_sdl_window, VkSwapchainKHR old_swapchain) {
+    int window_width, window_height = 0;
+    SDL_GetWindowSize(p_sdl_window, &window_width, &window_height);
+
     vkb::SwapchainBuilder swapchain_builder{device};
+    if (old_swapchain != VK_NULL_HANDLE) {
+        swapchain_builder.set_old_swapchain(old_swapchain);
+    }
     auto swapchain_ret =
-        swapchain_builder.set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-            .set_desired_extent(1920, 1080)
+        swapchain_builder
+            .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+            .set_desired_extent(window_width, window_height)
             .set_desired_min_image_count(3)
             .build();
     if (!swapchain_ret) {
-        return false;
+        return std::unexpected("Could not create swapchain.");
     }
     vkb::Swapchain vkb_swapchain = swapchain_ret.value();
-    swapchain = vkb_swapchain.swapchain;
-    swapchain_images = vkb_swapchain.get_images().value();
-    swapchain_image_views = vkb_swapchain.get_image_views().value();
-
-    initialized = true;
-
-    return true;
+    swapchain_data.swapchain = vkb_swapchain.swapchain;
+    swapchain_data.images = vkb_swapchain.get_images().value();
+    swapchain_data.image_views = vkb_swapchain.get_image_views().value();
+    swapchain_data.extent = vkb_swapchain.extent;
+    swapchain_data.image_format = vkb_swapchain.image_format;
+    return {};
 }
 
 std::expected<VkCommandPool, std::string>
@@ -192,8 +229,8 @@ RendererVulkan::create_command_buffer(
 
 void RendererVulkan::draw() {
     uint next_image_index = 0;
-    vkAcquireNextImageKHR(device.device, swapchain, UINT64_MAX, VK_NULL_HANDLE,
-                          VK_NULL_HANDLE, &next_image_index);
+    VkResult acquisition_res = vkAcquireNextImageKHR(device.device, swapchain_data.swapchain, UINT64_MAX, VK_NULL_HANDLE,
+                                                     VK_NULL_HANDLE, &next_image_index);
 
     VkCommandBuffer cmd = get_current_frame().cmd;
     VK_CHECK(vkResetCommandBuffer(cmd, 0),
@@ -212,7 +249,7 @@ void RendererVulkan::draw() {
     VkRenderingAttachmentInfo rendering_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .pNext = nullptr,
-        .imageView = swapchain_image_views[0],
+        .imageView = swapchain_data.image_views[0],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .resolveMode = VK_RESOLVE_MODE_NONE,
         .resolveImageView = VK_NULL_HANDLE,
@@ -282,7 +319,7 @@ void RendererVulkan::draw() {
         .waitSemaphoreCount = 0,
         .pWaitSemaphores = nullptr,
         .swapchainCount = 1,
-        .pSwapchains = &swapchain,
+        .pSwapchains = &swapchain_data.swapchain,
         .pImageIndices = &next_image_index,
         .pResults = nullptr,
     };
@@ -292,7 +329,7 @@ void RendererVulkan::draw() {
         // recreate swapchain
     }
 
-    current_frame_index++;
+    current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
 }
 
 vkb::Instance const*

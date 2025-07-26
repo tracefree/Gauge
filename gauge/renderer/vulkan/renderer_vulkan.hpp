@@ -1,6 +1,8 @@
 #pragma once
 
+#include <SDL3/SDL_video.h>
 #include <expected>
+#include <string>
 #include <vector>
 
 #include <gauge/renderer/renderer.hpp>
@@ -15,7 +17,19 @@ struct RendererVulkan : public Renderer {
     struct FrameData {
         VkCommandPool cmd_pool;
         VkCommandBuffer cmd;
+
+        VkSemaphore present_complete_semaphore{VK_NULL_HANDLE};
+        VkSemaphore render_complete_semaphore{VK_NULL_HANDLE};
+        VkFence draw_fence{VK_NULL_HANDLE};
     };
+
+    struct SwapchainData {
+        VkSwapchainKHR swapchain;
+        VkFormat image_format;
+        std::vector<VkImage> images;
+        std::vector<VkImageView> image_views;
+        VkExtent2D extent;
+    } swapchain_data;
 
     vkb::Instance instance;
     vkb::PhysicalDevice physical_device;
@@ -28,23 +42,19 @@ struct RendererVulkan : public Renderer {
     vkb::InstanceDispatchTable instance_dispatch;
     vkb::DispatchTable dispatch;
 
-    VkSwapchainKHR swapchain;
-    VkFormat swapchain_image_format;
-    std::vector<VkImage> swapchain_images;
-    std::vector<VkImageView> swapchain_image_views;
-    VkExtent2D swapchain_extent;
     VkSurfaceKHR surface;
 
    public:
     vkb::Instance const* get_instance() const;
 
-    bool initialize(SDL_Window* p_sdl_window) override;
+    std::expected<void, std::string> initialize(SDL_Window* p_sdl_window) override;
     void draw() override;
     std::expected<void, std::string> create_surface(SDL_Window* window) override;
 
    private:
     std::expected<VkCommandPool, std::string> create_command_pool() const;
     std::expected<VkCommandBuffer, std::string> create_command_buffer(VkCommandPool p_cmd_pool) const;
+    std::expected<void, std::string> create_swapchain(SDL_Window* p_sdl_window, VkSwapchainKHR old_swapchain = VK_NULL_HANDLE);
     FrameData get_current_frame() const;
 };
 }  // namespace Gauge
