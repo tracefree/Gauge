@@ -7,19 +7,19 @@
 
 namespace Gauge {
 
-    struct App {
-    public:
-        std::string name {"Gauge App"};
-        std::unique_ptr<Renderer> renderer;
-        void initialize();
+struct App {
+   public:
+    std::string name{"Gauge App"};
+    std::unique_ptr<Renderer> renderer;
+    void initialize();
 
-    protected:
-        bool quit_requested {false};
-    
-    public:
-        void quit();
+   protected:
+    bool quit_requested{false};
 
-        virtual int run() = 0;
-        virtual void update() {}
-    };
-}
+   public:
+    void quit();
+
+    virtual int run() = 0;
+    virtual void update() {}
+};
+}  // namespace Gauge
