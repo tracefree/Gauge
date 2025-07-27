@@ -4,17 +4,19 @@
 
 #include <cassert>
 #include <cstdint>
-#include <iostream>
+#include <format>
 #include <print>
 #include <string>
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
+#include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 #include <gauge/core/app.hpp>
 
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
+#define USE_VULKAN_DEBUG 1
 
 using namespace Gauge;
 
@@ -28,22 +30,26 @@ VkBool32 validation_layer_callback(
     void* p_user_data) {
     const char* severity = vkb::to_string_message_severity(p_message_severity);
     const char* type = vkb::to_string_message_type(p_message_type);
-    std::println("[{}] {}: {}", type, severity, p_callback_data->pMessage);
+    std::println("[{}] {}: {}\n", type, severity, p_callback_data->pMessage);
     return VK_FALSE;
 }
 #endif
 
 std::expected<void, std::string>
 RendererVulkan::initialize(SDL_Window* p_sdl_window) {
+    window = p_sdl_window;
+
     // Instance
     vkb::InstanceBuilder instance_builder;
     instance_builder = instance_builder
+#ifdef USE_VULKAN_DEBUG
                            .request_validation_layers()
 #ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
                            .set_debug_callback(validation_layer_callback)
 #else
                            .use_default_debug_messenger()
 #endif  // CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
+#endif  // USE_VULKAN_DEBUG
                            .set_app_name(gApp->name.c_str())
                            .set_app_version(0, 1, 0)
                            .set_engine_name("Gauge")
@@ -58,19 +64,29 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
-        return std::unexpected("Could not create Vulkan instance.");
+        return std::unexpected(std::format("Could not create Vulkan instance. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                           instance_ret.full_error().type.value(),
+                                           instance_ret.full_error().type.message(),
+                                           string_VkResult(instance_ret.full_error().vk_result)));
     }
     instance = instance_ret.value();
 
     // Surface
-    auto surface_res = create_surface(p_sdl_window);
+    auto surface_res = create_surface(window);
     if (!surface_res) {
         return surface_res;
     }
 
     // Features
+    VkPhysicalDeviceVulkan12Features device_features_12{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .pNext = nullptr,
+        .timelineSemaphore = VK_TRUE,
+    };
+
     VkPhysicalDeviceVulkan13Features device_features_13{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+        .pNext = nullptr,
         .robustImageAccess = VK_FALSE,
         .inlineUniformBlock = VK_FALSE,
         .descriptorBindingInlineUniformBlockUpdateAfterBind = VK_FALSE,
@@ -93,11 +109,16 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     auto physical_device_ret =
         selector.set_surface(surface)
             .set_minimum_version(1, 3)
+            .set_required_features_12(device_features_12)
             .set_required_features_13(device_features_13)
             .add_required_extension("VK_EXT_shader_object")
             .select();
     if (!physical_device_ret) {
-        return std::unexpected("Could not create Vulkan physical device.");
+        ;
+        return std::unexpected(std::format("Could not create Vulkan physical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                           physical_device_ret.full_error().type.value(),
+                                           physical_device_ret.full_error().type.message(),
+                                           string_VkResult(physical_device_ret.full_error().vk_result)));
     }
     physical_device = physical_device_ret.value();
 
@@ -105,7 +126,10 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
     vkb::DeviceBuilder device_builder{physical_device};
     auto device_ret = device_builder.build();
     if (!device_ret) {
-        return std::unexpected("Could not create Vulkan logical device.");
+        return std::unexpected(std::format("Could not create Vulkan logical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                           device_ret.full_error().type.value(),
+                                           device_ret.full_error().type.message(),
+                                           string_VkResult(device_ret.full_error().vk_result)));
     }
     device = device_ret.value();
 
@@ -122,6 +146,9 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
         return std::unexpected("Could not get graphics queue.");
     }
     graphics_queue = graphics_queue_ret.value();
+#ifdef USE_VULKAN_DEBUG
+    set_debug_name((uint64_t)graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
+#endif
 
     // Frames in flight
     frames_in_flight.reserve(max_frames_in_flight);
@@ -139,26 +166,38 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
             return result;
         }
 
-        VkSemaphoreCreateInfo semaphore_info{
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            .pNext = nullptr,
-            .flags = 0,
-        };
-        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.present_complete_semaphore),
-                     "Could not create presentation complete semaphore.");
-        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.render_complete_semaphore),
-                     "Could not create render complete semaphore.");
-
         VkFenceCreateInfo fence_info{
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .pNext = nullptr,
-            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+            .flags = 0,
         };
-        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.draw_fence), "Could not create render fence.");
+        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.draw_fence),
+                     "Could not create render fence.");
+
+        frames_in_flight.emplace_back(frame);
+#ifdef USE_VULKAN_DEBUG
+        set_debug_name((uint64_t)frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, std::format("Command pool [{}]", i));
+        set_debug_name((uint64_t)frame.cmd, VK_OBJECT_TYPE_COMMAND_BUFFER, std::format("Command buffer [{}]", i));
+#endif
     }
 
+    // Timeline semaphore
+    VkSemaphoreTypeCreateInfo semaphore_type_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
+        .pNext = nullptr,
+        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
+        .initialValue = 0,
+    };
+    VkSemaphoreCreateInfo semaphore_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+        .pNext = &semaphore_type_info,
+        .flags = 0,
+    };
+    VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &graphics_semaphore),
+                 "Could not create graphics timeline semaphore.");
+
     // Swapchain
-    auto swapchain_res = create_swapchain(p_sdl_window);
+    auto swapchain_res = create_swapchain();
     if (!swapchain_res) {
         return swapchain_res;
     }
@@ -168,13 +207,14 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
 }
 
 std::expected<void, std::string>
-RendererVulkan::create_swapchain(SDL_Window* p_sdl_window, VkSwapchainKHR old_swapchain) {
+RendererVulkan::create_swapchain(bool recreate) {
     int window_width, window_height = 0;
-    SDL_GetWindowSize(p_sdl_window, &window_width, &window_height);
+    SDL_GetWindowSize(window, &window_width, &window_height);
 
     vkb::SwapchainBuilder swapchain_builder{device};
-    if (old_swapchain != VK_NULL_HANDLE) {
-        swapchain_builder.set_old_swapchain(old_swapchain);
+    if (recreate) {
+        swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
+        vkDeviceWaitIdle(device);
     }
     auto swapchain_ret =
         swapchain_builder
@@ -183,14 +223,29 @@ RendererVulkan::create_swapchain(SDL_Window* p_sdl_window, VkSwapchainKHR old_sw
             .set_desired_min_image_count(3)
             .build();
     if (!swapchain_ret) {
+        swapchain.handle = VK_NULL_HANDLE;
         return std::unexpected("Could not create swapchain.");
     }
-    vkb::Swapchain vkb_swapchain = swapchain_ret.value();
-    swapchain_data.swapchain = vkb_swapchain.swapchain;
-    swapchain_data.images = vkb_swapchain.get_images().value();
-    swapchain_data.image_views = vkb_swapchain.get_image_views().value();
-    swapchain_data.extent = vkb_swapchain.extent;
-    swapchain_data.image_format = vkb_swapchain.image_format;
+
+    if (recreate) {
+        vkb::destroy_swapchain(swapchain.vkb_swapchain);
+    }
+
+    swapchain.vkb_swapchain = swapchain_ret.value();
+    swapchain.handle = swapchain.vkb_swapchain.swapchain;
+    swapchain.images = swapchain.vkb_swapchain.get_images().value();
+    swapchain.image_views = swapchain.vkb_swapchain.get_image_views().value();
+    swapchain.extent = swapchain.vkb_swapchain.extent;
+    swapchain.image_format = swapchain.vkb_swapchain.image_format;
+
+#ifdef USE_VULKAN_DEBUG
+    set_debug_name((uint64_t)swapchain.handle, VK_OBJECT_TYPE_SWAPCHAIN_KHR, "Swapchain");
+    for (uint i = 0; i < swapchain.vkb_swapchain.image_count; ++i) {
+        set_debug_name((uint64_t)swapchain.images[i], VK_OBJECT_TYPE_IMAGE, std::format("Swapchain image [{}]", i));
+        set_debug_name((uint64_t)swapchain.image_views[i], VK_OBJECT_TYPE_IMAGE_VIEW, std::format("Swapchain image view [{}]", i));
+    }
+#endif  // USE_VULKAN_DEBUG
+
     return {};
 }
 
@@ -228,9 +283,25 @@ RendererVulkan::create_command_buffer(
 }
 
 void RendererVulkan::draw() {
+    const VkSemaphoreWaitInfo wait_acquire_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .semaphoreCount = 1,
+        .pSemaphores = &graphics_semaphore,
+        .pValues = &graphics_wait_value,
+    };
+
+    while (vkWaitSemaphores(device, &wait_acquire_info, UINT64_MAX) == VK_TIMEOUT)
+        ;
+
+    vkDeviceWaitIdle(device);
     uint next_image_index = 0;
-    VkResult acquisition_res = vkAcquireNextImageKHR(device.device, swapchain_data.swapchain, UINT64_MAX, VK_NULL_HANDLE,
-                                                     VK_NULL_HANDLE, &next_image_index);
+    vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, VK_NULL_HANDLE,
+                          get_current_frame().draw_fence, &next_image_index);
+
+    graphics_wait_value = timeline_value;
+    graphics_signal_value = ++timeline_value;
 
     VkCommandBuffer cmd = get_current_frame().cmd;
     VK_CHECK(vkResetCommandBuffer(cmd, 0),
@@ -239,27 +310,31 @@ void RendererVulkan::draw() {
     const VkCommandBufferBeginInfo cmd_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .pNext = nullptr,
-        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
         .pInheritanceInfo = nullptr,
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info),
-             "Could not begin command buffer");
+             "Could not begin command buffer.");
     // -- Begin recording commands ---
+
+    transition_image(cmd, swapchain.images[next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     VkRenderingAttachmentInfo rendering_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .pNext = nullptr,
-        .imageView = swapchain_data.image_views[0],
+        .imageView = swapchain.image_views[next_image_index],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .resolveMode = VK_RESOLVE_MODE_NONE,
         .resolveImageView = VK_NULL_HANDLE,
         .resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_NONE,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue = {
-            .color = {{1.0f, 0.5f, 0.0f, 1.0f}},
+            .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
         }};
 
+    int window_width, window_height = 0;
+    SDL_GetWindowSize(window, &window_width, &window_height);
     VkRenderingInfo rendering_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .pNext = nullptr,
@@ -273,8 +348,8 @@ void RendererVulkan::draw() {
                     },
                 .extent =
                     {
-                        .width = 1920,
-                        .height = 1080,
+                        .width = (uint)window_width,  // TODO
+                        .height = (uint)window_height,
                     },
             },
         .layerCount = 1,
@@ -289,47 +364,130 @@ void RendererVulkan::draw() {
 
     vkCmdEndRendering(cmd);
 
+    transition_image(cmd, swapchain.images[next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+
     // --- End recording commands ---
     vkEndCommandBuffer(cmd);
 
-    const VkCommandBufferSubmitInfo cmd_buffer_submit_info{
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+    const VkTimelineSemaphoreSubmitInfo timeline_info{
+        .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
         .pNext = nullptr,
-        .commandBuffer = cmd,
-        .deviceMask = 0,
+        .waitSemaphoreValueCount = 1,
+        .pWaitSemaphoreValues = &graphics_wait_value,
+        .signalSemaphoreValueCount = 1,
+        .pSignalSemaphoreValues = &graphics_signal_value,
     };
 
-    const VkSubmitInfo2 submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2,
-        .pNext = nullptr,
-        .flags = 0,
-        .waitSemaphoreInfoCount = 0,
-        .pWaitSemaphoreInfos = nullptr,
-        .commandBufferInfoCount = 1,
-        .pCommandBufferInfos = &cmd_buffer_submit_info,
-        .signalSemaphoreInfoCount = 0,
-        .pSignalSemaphoreInfos = nullptr,
+    const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = &timeline_info,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &graphics_semaphore,
+        .pWaitDstStageMask = &wait_dst_stage_mask,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &cmd,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &graphics_semaphore,
     };
-    VK_CHECK(vkQueueSubmit2(graphics_queue, 1, &submit_info, VK_NULL_HANDLE),
+    VK_CHECK(vkQueueSubmit(graphics_queue, 1, &submit_info, VK_NULL_HANDLE),
              "Could not submit command buffer to graphics queue");
 
-    VkPresentInfoKHR present_info{
+    const VkSemaphoreWaitInfo wait_info{
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
+        .pNext = nullptr,
+        .flags = 0,
+        .semaphoreCount = 1,
+        .pSemaphores = &graphics_semaphore,
+        .pValues = &graphics_signal_value,
+    };
+
+    const VkPresentInfoKHR present_info{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = nullptr,
         .waitSemaphoreCount = 0,
         .pWaitSemaphores = nullptr,
         .swapchainCount = 1,
-        .pSwapchains = &swapchain_data.swapchain,
+        .pSwapchains = &swapchain.handle,
         .pImageIndices = &next_image_index,
         .pResults = nullptr,
     };
 
-    VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
-    if (present_result == VK_ERROR_OUT_OF_DATE_KHR) [[unlikely]] {
-        // recreate swapchain
+    while (vkWaitSemaphores(device, &wait_info, UINT64_MAX) == VK_TIMEOUT)
+        ;
+
+    FrameData frame = get_current_frame();
+    vkWaitForFences(device, 1, &frame.draw_fence, VK_FALSE, UINT64_MAX);
+    vkResetFences(device, 1, &frame.draw_fence);
+    const VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
+    if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
+        create_swapchain(true);
     }
 
     current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
+}
+
+void RendererVulkan::transition_image(VkCommandBuffer p_cmd, VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags) const {
+    VkImageAspectFlags aspect_mask;
+    if (p_aspect_flags == VK_IMAGE_ASPECT_NONE) {
+        aspect_mask = (p_target_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL || p_current_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+                          ? VK_IMAGE_ASPECT_DEPTH_BIT
+                          : VK_IMAGE_ASPECT_COLOR_BIT;
+    } else {
+        aspect_mask = p_aspect_flags;
+    }
+
+    VkAccessFlagBits2 src_access_mask;
+    switch (p_current_layout) {
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            src_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT;
+            break;
+        default:
+            src_access_mask = VK_ACCESS_MEMORY_WRITE_BIT;  // TODO: ?
+    }
+
+    VkAccessFlagBits2 dst_access_mask;
+    switch (p_target_layout) {
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            dst_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT;
+            break;
+        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+            dst_access_mask = 0;
+            break;
+        default:
+            dst_access_mask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;  // TODO: ?
+    }
+
+    VkImageMemoryBarrier2 image_barrier{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+        .pNext = nullptr,
+        .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .srcAccessMask = src_access_mask,
+        .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .dstAccessMask = dst_access_mask,
+        .oldLayout = p_current_layout,
+        .newLayout = p_target_layout,
+        // srcQueueFamilyIndex
+        // dstQueueFamilyIndex
+        .image = p_image,
+        .subresourceRange = VkImageSubresourceRange{
+            .aspectMask = aspect_mask,
+            .baseMipLevel = 0,
+            .levelCount = VK_REMAINING_MIP_LEVELS,
+            .baseArrayLayer = 0,
+            .layerCount = VK_REMAINING_ARRAY_LAYERS,
+        },
+    };
+
+    VkDependencyInfo dependency_info{
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .pNext = nullptr,
+        .dependencyFlags = 0,  // ?
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &image_barrier,
+    };
+
+    vkCmdPipelineBarrier2(p_cmd, &dependency_info);
 }
 
 vkb::Instance const*
@@ -339,7 +497,7 @@ RendererVulkan::get_instance() const {
 
 RendererVulkan::FrameData
 RendererVulkan::get_current_frame() const {
-    return frames_in_flight[current_frame_index % max_frames_in_flight];
+    return frames_in_flight[current_frame_index];
 }
 
 std::expected<void, std::string>
@@ -349,4 +507,15 @@ RendererVulkan::create_surface(SDL_Window* p_window) {
         return std::unexpected(SDL_GetError());
     }
     return {};
+}
+
+void RendererVulkan::set_debug_name(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const {
+    VkDebugUtilsObjectNameInfoEXT name_info{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+        .pNext = nullptr,
+        .objectType = p_type,
+        .objectHandle = p_handle,
+        .pObjectName = p_name.c_str(),
+    };
+    vkSetDebugUtilsObjectNameEXT(device, &name_info);
 }
