@@ -16,15 +16,15 @@ Recommended:
 - Ninja
 - Ccache
 
-To build both the engine library and the example application using it, run:
+To build both the engine library run:
 
 ```
 git clone https://github.com/tracefree/Gauge.git
-cd Gauge/sandbox
+cd Gauge
 cmake . -B build -G Ninja
 cmake --build build
-./sandbox
 ```
+This builds a static library file, `libgauge.a`. An example application making use of the library is not currently included but will follow.
 
 ## License
 
