@@ -171,30 +171,27 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
             .pNext = nullptr,
             .flags = 0,
         };
-        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.draw_fence),
-                     "Could not create render fence.");
+        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.queue_submit_fence),
+                     "Could not create render fence");
+
+        VkSemaphoreCreateInfo semaphore_info{
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+            .pNext = nullptr,
+        };
+        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
+                     "Could not create acquire semaphore");
+        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.swapchain_release_semaphore),
+                     "Could not create acquire semaphore");
 
         frames_in_flight.emplace_back(frame);
 #ifdef USE_VULKAN_DEBUG
-        set_debug_name((uint64_t)frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, std::format("Command pool [{}]", i));
-        set_debug_name((uint64_t)frame.cmd, VK_OBJECT_TYPE_COMMAND_BUFFER, std::format("Command buffer [{}]", i));
+        set_debug_name((uint64_t)frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, std::format("Primary command pool [{}]", i));
+        set_debug_name((uint64_t)frame.cmd, VK_OBJECT_TYPE_COMMAND_BUFFER, std::format("Primary command buffer [{}]", i));
+        set_debug_name((uint64_t)frame.queue_submit_fence, VK_OBJECT_TYPE_FENCE, std::format("Queue submit fence [{}]", i));
+        set_debug_name((uint64_t)frame.swapchain_acquire_semaphore, VK_OBJECT_TYPE_SEMAPHORE, std::format("Swapchain acquire semaphore [{}]", i));
+        set_debug_name((uint64_t)frame.swapchain_release_semaphore, VK_OBJECT_TYPE_SEMAPHORE, std::format("Swapchain release semaphore [{}]", i));
 #endif
     }
-
-    // Timeline semaphore
-    VkSemaphoreTypeCreateInfo semaphore_type_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO,
-        .pNext = nullptr,
-        .semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE,
-        .initialValue = 0,
-    };
-    VkSemaphoreCreateInfo semaphore_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = &semaphore_type_info,
-        .flags = 0,
-    };
-    VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &graphics_semaphore),
-                 "Could not create graphics timeline semaphore.");
 
     // Swapchain
     auto swapchain_res = create_swapchain();
@@ -283,29 +280,19 @@ RendererVulkan::create_command_buffer(
 }
 
 void RendererVulkan::draw() {
-    const VkSemaphoreWaitInfo wait_acquire_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .semaphoreCount = 1,
-        .pSemaphores = &graphics_semaphore,
-        .pValues = &graphics_wait_value,
-    };
-
-    while (vkWaitSemaphores(device, &wait_acquire_info, UINT64_MAX) == VK_TIMEOUT)
-        ;
-
-    vkDeviceWaitIdle(device);
+    FrameData current_frame = get_current_frame();
     uint next_image_index = 0;
-    vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, VK_NULL_HANDLE,
-                          get_current_frame().draw_fence, &next_image_index);
+    vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
+                          VK_NULL_HANDLE, &next_image_index);
 
-    graphics_wait_value = timeline_value;
-    graphics_signal_value = ++timeline_value;
+    vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_FALSE, UINT64_MAX);
+    vkResetFences(device, 1, &current_frame.queue_submit_fence);
 
-    VkCommandBuffer cmd = get_current_frame().cmd;
+    VkCommandBuffer cmd = current_frame.cmd;
     VK_CHECK(vkResetCommandBuffer(cmd, 0),
              "Could not reset command buffer: Out of device memory?");
+
+    // vkResetCommandPool ?
 
     const VkCommandBufferBeginInfo cmd_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -369,56 +356,34 @@ void RendererVulkan::draw() {
     // --- End recording commands ---
     vkEndCommandBuffer(cmd);
 
-    const VkTimelineSemaphoreSubmitInfo timeline_info{
-        .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
-        .pNext = nullptr,
-        .waitSemaphoreValueCount = 1,
-        .pWaitSemaphoreValues = &graphics_wait_value,
-        .signalSemaphoreValueCount = 1,
-        .pSignalSemaphoreValues = &graphics_signal_value,
-    };
-
-    const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+    // Submit to graphics queue
+    const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
     const VkSubmitInfo submit_info{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = &timeline_info,
+        .pNext = nullptr,
         .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &graphics_semaphore,
+        .pWaitSemaphores = &current_frame.swapchain_acquire_semaphore,
         .pWaitDstStageMask = &wait_dst_stage_mask,
         .commandBufferCount = 1,
         .pCommandBuffers = &cmd,
         .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &graphics_semaphore,
+        .pSignalSemaphores = &current_frame.swapchain_release_semaphore,
     };
-    VK_CHECK(vkQueueSubmit(graphics_queue, 1, &submit_info, VK_NULL_HANDLE),
+    VK_CHECK(vkQueueSubmit(graphics_queue, 1, &submit_info, current_frame.queue_submit_fence),
              "Could not submit command buffer to graphics queue");
 
-    const VkSemaphoreWaitInfo wait_info{
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .semaphoreCount = 1,
-        .pSemaphores = &graphics_semaphore,
-        .pValues = &graphics_signal_value,
-    };
-
+    // Present
     const VkPresentInfoKHR present_info{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
         .pNext = nullptr,
-        .waitSemaphoreCount = 0,
-        .pWaitSemaphores = nullptr,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &current_frame.swapchain_release_semaphore,
         .swapchainCount = 1,
         .pSwapchains = &swapchain.handle,
         .pImageIndices = &next_image_index,
         .pResults = nullptr,
     };
 
-    while (vkWaitSemaphores(device, &wait_info, UINT64_MAX) == VK_TIMEOUT)
-        ;
-
-    FrameData frame = get_current_frame();
-    vkWaitForFences(device, 1, &frame.draw_fence, VK_FALSE, UINT64_MAX);
-    vkResetFences(device, 1, &frame.draw_fence);
     const VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
         create_swapchain(true);
@@ -437,33 +402,38 @@ void RendererVulkan::transition_image(VkCommandBuffer p_cmd, VkImage p_image, Vk
         aspect_mask = p_aspect_flags;
     }
 
-    VkAccessFlagBits2 src_access_mask;
+    VkAccessFlagBits2 src_access_mask{};
+    VkPipelineStageFlags2 src_stage_mask{};
     switch (p_current_layout) {
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
             src_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT;
+            src_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
             break;
-        default:
-            src_access_mask = VK_ACCESS_MEMORY_WRITE_BIT;  // TODO: ?
+        case VK_IMAGE_LAYOUT_UNDEFINED:
+            src_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+            break;
+        default:;
     }
 
-    VkAccessFlagBits2 dst_access_mask;
+    VkAccessFlagBits2 dst_access_mask{};
+    VkPipelineStageFlags2 dst_stage_mask{};
     switch (p_target_layout) {
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
             dst_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT;
+            dst_stage_mask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
             break;
         case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-            dst_access_mask = 0;
+            dst_stage_mask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
             break;
-        default:
-            dst_access_mask = VK_ACCESS_MEMORY_WRITE_BIT | VK_ACCESS_MEMORY_READ_BIT;  // TODO: ?
+        default:;
     }
 
     VkImageMemoryBarrier2 image_barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
         .pNext = nullptr,
-        .srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .srcStageMask = src_stage_mask,
         .srcAccessMask = src_access_mask,
-        .dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+        .dstStageMask = dst_stage_mask,
         .dstAccessMask = dst_access_mask,
         .oldLayout = p_current_layout,
         .newLayout = p_target_layout,

@@ -16,12 +16,11 @@ namespace Gauge {
 struct RendererVulkan : public Renderer {
    private:
     struct FrameData {
-        VkCommandPool cmd_pool;
-        VkCommandBuffer cmd;
-
-        VkSemaphore present_complete_semaphore{VK_NULL_HANDLE};
-        VkSemaphore render_complete_semaphore{VK_NULL_HANDLE};
-        VkFence draw_fence{VK_NULL_HANDLE};
+        VkCommandPool cmd_pool{};
+        VkCommandBuffer cmd{};
+        VkSemaphore swapchain_acquire_semaphore{};
+        VkSemaphore swapchain_release_semaphore{};
+        VkFence queue_submit_fence{};
     };
 
     struct SwapchainData {
@@ -40,10 +39,10 @@ struct RendererVulkan : public Renderer {
 
     std::vector<FrameData> frames_in_flight;
     unsigned long int current_frame_index;
-    VkSemaphore graphics_semaphore;
-    uint64_t timeline_value = 0;
-    uint64_t graphics_wait_value = 0;
-    uint64_t graphics_signal_value = 0;
+    // VkSemaphore graphics_semaphore;
+    // uint64_t timeline_value = 0;
+    // uint64_t graphics_wait_value = 0;
+    // uint64_t graphics_signal_value = 0;
 
     vkb::InstanceDispatchTable instance_dispatch;
     vkb::DispatchTable dispatch;
