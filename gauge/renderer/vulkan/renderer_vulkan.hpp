@@ -19,7 +19,6 @@ struct RendererVulkan : public Renderer {
         VkCommandPool cmd_pool{};
         VkCommandBuffer cmd{};
         VkSemaphore swapchain_acquire_semaphore{};
-        VkSemaphore swapchain_release_semaphore{};
         VkFence queue_submit_fence{};
     };
 
@@ -31,6 +30,8 @@ struct RendererVulkan : public Renderer {
         std::vector<VkImageView> image_views;
         VkExtent2D extent;
     } swapchain;
+
+    std::vector<VkSemaphore> swapchain_release_semaphores;
 
     vkb::Instance instance;
     vkb::PhysicalDevice physical_device;
