@@ -57,6 +57,8 @@ struct RendererVulkan : public Renderer {
     std::expected<void, std::string> initialize(SDL_Window* p_sdl_window) override;
     void draw() override;
     std::expected<void, std::string> create_surface(SDL_Window* window) override;
+    void on_window_resized() override;
+
     std::expected<VkCommandPool, std::string> create_command_pool() const;
     std::expected<VkCommandBuffer, std::string> create_command_buffer(VkCommandPool p_cmd_pool) const;
     std::expected<void, std::string> create_swapchain(bool recreate = false);

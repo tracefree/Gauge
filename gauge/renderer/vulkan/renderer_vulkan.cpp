@@ -2,6 +2,8 @@
 
 #include "VkBootstrap.h"
 
+#include <gauge/core/app.hpp>
+
 #include <cassert>
 #include <cstdint>
 #include <format>
@@ -14,8 +16,10 @@
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
-#include <gauge/core/app.hpp>
+#include <Tracy/tracy/Tracy.hpp>
+#include <Tracy/tracy/TracyVulkan.hpp>
 
+#define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
 #define USE_VULKAN_DEBUG 1
 
@@ -140,6 +144,13 @@ RendererVulkan::initialize(SDL_Window* p_sdl_window) {
 
     volkLoadInstance(instance.instance);
     volkLoadDevice(device.device);
+
+#ifdef USE_VULKAN_DEBUG
+    set_debug_name((uint64_t)instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
+    set_debug_name((uint64_t)physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
+    set_debug_name((uint64_t)device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
+    set_debug_name((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
+#endif  // USE_VULKAN_DEBUG
 
     // Graphics Queue
     auto graphics_queue_ret = device.get_queue(vkb::QueueType::graphics);
@@ -295,6 +306,8 @@ RendererVulkan::create_command_buffer(
 }
 
 void RendererVulkan::draw() {
+    ZoneScoped;
+
     FrameData current_frame = get_current_frame();
     uint next_image_index = 0;
 
@@ -306,11 +319,11 @@ void RendererVulkan::draw() {
 
     vkResetFences(device, 1, &current_frame.queue_submit_fence);
 
+    VK_CHECK(vkResetCommandPool(device, current_frame.cmd_pool, 0),
+             "Could not reset command pool");
     VkCommandBuffer cmd = current_frame.cmd;
-    VK_CHECK(vkResetCommandBuffer(cmd, 0),
-             "Could not reset command buffer: Out of device memory?");
 
-    // vkResetCommandPool ?
+    // tracy::VkCtx* tracy_context = TracyVkContext(physical_device, device, graphics_queue, cmd);
 
     const VkCommandBufferBeginInfo cmd_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -319,57 +332,59 @@ void RendererVulkan::draw() {
         .pInheritanceInfo = nullptr,
     };
     VK_CHECK(vkBeginCommandBuffer(cmd, &cmd_begin_info),
-             "Could not begin command buffer.");
+             "Could not begin command buffer");
     // -- Begin recording commands ---
+    {
+        // TracyVkZone(tracy_context, cmd, "Clear window");
+        transition_image(cmd, swapchain.images[next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    transition_image(cmd, swapchain.images[next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        VkRenderingAttachmentInfo rendering_attachement_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .pNext = nullptr,
+            .imageView = swapchain.image_views[next_image_index],
+            .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .resolveMode = VK_RESOLVE_MODE_NONE,
+            .resolveImageView = VK_NULL_HANDLE,
+            .resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = {
+                .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
+            }};
 
-    VkRenderingAttachmentInfo rendering_attachement_info{
-        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .pNext = nullptr,
-        .imageView = swapchain.image_views[next_image_index],
-        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .resolveMode = VK_RESOLVE_MODE_NONE,
-        .resolveImageView = VK_NULL_HANDLE,
-        .resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-        .clearValue = {
-            .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
-        }};
+        int window_width, window_height = 0;
+        SDL_GetWindowSize(window, &window_width, &window_height);
+        VkRenderingInfo rendering_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+            .pNext = nullptr,
+            .flags = 0,
+            .renderArea =
+                {
+                    .offset =
+                        {
+                            .x = 0,
+                            .y = 0,
+                        },
+                    .extent =
+                        {
+                            .width = (uint)window_width,  // TODO
+                            .height = (uint)window_height,
+                        },
+                },
+            .layerCount = 1,
+            .viewMask = 0,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &rendering_attachement_info,
+            .pDepthAttachment = nullptr,
+            .pStencilAttachment = nullptr,
+        };
 
-    int window_width, window_height = 0;
-    SDL_GetWindowSize(window, &window_width, &window_height);
-    VkRenderingInfo rendering_info{
-        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .pNext = nullptr,
-        .flags = 0,
-        .renderArea =
-            {
-                .offset =
-                    {
-                        .x = 0,
-                        .y = 0,
-                    },
-                .extent =
-                    {
-                        .width = (uint)window_width,  // TODO
-                        .height = (uint)window_height,
-                    },
-            },
-        .layerCount = 1,
-        .viewMask = 0,
-        .colorAttachmentCount = 1,
-        .pColorAttachments = &rendering_attachement_info,
-        .pDepthAttachment = nullptr,
-        .pStencilAttachment = nullptr,
-    };
+        vkCmdBeginRendering(cmd, &rendering_info);
 
-    vkCmdBeginRendering(cmd, &rendering_info);
-
-    vkCmdEndRendering(cmd);
-
-    transition_image(cmd, swapchain.images[next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        vkCmdEndRendering(cmd);
+        transition_image(cmd, swapchain.images[next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
+    // TracyVkCollect(tracy_context, cmd);
 
     // --- End recording commands ---
     vkEndCommandBuffer(cmd);
@@ -403,6 +418,7 @@ void RendererVulkan::draw() {
     };
 
     const VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
+    FrameMark;
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
         auto swapchain_result = create_swapchain(true);
         if (!swapchain_result) {
@@ -509,4 +525,11 @@ void RendererVulkan::set_debug_name(uint64_t p_handle, VkObjectType p_type, cons
         .pObjectName = p_name.c_str(),
     };
     vkSetDebugUtilsObjectNameEXT(device, &name_info);
+}
+
+void RendererVulkan::on_window_resized() {
+    auto swapchain_result = create_swapchain(true);
+    if (!swapchain_result) {
+        std::println(std::cerr, "Error: {}", swapchain_result.error());
+    }
 }

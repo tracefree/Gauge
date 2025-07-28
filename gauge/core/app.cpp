@@ -8,6 +8,7 @@
 
 #include <SDL3/SDL.h>
 #include <vulkan/vulkan.h>
+#include "thirdparty/tracy/public/common/TracySystem.hpp"
 
 using namespace Gauge;
 
@@ -15,6 +16,10 @@ App* gApp{nullptr};
 
 void App::initialize() {
     gApp = this;
+
+    putenv((char*)"SDL_VIDEODRIVER=wayland");
+
+    tracy::SetThreadName("main");
 
     const char* c_name = name.c_str();
     SDL_SetAppMetadata(c_name, "0.1", c_name);

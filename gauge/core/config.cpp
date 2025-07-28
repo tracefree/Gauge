@@ -1,15 +1,17 @@
 #include "config.hpp"
 
-#include <expected>
 #include <gauge/ui/window.hpp>
-#include "yaml-cpp/exceptions.h"
+
+#include <expected>
 
 #include <yaml-cpp/yaml.h>
+#include <Tracy/tracy/Tracy.hpp>
 
 using namespace Gauge;
 
 std::expected<ProjectSettings, std::string>
 Gauge::load_project_settings(const std::string p_path) {
+    ZoneScoped;
     YAML::Node config = YAML::LoadFile(p_path);
     try {
         return ProjectSettings{

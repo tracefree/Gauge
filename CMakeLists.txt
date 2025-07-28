@@ -59,10 +59,12 @@ target_link_libraries(gauge_renderer PUBLIC
   Vulkan::Vulkan
   vk-bootstrap::vk-bootstrap
   volk::volk
+  Tracy::TracyClient
 )
 
 target_link_libraries(gauge PUBLIC
   gauge_renderer
   SDL3::SDL3
   yaml-cpp::yaml-cpp
+  Tracy::TracyClient
 )

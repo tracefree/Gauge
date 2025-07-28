@@ -12,3 +12,9 @@ add_subdirectory(volk)
 set(YAML_BUILD_TOOLS OFF CACHE INTERNAL "" FORCE)
 set(YAML_CPP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(yaml-cpp)
+
+#tracy
+set(TRACY_LTO ON)
+option(TRACY_ENABLE "" ON)
+option(TRACY_ON_DEMAND "" ON)
+add_subdirectory(tracy)
