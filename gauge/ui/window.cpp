@@ -12,7 +12,7 @@ using namespace Gauge;
 
 extern App* gApp;
 
-void Window::initialize(bool p_create_hidden) {
+void Window::Initialize(bool p_create_hidden) {
     SDL_PropertiesID window_props{SDL_CreateProperties()};
     SDL_SetNumberProperty(window_props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER,
                           resolution.width);
@@ -37,16 +37,16 @@ void Window::initialize(bool p_create_hidden) {
     }
 }
 
-void Window::show() {
+void Window::Show() {
     visible = true;
     SDL_ShowWindow(sdl_window);
 }
 
-void Window::hide() {
+void Window::Hide() {
     visible = false;
     SDL_HideWindow(sdl_window);
 }
 
-SDL_Window* Window::get_sdl_window() const {
+SDL_Window* Window::GetSDLHandle() const {
     return sdl_window;
 }

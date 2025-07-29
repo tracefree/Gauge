@@ -20,10 +20,10 @@ struct Window {
     bool visible = true;
 
    public:
-    void initialize(bool p_create_hidden = false);
-    void show();
-    void hide();
-    SDL_Window* get_sdl_window() const;
+    void Initialize(bool p_create_hidden = false);
+    void Show();
+    void Hide();
+    SDL_Window* GetSDLHandle() const;
 
     Window(
         const std::string& p_title = "New Window",

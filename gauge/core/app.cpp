@@ -14,7 +14,7 @@ using namespace Gauge;
 
 App* gApp{nullptr};
 
-void App::initialize() {
+void App::Initialize() {
     gApp = this;
 
     putenv((char*)"SDL_VIDEODRIVER=wayland");
@@ -29,9 +29,9 @@ void App::initialize() {
     }
 
     renderer = std::make_unique<RendererVulkan>();
-    renderer->set_frames_in_flight(3);
+    renderer->SetFramesInFlight(3);
 }
 
-void App::quit() {
+void App::Quit() {
     quit_requested = true;
 }

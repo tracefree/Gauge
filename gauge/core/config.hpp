@@ -24,5 +24,5 @@ struct ProjectSettings {
 };
 
 std::expected<ProjectSettings, std::string>
-load_project_settings(const std::string p_path);
+LoadProjectSettings(const std::string p_path);
 }  // namespace Gauge

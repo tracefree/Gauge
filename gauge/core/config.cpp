@@ -10,7 +10,7 @@
 using namespace Gauge;
 
 std::expected<ProjectSettings, std::string>
-Gauge::load_project_settings(const std::string p_path) {
+Gauge::LoadProjectSettings(const std::string p_path) {
     ZoneScoped;
     YAML::Node config = YAML::LoadFile(p_path);
     try {

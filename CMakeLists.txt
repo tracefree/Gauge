@@ -34,6 +34,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 add_library(gauge_renderer STATIC
   gauge/renderer/renderer.cpp
   gauge/renderer/vulkan/renderer_vulkan.cpp
+  gauge/renderer/vulkan/command_buffer.cpp
 
   thirdparty/volk/volk.c
 )

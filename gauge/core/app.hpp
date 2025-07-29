@@ -11,15 +11,15 @@ struct App {
    public:
     std::string name{"Gauge App"};
     std::unique_ptr<Renderer> renderer;
-    void initialize();
+    void Initialize();
 
    protected:
     bool quit_requested{false};
 
    public:
-    void quit();
+    void Quit();
 
-    virtual int run() = 0;
-    virtual void update() {}
+    virtual int Run() = 0;
+    virtual void Update() {}
 };
 }  // namespace Gauge
