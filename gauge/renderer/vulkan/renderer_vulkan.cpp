@@ -11,7 +11,6 @@
 #include <cassert>
 #include <cstdint>
 #include <format>
-#include <iostream>
 #include <print>
 #include <string>
 
@@ -138,11 +137,7 @@ CreateDevice(vkb::PhysicalDevice p_physical_device) {
 
 static std::expected<void, std::string>
 InitializeVolk(vkb::Instance p_instance, vkb::Device p_device) {
-    VkResult result = volkInitialize();
-    if (result != VK_SUCCESS) {
-        return std::unexpected(std::format("Could not initialize volk. Vulkan result: {}", string_VkResult(result)));
-    }
-
+    VK_CHECK_RET(volkInitialize(), "Could not initialize volk");
     volkLoadInstance(p_instance.instance);
     volkLoadDevice(p_device.device);
     return {};
@@ -250,7 +245,7 @@ RendererVulkan::CreateSwapchain(bool recreate) {
             .build();
     if (!swapchain_ret) {
         swapchain.handle = VK_NULL_HANDLE;
-        return std::unexpected(std::format("Could not create swapchain. vk-bootstrap error: [{}] {}. Vulkan result: {}",
+        return std::unexpected(std::format("Could not create swapchain. vk-bootstrap error code: [{}] {}. Vulkan result: {}",
                                            swapchain_ret.full_error().type.value(),
                                            swapchain_ret.full_error().type.message(),
                                            string_VkResult(swapchain_ret.full_error().vk_result)));
@@ -298,40 +293,40 @@ std::expected<void, std::string>
 RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     window = p_sdl_window;
 
-    // Instance
-    CHECK_RET(CreateInstance()
-                  .and_then([this, p_sdl_window](vkb::Instance p_instance) {
-                      instance = p_instance;
-                      return CreateSurface(p_instance, p_sdl_window);
-                  })
-                  .and_then([this](VkSurfaceKHR p_surface) {
-                      surface = p_surface;
-                      return CreatePhysicalDevice(instance, surface);
-                  })
-                  .and_then([this](vkb::PhysicalDevice p_physical_device) {
-                      physical_device = p_physical_device;
-                      return CreateDevice(p_physical_device);
-                  })
-                  .and_then([this](vkb::Device p_device) {
-                      device = p_device;
-                      return InitializeVolk(instance, device);
-                  })
-                  .and_then([this]() {
-                      SetDebugName((uint64_t)instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
-                      SetDebugName((uint64_t)physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
-                      SetDebugName((uint64_t)device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
-                      SetDebugName((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
+    CHECK_RET(
+        CreateInstance()
+            .and_then([this, p_sdl_window](vkb::Instance p_instance) {
+                instance = p_instance;
+                return CreateSurface(p_instance, p_sdl_window);
+            })
+            .and_then([this](VkSurfaceKHR p_surface) {
+                surface = p_surface;
+                return CreatePhysicalDevice(instance, surface);
+            })
+            .and_then([this](vkb::PhysicalDevice p_physical_device) {
+                physical_device = p_physical_device;
+                return CreateDevice(p_physical_device);
+            })
+            .and_then([this](vkb::Device p_device) {
+                device = p_device;
+                return InitializeVolk(instance, device);
+            })
+            .and_then([this]() {
+                SetDebugName((uint64_t)instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
+                SetDebugName((uint64_t)physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
+                SetDebugName((uint64_t)device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
+                SetDebugName((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
 
-                      return GetQueue(device);
-                  })
-                  .and_then([this](VkQueue p_queue) {
-                      graphics_queue = p_queue;
-                      SetDebugName((uint64_t)graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
-                      return CreateFrameData();
-                  })
-                  .and_then([this]() {
-                      return CreateSwapchain();
-                  }));
+                return GetQueue(device);
+            })
+            .and_then([this](VkQueue p_queue) {
+                graphics_queue = p_queue;
+                SetDebugName((uint64_t)graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
+                return CreateFrameData();
+            })
+            .and_then([this]() {
+                return CreateSwapchain();
+            }));
 
     initialized = true;
     return {};
@@ -346,13 +341,15 @@ void RendererVulkan::Draw() {
     while (vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
         ;
 
+    // TODO: Check result value and recreate swapchain if necessary
     vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
                           VK_NULL_HANDLE, &next_image_index);
 
-    vkResetFences(device, 1, &current_frame.queue_submit_fence);
-
+    VK_CHECK(vkResetFences(device, 1, &current_frame.queue_submit_fence),
+             "Could not reset queue submit fence");
     VK_CHECK(vkResetCommandPool(device, current_frame.cmd_pool, 0),
              "Could not reset command pool");
+
     VkCommandBuffer current_command_buffer = current_frame.cmd;
     CommandBufferVulkan cmd{current_command_buffer};
 
@@ -447,10 +444,7 @@ void RendererVulkan::Draw() {
     const VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
     FrameMark;
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
-        auto swapchain_result = CreateSwapchain(true);
-        if (!swapchain_result) {
-            std::println(std::cerr, "Error: {}", swapchain_result.error());
-        }
+        CHECK(CreateSwapchain(true));
     }
 
     current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
@@ -480,8 +474,5 @@ void RendererVulkan::SetDebugName(uint64_t p_handle, VkObjectType p_type, const 
 }
 
 void RendererVulkan::OnWindowResized() {
-    auto swapchain_result = CreateSwapchain(true);
-    if (!swapchain_result) {
-        std::println(std::cerr, "Error: {}", swapchain_result.error());
-    }
+    CHECK(CreateSwapchain(true));
 }

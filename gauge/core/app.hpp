@@ -20,6 +20,7 @@ struct App {
     void Quit();
 
     virtual int Run() = 0;
-    virtual void Update() {}
+    virtual void Update() = 0;
 };
+
 }  // namespace Gauge
