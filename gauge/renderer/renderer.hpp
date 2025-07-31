@@ -5,6 +5,7 @@
 #include <SDL3/SDL_video.h>
 
 namespace Gauge {
+
 struct Renderer {
    protected:
     bool initialized = false;

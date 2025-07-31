@@ -5,7 +5,7 @@
 #include <expected>
 
 #include <yaml-cpp/yaml.h>
-#include <Tracy/tracy/Tracy.hpp>
+#include "thirdparty/tracy/public/tracy/Tracy.hpp"
 
 using namespace Gauge;
 

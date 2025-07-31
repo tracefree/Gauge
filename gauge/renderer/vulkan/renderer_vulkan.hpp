@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/renderer/renderer.hpp>
+#include <gauge/renderer/vulkan/command_buffer.hpp>
 
 #include <SDL3/SDL_video.h>
 #include <cstdint>
@@ -47,6 +48,7 @@ struct RendererVulkan : public Renderer {
     std::expected<void, std::string> Initialize(SDL_Window* p_sdl_window) final override;
     void OnWindowResized() final override;
     void Draw() final override;
+    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index);
 
     vkb::Instance const* GetInstance() const;
     std::expected<VkCommandPool, std::string> CreateCommandPool() const;

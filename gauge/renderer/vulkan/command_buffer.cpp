@@ -99,3 +99,7 @@ void CommandBufferVulkan::transition_image(VkImage p_image, VkImageLayout p_curr
 
     vkCmdPipelineBarrier2(cmd, &dependency_info);
 }
+
+VkCommandBuffer CommandBufferVulkan::GetHandle() {
+    return cmd;
+}
