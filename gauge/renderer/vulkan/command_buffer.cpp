@@ -103,3 +103,7 @@ void CommandBufferVulkan::transition_image(VkImage p_image, VkImageLayout p_curr
 VkCommandBuffer CommandBufferVulkan::GetHandle() {
     return cmd;
 }
+
+void CommandBufferVulkan::BindPipeline(const Pipeline& p_pipeline) {
+    vkCmdBindPipeline(cmd, p_pipeline.bind_point, p_pipeline.handle);
+}

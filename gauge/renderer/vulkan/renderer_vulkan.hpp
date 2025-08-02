@@ -1,18 +1,25 @@
 #pragma once
 
+#include <gauge/core/math.hpp>
 #include <gauge/renderer/renderer.hpp>
 #include <gauge/renderer/vulkan/command_buffer.hpp>
+#include <gauge/renderer/vulkan/pipeline.hpp>
 
 #include <SDL3/SDL_video.h>
 #include <cstdint>
 #include <expected>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/ext/vector_float4.hpp>
 #include <string>
 #include <vector>
 
 #include <volk.h>
+#include <vulkan/vulkan_core.h>
+#include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 #include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
 namespace Gauge {
+
 struct RendererVulkan : public Renderer {
    private:
     struct FrameData {
@@ -20,6 +27,10 @@ struct RendererVulkan : public Renderer {
         VkCommandBuffer cmd{};
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
+
+#ifdef TRACY_ENABLE
+        tracy::VkCtx* tracy_context;
+#endif
     };
 
     struct SwapchainData {
@@ -31,7 +42,15 @@ struct RendererVulkan : public Renderer {
         VkExtent2D extent;
     } swapchain;
 
-    std::vector<VkSemaphore> swapchain_release_semaphores;
+    struct PushConstants {
+        glm::vec4 color;
+        //    glm::mat4 model_matrix;
+        //    glm::mat4 view_projection;
+        //    VkDeviceAddress vertex_buffer_address;
+    };
+
+    std::vector<VkSemaphore>
+        swapchain_release_semaphores;
 
     vkb::Instance instance;
     vkb::PhysicalDevice physical_device;
@@ -40,6 +59,8 @@ struct RendererVulkan : public Renderer {
 
     std::vector<FrameData> frames_in_flight;
     uint64_t current_frame_index;
+
+    Pipeline graphics_pipeline;
 
     VkSurfaceKHR surface;
     SDL_Window* window = nullptr;
@@ -56,6 +77,8 @@ struct RendererVulkan : public Renderer {
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 
    private:
+    std::expected<VkShaderModule, std::string> CreateShaderModule(const std::vector<char>& p_code) const;
+    std::expected<Pipeline, std::string> CreateGraphicsPipeline(std::string p_name);
     std::expected<void, std::string> CreateSwapchain(bool recreate = false);
     std::expected<void, std::string> CreateFrameData();
     FrameData GetCurrentFrame() const;

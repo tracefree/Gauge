@@ -9,12 +9,18 @@ set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WAYLAND_KHR)
 add_subdirectory(volk)
 
 # yaml-cpp
-set(YAML_BUILD_TOOLS OFF CACHE INTERNAL "" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE INTERNAL "" FORCE)
 set(YAML_CPP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(yaml-cpp)
 
-#tracy
+# Tracy
 set(TRACY_LTO ON)
 option(TRACY_ENABLE "" ON)
 option(TRACY_ON_DEMAND "" ON)
 add_subdirectory(tracy)
+
+# glm
+add_compile_definitions(GLM_FORCE_DEPTH_ZERO_TO_ONE)
+add_subdirectory(glm)
+
+# ImGUI

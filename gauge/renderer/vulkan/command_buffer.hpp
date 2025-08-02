@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/renderer/command_buffer.hpp>
+#include <gauge/renderer/vulkan/pipeline.hpp>
 
 #include <expected>
 #include <string>
@@ -18,7 +19,8 @@ struct CommandBufferVulkan final : public CommandBuffer {
 
     void transition_image(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags = VK_IMAGE_ASPECT_NONE) const;
     VkCommandBuffer GetHandle();
-    
+    void BindPipeline(const Pipeline& p_pipeline);
+
     CommandBufferVulkan(VkCommandBuffer cmd);
 };
 }  // namespace Gauge

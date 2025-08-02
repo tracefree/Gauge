@@ -2,14 +2,19 @@
 
 #include "VkBootstrap.h"
 
-#include <expected>
 #include <gauge/common.hpp>
 #include <gauge/core/app.hpp>
+#include <gauge/core/filesystem.hpp>
+#include <gauge/core/math.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 
 #include <cassert>
 #include <cstdint>
+#include <expected>
 #include <format>
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_float4x4.hpp>
+#include <glm/trigonometric.hpp>
 #include <print>
 #include <string>
 
@@ -18,8 +23,7 @@
 #include <SDL3/SDL_vulkan.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
-#include "thirdparty/tracy/public/tracy/Tracy.hpp"
-#include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
+#include "gauge/renderer/vulkan/pipeline.hpp"
 
 #define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
@@ -88,29 +92,23 @@ CreateInstance() {
 
 static std::expected<vkb::PhysicalDevice, std::string>
 CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
-    // Features
     VkPhysicalDeviceVulkan12Features device_features_12{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-        .pNext = nullptr,
         .timelineSemaphore = VK_TRUE,
     };
-
     VkPhysicalDeviceVulkan13Features device_features_13{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-        .pNext = nullptr,
         .synchronization2 = VK_TRUE,
         .dynamicRendering = VK_TRUE,
         .maintenance4 = VK_TRUE,
     };
 
-    // Physical device
     vkb::PhysicalDeviceSelector selector{p_instance};
     auto physical_device_ret =
         selector.set_surface(p_surface)
             .set_minimum_version(1, 3)
             .set_required_features_12(device_features_12)
             .set_required_features_13(device_features_13)
-            .add_required_extension("VK_EXT_shader_object")
             .select();
     if (!physical_device_ret) {
         return std::unexpected(std::format("Could not create Vulkan physical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
@@ -158,7 +156,6 @@ std::expected<VkCommandPool, std::string>
 RendererVulkan::CreateCommandPool() const {
     const VkCommandPoolCreateInfo cmd_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-        .pNext = nullptr,
         .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
     };
     VkCommandPool cmd_pool;
@@ -174,7 +171,6 @@ RendererVulkan::CreateCommandBuffer(
     VkCommandPool p_cmd_pool) const {
     const VkCommandBufferAllocateInfo cmd_allocate_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .pNext = nullptr,
         .commandPool = p_cmd_pool,
         .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
         .commandBufferCount = 1,
@@ -203,7 +199,6 @@ RendererVulkan::CreateFrameData() {
 
         VkFenceCreateInfo fence_info{
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-            .pNext = nullptr,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT,
         };
         VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.queue_submit_fence),
@@ -211,12 +206,16 @@ RendererVulkan::CreateFrameData() {
 
         VkSemaphoreCreateInfo semaphore_info{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-            .pNext = nullptr,
         };
         VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
                      "Could not create acquire semaphore");
 
+#ifdef TRACY_ENABLE
+        frame.tracy_context = TracyVkContext(physical_device, device, graphics_queue, frame.cmd);
+        std::string tacy_context_name = std::format("Frame In-Flight Index {}", i);
+        TracyVkContextName(frame.tracy_context, tacy_context_name.c_str(), tacy_context_name.size());
         frames_in_flight.emplace_back(frame);
+#endif
 
         SetDebugName((uint64_t)frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, std::format("Primary command pool [{}]", i));
         SetDebugName((uint64_t)frame.cmd, VK_OBJECT_TYPE_COMMAND_BUFFER, std::format("Primary command buffer [{}]", i));
@@ -268,7 +267,6 @@ RendererVulkan::CreateSwapchain(bool recreate) {
 
     VkSemaphoreCreateInfo semaphore_info{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        .pNext = nullptr,
     };
     for (uint i = 0; i < swapchain.vkb_swapchain.image_count; ++i) {
         VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &swapchain_release_semaphores[i]),
@@ -286,6 +284,120 @@ RendererVulkan::CreateSwapchain(bool recreate) {
 #endif  // USE_VULKAN_DEBUG
 
     return {};
+}
+
+std::expected<Pipeline, std::string>
+RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
+    Pipeline pipeline{};
+
+    VkShaderModule shader_module{};
+    {
+        auto shader_code_result = FileSystem::ReadFile("triangle.spv");
+        CHECK_RET(shader_code_result);
+        auto shader_module_result = CreateShaderModule(shader_code_result.value());
+        CHECK_RET(shader_module_result);
+        shader_module = shader_module_result.value();
+    }
+
+    VkPipelineShaderStageCreateInfo vertex_shader_stage_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_VERTEX_BIT,
+        .module = shader_module,
+        .pName = "VertexMain",
+    };
+    VkPipelineShaderStageCreateInfo fragment_shader_stage_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .module = shader_module,
+        .pName = "FragmentMain",
+    };
+    VkPipelineShaderStageCreateInfo shader_stage_infos[] = {vertex_shader_stage_info, fragment_shader_stage_info};
+    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamic_state_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = 2,
+        .pDynamicStates = dynamic_states,
+    };
+
+    VkPipelineVertexInputStateCreateInfo vertex_input_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+    };
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+    };
+
+    VkPipelineViewportStateCreateInfo viewport_state_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+    };
+
+    VkPipelineRasterizationStateCreateInfo rasterization_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .lineWidth = 1.0f,
+    };
+
+    VkPipelineMultisampleStateCreateInfo msaa_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+    };
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment_state{
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
+    };
+
+    VkPipelineColorBlendStateCreateInfo color_blend_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .attachmentCount = 1,
+        .pAttachments = &color_blend_attachment_state,
+    };
+
+    VkPushConstantRange push_constant_range{
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        .offset = 0,
+        .size = sizeof(PushConstants),
+    };
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &push_constant_range,
+    };
+
+    VK_CHECK_RET(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline.layout),
+                 "Could not create pipeline layout");
+    SetDebugName((uint64_t)pipeline.layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, std::format("{} layout", p_name));
+
+    VkPipelineRenderingCreateInfo pipeline_rendering_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &swapchain.image_format,
+    };
+
+    VkGraphicsPipelineCreateInfo pipeline_info{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = &pipeline_rendering_info,
+        .stageCount = 2,
+        .pStages = shader_stage_infos,
+        .pVertexInputState = &vertex_input_info,
+        .pInputAssemblyState = &input_assembly_info,
+        .pViewportState = &viewport_state_info,
+        .pRasterizationState = &rasterization_info,
+        .pMultisampleState = &msaa_info,
+        .pColorBlendState = &color_blend_info,
+        .pDynamicState = &dynamic_state_info,
+        .layout = pipeline.layout,
+    };
+
+    VK_CHECK_RET(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
+                 "Could not create graphics pipeline");
+    SetDebugName((uint64_t)pipeline.handle, VK_OBJECT_TYPE_PIPELINE, p_name);
+
+    return pipeline;
 }
 
 std::expected<void, std::string>
@@ -326,17 +438,31 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
                 return CreateSwapchain();
             }));
 
+    auto graphics_pipeline_result = CreateGraphicsPipeline("Primary graphics pipeline");
+    CHECK_RET(graphics_pipeline_result);
+    graphics_pipeline = graphics_pipeline_result.value();
+
     initialized = true;
     return {};
 }
 
+std::expected<VkShaderModule, std::string>
+RendererVulkan::CreateShaderModule(const std::vector<char>& p_code) const {
+    VkShaderModuleCreateInfo shader_module_info{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = p_code.size(),
+        .pCode = reinterpret_cast<const uint32_t*>(p_code.data()),
+    };
+    VkShaderModule shader_module{};
+    VK_CHECK_RET(vkCreateShaderModule(device, &shader_module_info, nullptr, &shader_module), "Could not create shader module");
+    return shader_module;
+}
+
 void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) {
-    // TracyVkZone(tracy_context, cmd, "Clear window");
     cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     VkRenderingAttachmentInfo rendering_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .pNext = nullptr,
         .imageView = swapchain.image_views[p_next_image_index],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .resolveMode = VK_RESOLVE_MODE_NONE,
@@ -352,15 +478,10 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     SDL_GetWindowSize(window, &window_width, &window_height);
     VkRenderingInfo rendering_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-        .pNext = nullptr,
         .flags = 0,
         .renderArea =
             {
-                .offset =
-                    {
-                        .x = 0,
-                        .y = 0,
-                    },
+                .offset = {.x = 0, .y = 0},
                 .extent =
                     {
                         .width = (uint)window_width,  // TODO
@@ -376,6 +497,27 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     };
 
     vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
+
+    cmd->BindPipeline(graphics_pipeline);
+    VkViewport viewport{
+        0.0f, 0.0f,
+        static_cast<float>(swapchain.extent.width), static_cast<float>(swapchain.extent.height),
+        0.0f, 1.0f};
+    VkRect2D scissor{VkOffset2D{}, swapchain.extent};
+    vkCmdSetViewport(cmd->GetHandle(), 0, 1, &viewport);
+    vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
+    vkCmdDraw(cmd->GetHandle(), 3, 1, 0, 0);
+
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
+    projection[1][1] *= -1.0f;
+
+    PushConstants push_constants{
+        .color = {0.0f, 1.0f, 0.0f, 1.0f}
+        //    .model_matrix = glm::mat4(1.0f),
+        //    .view_projection = projection,
+        //    .vertex_buffer_address = 0,
+    };
+    vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push_constants);
 
     vkCmdEndRendering(cmd->GetHandle());
     cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
@@ -402,18 +544,19 @@ void RendererVulkan::Draw() {
     VkCommandBuffer current_command_buffer = current_frame.cmd;
     CommandBufferVulkan cmd{current_command_buffer};
 
-    // tracy::VkCtx* tracy_context = TracyVkContext(physical_device, device, graphics_queue, cmd);
-
     CHECK(cmd.Begin());
-    RecordCommands(&cmd, next_image_index);
-    // TracyVkCollect(tracy_context, cmd);
+    {
+        TracyVkZone(current_frame.tracy_context, cmd.GetHandle(), "Triangle");
+        RecordCommands(&cmd, next_image_index);
+    }
+
+    TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
 
     // Submit to graphics queue
     const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
     const VkSubmitInfo submit_info{
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pNext = nullptr,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &current_frame.swapchain_acquire_semaphore,
         .pWaitDstStageMask = &wait_dst_stage_mask,
@@ -428,7 +571,6 @@ void RendererVulkan::Draw() {
     // Present
     const VkPresentInfoKHR present_info{
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .pNext = nullptr,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &swapchain_release_semaphores[next_image_index],
         .swapchainCount = 1,
@@ -460,7 +602,6 @@ void RendererVulkan::SetDebugName(uint64_t p_handle, VkObjectType p_type, const 
 #ifdef USE_VULKAN_DEBUG
     VkDebugUtilsObjectNameInfoEXT name_info{
         .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
-        .pNext = nullptr,
         .objectType = p_type,
         .objectHandle = p_handle,
         .pObjectName = p_name.c_str(),

@@ -42,6 +42,7 @@ add_library(gauge_renderer STATIC
 add_library(gauge STATIC
   gauge/core/app.cpp
   gauge/core/config.cpp
+  gauge/core/filesystem.cpp
   gauge/ui/window.cpp
 )
 
@@ -61,6 +62,7 @@ target_link_libraries(gauge_renderer PUBLIC
   vk-bootstrap::vk-bootstrap
   volk::volk
   Tracy::TracyClient
+  glm
 )
 
 target_link_libraries(gauge PUBLIC
@@ -68,4 +70,5 @@ target_link_libraries(gauge PUBLIC
   SDL3::SDL3
   yaml-cpp::yaml-cpp
   Tracy::TracyClient
+  glm
 )
