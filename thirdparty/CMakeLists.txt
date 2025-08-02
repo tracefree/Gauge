@@ -24,3 +24,16 @@ add_compile_definitions(GLM_FORCE_DEPTH_ZERO_TO_ONE)
 add_subdirectory(glm)
 
 # ImGUI
+add_compile_definitions(IMGUI_IMPL_VULKAN_USE_VOLK)
+add_library(imgui STATIC
+    imgui/imgui.cpp
+    imgui/imgui_draw.cpp
+    imgui/imgui_tables.cpp
+    imgui/imgui_widgets.cpp
+    imgui/backends/imgui_impl_sdl3.cpp
+    imgui/backends/imgui_impl_vulkan.cpp
+)
+target_include_directories(imgui PUBLIC
+    imgui/
+    imgui/backends/
+)
