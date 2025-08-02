@@ -17,7 +17,7 @@ App* gApp{nullptr};
 void App::Initialize() {
     gApp = this;
 
-    putenv((char*)"SDL_VIDEODRIVER=wayland");
+    // putenv((char*)"SDL_VIDEODRIVER=wayland");
 
     tracy::SetThreadName("main");
 

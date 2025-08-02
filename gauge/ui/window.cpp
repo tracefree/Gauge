@@ -32,8 +32,8 @@ void Window::Initialize(bool p_create_hidden) {
                           title.c_str());
     sdl_window = SDL_CreateWindowWithProperties(window_props);
     if (!sdl_window) {
-        std::print("Window could not be created! SDL error: %s\n",
-                   SDL_GetError());
+        std::println("Window could not be created! SDL error: {}\n",
+                     SDL_GetError());
     }
 }
 

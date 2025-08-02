@@ -6,6 +6,15 @@
 
 namespace Gauge {
 
+struct Viewport {
+    struct Position {
+        float x{};
+        float y{};
+    } position;
+    float width{};
+    float height{};
+};
+
 struct Renderer {
    protected:
     bool initialized = false;
@@ -17,7 +26,7 @@ struct Renderer {
 
     virtual std::expected<void, std::string> Initialize(SDL_Window* p_sdl_window) = 0;
     virtual void Draw() = 0;
-    virtual void OnWindowResized() {};
+    virtual void OnWindowResized(uint p_width, uint p_height) {};
 
     Renderer() = default;
     virtual ~Renderer() = default;

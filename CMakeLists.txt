@@ -12,6 +12,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --- Dependencies ---
 
+include_directories(
+  thirdparty/imgui/
+  thirdparty/imgui/backends/
+)
+
+include_directories(SYSTEM thirdparty/volk)
+
 # SDL3
 find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
 
@@ -63,6 +70,7 @@ target_link_libraries(gauge_renderer PUBLIC
   volk::volk
   Tracy::TracyClient
   glm
+  imgui
 )
 
 target_link_libraries(gauge PUBLIC
@@ -71,4 +79,5 @@ target_link_libraries(gauge PUBLIC
   yaml-cpp::yaml-cpp
   Tracy::TracyClient
   glm
+  imgui
 )

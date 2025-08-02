@@ -7,6 +7,7 @@
 #include <gauge/core/filesystem.hpp>
 #include <gauge/core/math.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
+#include <gauge/renderer/vulkan/pipeline.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -17,13 +18,20 @@
 #include <glm/trigonometric.hpp>
 #include <print>
 #include <string>
+#include <tracy/Tracy.hpp>
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
+#include <sys/types.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
-#include "gauge/renderer/vulkan/pipeline.hpp"
+
+#include "thirdparty/imgui/imgui.h"
+
+#include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
+#include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
+#include "thirdparty/imgui/imgui_internal.h"
 
 #define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
@@ -32,6 +40,8 @@
 using namespace Gauge;
 
 extern App* gApp;
+
+glm::vec4 col{0.0f, 1.0f, 0.0f, 1.0f};
 
 #ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
 VkBool32 validation_layer_callback(
@@ -225,20 +235,54 @@ RendererVulkan::CreateFrameData() {
     return {};
 }
 
+void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+    ZoneScoped;
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "ImGui");
+
+    VkRenderingAttachmentInfo color_attachment{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
+        .imageView = swapchain.image_views[p_next_image_index],
+        .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+        .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+    };
+    VkRenderingInfo rendering_info{
+        .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+        .flags = 0,
+        .renderArea =
+            {
+                .offset = {.x = 0, .y = 0},
+                .extent =
+                    {
+                        .width = window_size.width,  // TODO
+                        .height = window_size.height,
+                    },
+            },
+        .layerCount = 1,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &color_attachment,
+    };
+    vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd->GetHandle());
+    vkCmdEndRendering(cmd->GetHandle());
+}
+
 std::expected<void, std::string>
 RendererVulkan::CreateSwapchain(bool recreate) {
-    int window_width, window_height = 0;
-    SDL_GetWindowSize(window, &window_width, &window_height);
-
     vkb::SwapchainBuilder swapchain_builder{device};
     if (recreate) {
         swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
         vkDeviceWaitIdle(device);
     }
+    VkSurfaceFormatKHR swapchain_format{
+        .format = VK_FORMAT_R8G8B8A8_SRGB,
+        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+    };
     auto swapchain_ret =
         swapchain_builder
+            //    .set_desired_format(swapchain_format)
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-            .set_desired_extent(window_width, window_height)
+            .set_desired_extent(window_size.width, window_size.height)
             .set_desired_min_image_count(3)
             .build();
     if (!swapchain_ret) {
@@ -347,11 +391,14 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     };
 
     VkPipelineColorBlendAttachmentState color_blend_attachment_state{
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT,
+        .blendEnable = VK_FALSE,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
 
     VkPipelineColorBlendStateCreateInfo color_blend_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_COPY,
         .attachmentCount = 1,
         .pAttachments = &color_blend_attachment_state,
     };
@@ -401,6 +448,56 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
 }
 
 std::expected<void, std::string>
+RendererVulkan::InitializeImGui() const {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    if (!ImGui_ImplSDL3_InitForVulkan(window)) {
+        return std::unexpected("Could not initialize ImGui SDL3 for Vulkan");
+    }
+    ImGui::StyleColorsDark();
+    VkDescriptorPoolSize pool_sizes[] = {
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+    };
+    VkDescriptorPoolCreateInfo pool_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 1000,
+        .poolSizeCount = (uint32_t)std::size(pool_sizes),
+        .pPoolSizes = pool_sizes,
+    };
+    VkDescriptorPool imgui_pool{};
+    VK_CHECK_RET(vkCreateDescriptorPool(device, &pool_info, nullptr, &imgui_pool),
+                 "Could not create ImGui descriptor pool");
+
+    ImGui_ImplVulkan_InitInfo imgui_info{
+        .Instance = instance.instance,
+        .PhysicalDevice = physical_device.physical_device,
+        .Device = device.device,
+        .Queue = graphics_queue,
+        .DescriptorPool = imgui_pool,
+        .MinImageCount = 2,
+        .ImageCount = 2,
+        .MSAASamples = VK_SAMPLE_COUNT_1_BIT,
+        .UseDynamicRendering = true,
+        .PipelineRenderingCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
+            .colorAttachmentCount = 1,
+            .pColorAttachmentFormats = &swapchain.image_format,
+        },
+    };
+    if (!ImGui_ImplVulkan_Init(&imgui_info)) {
+        return std::unexpected("Could not initialize ImGui for Vulkan");
+    };
+
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, 255);
+    // style.Colors[ImGuiCol_] = ImVec4(0.1f, 0.1f, 0.1f, 255);
+
+    return {};
+}
+
+std::expected<void, std::string>
 RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     window = p_sdl_window;
 
@@ -412,6 +509,9 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             })
             .and_then([this](VkSurfaceKHR p_surface) {
                 surface = p_surface;
+                int w, h{};
+                SDL_GetWindowSize(window, &w, &h);
+                window_size = {.width = (uint)w, .height = (uint)h};
                 return CreatePhysicalDevice(instance, surface);
             })
             .and_then([this](vkb::PhysicalDevice p_physical_device) {
@@ -436,6 +536,9 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             })
             .and_then([this]() {
                 return CreateSwapchain();
+            })
+            .and_then([this]() {
+                return InitializeImGui();
             }));
 
     auto graphics_pipeline_result = CreateGraphicsPipeline("Primary graphics pipeline");
@@ -458,24 +561,25 @@ RendererVulkan::CreateShaderModule(const std::vector<char>& p_code) const {
     return shader_module;
 }
 
-void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) {
+void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+    ZoneScoped;
+
+    for (auto& viewport : viewports) {
+    };
+
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Triangle");
+
     cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     VkRenderingAttachmentInfo rendering_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView = swapchain.image_views[p_next_image_index],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .resolveMode = VK_RESOLVE_MODE_NONE,
-        .resolveImageView = VK_NULL_HANDLE,
-        .resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue = {
             .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
         }};
-
-    int window_width, window_height = 0;
-    SDL_GetWindowSize(window, &window_width, &window_height);
     VkRenderingInfo rendering_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .flags = 0,
@@ -484,53 +588,103 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
                 .offset = {.x = 0, .y = 0},
                 .extent =
                     {
-                        .width = (uint)window_width,  // TODO
-                        .height = (uint)window_height,
+                        .width = window_size.width,  // TODO
+                        .height = window_size.height,
                     },
             },
         .layerCount = 1,
-        .viewMask = 0,
         .colorAttachmentCount = 1,
         .pColorAttachments = &rendering_attachement_info,
-        .pDepthAttachment = nullptr,
-        .pStencilAttachment = nullptr,
     };
 
     vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
 
     cmd->BindPipeline(graphics_pipeline);
-    VkViewport viewport{
-        0.0f, 0.0f,
-        static_cast<float>(swapchain.extent.width), static_cast<float>(swapchain.extent.height),
-        0.0f, 1.0f};
-    VkRect2D scissor{VkOffset2D{}, swapchain.extent};
-    vkCmdSetViewport(cmd->GetHandle(), 0, 1, &viewport);
-    vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
-    vkCmdDraw(cmd->GetHandle(), 3, 1, 0, 0);
-
-    glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
-    projection[1][1] *= -1.0f;
-
     PushConstants push_constants{
-        .color = {0.0f, 1.0f, 0.0f, 1.0f}
+        .color = col,
         //    .model_matrix = glm::mat4(1.0f),
         //    .view_projection = projection,
         //    .vertex_buffer_address = 0,
     };
     vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push_constants);
 
+    VkViewport vk_viewport{
+        viewport.position.x, viewport.position.y,
+        viewport.width, viewport.height,
+        0.0f, 1.0f};
+    VkRect2D scissor{VkOffset2D{}, swapchain.extent};
+    vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
+    vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
+    vkCmdDraw(cmd->GetHandle(), 3, 1, 0, 0);
+
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
+    projection[1][1] *= -1.0f;
+
     vkCmdEndRendering(cmd->GetHandle());
-    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
-void RendererVulkan::Draw() {
-    ZoneScoped;
+bool gna = false;
 
+void RendererVulkan::Draw() {
+    {
+        ImGui_ImplVulkan_NewFrame();
+        ImGui_ImplSDL3_NewFrame();
+        ImGui::NewFrame();
+
+        if (ImGui::BeginMainMenuBar()) {
+            if (ImGui::BeginMenu("Project")) {
+                if (ImGui::MenuItem("New projext...")) {
+                }
+                if (ImGui::MenuItem("Quit", "CTRL+Q")) {
+                    gApp->Quit();
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+
+        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+
+        ImGuiWindowClass window_class;
+        window_class.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoWindowMenuButton;
+        ImGui::SetNextWindowClass(&window_class);
+        if (ImGui::Begin("Filesystem", nullptr, ImGuiWindowFlags_NoCollapse)) {
+            float golor[] = {col.r, col.g, col.b};
+            ImGui::ColorPicker3("Triangle color", golor);
+            col.r = golor[0], col.g = golor[1], col.b = golor[2];
+        }
+        ImGui::End();
+
+        ImGui::SetNextWindowClass(&window_class);
+        if (!ImGui::Begin("Console")) {
+        }
+        ImGui::End();
+
+        ImGui::SetNextWindowClass(&window_class);
+        if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_MenuBar)) {
+            if (ImGui::BeginMenuBar()) {
+                if (ImGui::BeginMenu("Viewport")) {
+                    bool wireframe = false;  // TODO
+                    ImGui::Checkbox("Wireframe", &wireframe);
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenuBar();
+            }
+        }
+        auto position = ImGui::GetWindowPos();
+        auto size = ImGui::GetWindowSize();
+        viewport = {.position{.x = position.x, .y = position.y}, .width = size.x, .height = size.y};
+        ImGui::End();
+
+        ImGui::Render();
+    }
     FrameData current_frame = GetCurrentFrame();
     uint next_image_index = 0;
 
     while (vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
         ;
+
+    ZoneScoped;
 
     // TODO: Check result value and recreate swapchain if necessary
     vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
@@ -545,11 +699,9 @@ void RendererVulkan::Draw() {
     CommandBufferVulkan cmd{current_command_buffer};
 
     CHECK(cmd.Begin());
-    {
-        TracyVkZone(current_frame.tracy_context, cmd.GetHandle(), "Triangle");
-        RecordCommands(&cmd, next_image_index);
-    }
-
+    RecordCommands(&cmd, next_image_index);
+    RenderImGui(&cmd, next_image_index);
+    cmd.transition_image(swapchain.images[next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
 
@@ -610,6 +762,8 @@ void RendererVulkan::SetDebugName(uint64_t p_handle, VkObjectType p_type, const 
 #endif  // USE_VULKAN_DEBUG
 }
 
-void RendererVulkan::OnWindowResized() {
+void RendererVulkan::OnWindowResized(uint p_width, uint p_height) {
+    window_size.width = p_width;
+    window_size.height = p_height;
     CHECK(CreateSwapchain(true));
 }

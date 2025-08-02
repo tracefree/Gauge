@@ -22,6 +22,13 @@ namespace Gauge {
 
 struct RendererVulkan : public Renderer {
    private:
+    static struct VulkanContext {
+        vkb::Instance instance;
+        vkb::PhysicalDevice physical_device;
+        vkb::Device device;
+        VkQueue graphics_queue;
+    } ctx;
+
     struct FrameData {
         VkCommandPool cmd_pool{};
         VkCommandBuffer cmd{};
@@ -42,6 +49,11 @@ struct RendererVulkan : public Renderer {
         VkExtent2D extent;
     } swapchain;
 
+    vkb::Instance instance;
+    vkb::PhysicalDevice physical_device;
+    vkb::Device device;
+    VkQueue graphics_queue;
+
     struct PushConstants {
         glm::vec4 color;
         //    glm::mat4 model_matrix;
@@ -52,11 +64,6 @@ struct RendererVulkan : public Renderer {
     std::vector<VkSemaphore>
         swapchain_release_semaphores;
 
-    vkb::Instance instance;
-    vkb::PhysicalDevice physical_device;
-    vkb::Device device;
-    VkQueue graphics_queue;
-
     std::vector<FrameData> frames_in_flight;
     uint64_t current_frame_index;
 
@@ -65,11 +72,22 @@ struct RendererVulkan : public Renderer {
     VkSurfaceKHR surface;
     SDL_Window* window = nullptr;
 
+    struct WindowSize {
+        uint width{};
+        uint height{};
+    } window_size;
+
+    std::vector<Viewport> viewports;
+
+    Viewport viewport{};
+
    public:
-    std::expected<void, std::string> Initialize(SDL_Window* p_sdl_window) final override;
-    void OnWindowResized() final override;
+    std::expected<void, std::string>
+    Initialize(SDL_Window* p_sdl_window) final override;
+    void OnWindowResized(uint p_width, uint p_height) final override;
     void Draw() final override;
-    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index);
+    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const;
+    void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
 
     vkb::Instance const* GetInstance() const;
     std::expected<VkCommandPool, std::string> CreateCommandPool() const;
@@ -82,5 +100,7 @@ struct RendererVulkan : public Renderer {
     std::expected<void, std::string> CreateSwapchain(bool recreate = false);
     std::expected<void, std::string> CreateFrameData();
     FrameData GetCurrentFrame() const;
+    std::expected<void, std::string> InitializeImGui() const;
+    void SetViewport(uint position_x, uint position_y, uint width, uint height);
 };
 }  // namespace Gauge
