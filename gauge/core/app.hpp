@@ -10,7 +10,7 @@ namespace Gauge {
 struct App {
    public:
     std::string name{"Gauge App"};
-    std::unique_ptr<Renderer> renderer;
+    std::unique_ptr<Renderer> renderer = nullptr;
     void Initialize();
 
    protected:

@@ -274,13 +274,8 @@ RendererVulkan::CreateSwapchain(bool recreate) {
         swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
         vkDeviceWaitIdle(device);
     }
-    VkSurfaceFormatKHR swapchain_format{
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-    };
     auto swapchain_ret =
         swapchain_builder
-            //    .set_desired_format(swapchain_format)
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
             .set_desired_extent(window_size.width, window_size.height)
             .set_desired_min_image_count(3)
@@ -762,8 +757,9 @@ void RendererVulkan::SetDebugName(uint64_t p_handle, VkObjectType p_type, const 
 #endif  // USE_VULKAN_DEBUG
 }
 
-void RendererVulkan::OnWindowResized(uint p_width, uint p_height) {
-    window_size.width = p_width;
-    window_size.height = p_height;
+void RendererVulkan::OnWindowResized(SDL_WindowID p_window_id, uint p_width, uint p_height) {
+    RendererVulkan::Window& window = render_state.windows[p_window_id];
+    window.width = p_width;
+    window.size.height = p_height;
     CHECK(CreateSwapchain(true));
 }

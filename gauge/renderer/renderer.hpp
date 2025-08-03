@@ -26,7 +26,7 @@ struct Renderer {
 
     virtual std::expected<void, std::string> Initialize(SDL_Window* p_sdl_window) = 0;
     virtual void Draw() = 0;
-    virtual void OnWindowResized(uint p_width, uint p_height) {};
+    virtual void OnWindowResized(SDL_WindowID p_window_id, uint p_width, uint p_height) {};
 
     Renderer() = default;
     virtual ~Renderer() = default;

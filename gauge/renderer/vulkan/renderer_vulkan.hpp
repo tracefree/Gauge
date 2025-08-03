@@ -11,6 +11,7 @@
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <volk.h>
@@ -22,37 +23,47 @@ namespace Gauge {
 
 struct RendererVulkan : public Renderer {
    private:
-    static struct VulkanContext {
-        vkb::Instance instance;
-        vkb::PhysicalDevice physical_device;
-        vkb::Device device;
-        VkQueue graphics_queue;
-    } ctx;
+    struct Context {
+        vkb::Instance instance{};
+        vkb::PhysicalDevice physical_device{};
+        vkb::Device device{};
+        VkQueue graphics_queue{};
+    } context;
 
     struct FrameData {
         VkCommandPool cmd_pool{};
         VkCommandBuffer cmd{};
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
-
 #ifdef TRACY_ENABLE
         tracy::VkCtx* tracy_context;
 #endif
     };
 
-    struct SwapchainData {
-        vkb::Swapchain vkb_swapchain;
-        VkSwapchainKHR handle;
-        VkFormat image_format;
-        std::vector<VkImage> images;
-        std::vector<VkImageView> image_views;
-        VkExtent2D extent;
-    } swapchain;
+    struct Window {
+        struct Size {
+            uint width{};
+            uint height{};
+        } size;
 
-    vkb::Instance instance;
-    vkb::PhysicalDevice physical_device;
-    vkb::Device device;
-    VkQueue graphics_queue;
+        struct SwapchainData {
+            vkb::Swapchain vkb_swapchain;
+            VkSwapchainKHR handle;
+            VkFormat image_format;
+            std::vector<VkImage> images;
+            std::vector<VkImageView> image_views;
+            VkExtent2D extent;
+        } swapchain;
+
+        uint id{};
+
+        std::vector<VkSemaphore> swapchain_release_semaphores;
+        std::vector<FrameData> frames_in_flight;
+        uint64_t current_frame_index;
+
+        VkSurfaceKHR surface;
+        SDL_Window* window = nullptr;
+    };
 
     struct PushConstants {
         glm::vec4 color;
@@ -61,30 +72,19 @@ struct RendererVulkan : public Renderer {
         //    VkDeviceAddress vertex_buffer_address;
     };
 
-    std::vector<VkSemaphore>
-        swapchain_release_semaphores;
-
-    std::vector<FrameData> frames_in_flight;
-    uint64_t current_frame_index;
+    struct RenderState {
+        std::unordered_map<SDL_WindowID, RendererVulkan::Window> windows;
+        std::vector<Viewport> viewports;
+        // Meshes, textures, materials, lights, scene data...
+    } render_state;
 
     Pipeline graphics_pipeline;
-
-    VkSurfaceKHR surface;
-    SDL_Window* window = nullptr;
-
-    struct WindowSize {
-        uint width{};
-        uint height{};
-    } window_size;
-
-    std::vector<Viewport> viewports;
-
-    Viewport viewport{};
 
    public:
     std::expected<void, std::string>
     Initialize(SDL_Window* p_sdl_window) final override;
-    void OnWindowResized(uint p_width, uint p_height) final override;
+
+    void OnWindowResized(SDL_WindowID p_window_id, uint p_width, uint p_height) final override;
     void Draw() final override;
     void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const;
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
@@ -101,6 +101,5 @@ struct RendererVulkan : public Renderer {
     std::expected<void, std::string> CreateFrameData();
     FrameData GetCurrentFrame() const;
     std::expected<void, std::string> InitializeImGui() const;
-    void SetViewport(uint position_x, uint position_y, uint width, uint height);
 };
 }  // namespace Gauge
