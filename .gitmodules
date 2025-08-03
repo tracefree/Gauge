@@ -16,6 +16,3 @@
 [submodule "thirdparty/glm"]
 	path = thirdparty/glm
 	url = git@github.com:icaven/glm.git
-[submodule "thirdparty/imgui"]
-	path = thirdparty/imgui
-	url = git@github.com:ocornut/imgui.git
