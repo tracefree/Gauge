@@ -170,7 +170,7 @@ RendererVulkan::CreateCommandPool() const {
     };
     VkCommandPool cmd_pool;
     VK_CHECK_RET(
-        vkCreateCommandPool(device, &cmd_pool_create_info, nullptr, &cmd_pool),
+        vkCreateCommandPool(ctx.device, &cmd_pool_create_info, nullptr, &cmd_pool),
         "Could not create command pool");
 
     return cmd_pool;
@@ -187,15 +187,16 @@ RendererVulkan::CreateCommandBuffer(
     };
 
     VkCommandBuffer cmd;
-    VK_CHECK_RET(vkAllocateCommandBuffers(device, &cmd_allocate_info, &cmd),
+    VK_CHECK_RET(vkAllocateCommandBuffers(ctx.device, &cmd_allocate_info, &cmd),
                  "Could not allocate command buffer");
 
     return cmd;
 }
 
 std::expected<void, std::string>
-RendererVulkan::CreateFrameData() {
-    frames_in_flight.reserve(max_frames_in_flight);
+RendererVulkan::WindowCreateFrameData(SDL_WindowID p_window_id) {
+    Window& window = render_state.windows[p_window_id];
+    window.frames_in_flight.reserve(max_frames_in_flight);
     for (uint i = 0; i < max_frames_in_flight; i++) {
         FrameData frame{};
         CHECK_RET(CreateCommandPool()
@@ -211,20 +212,20 @@ RendererVulkan::CreateFrameData() {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT,
         };
-        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.queue_submit_fence),
+        VK_CHECK_RET(vkCreateFence(ctx.device, &fence_info, nullptr, &frame.queue_submit_fence),
                      "Could not create render fence");
 
         VkSemaphoreCreateInfo semaphore_info{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         };
-        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
+        VK_CHECK_RET(vkCreateSemaphore(ctx.device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
                      "Could not create acquire semaphore");
 
 #ifdef TRACY_ENABLE
-        frame.tracy_context = TracyVkContext(physical_device, device, graphics_queue, frame.cmd);
+        frame.tracy_context = TracyVkContext(ctx.physical_device, ctx.device, ctx.graphics_queue, frame.cmd);
         std::string tacy_context_name = std::format("Frame In-Flight Index {}", i);
         TracyVkContextName(frame.tracy_context, tacy_context_name.c_str(), tacy_context_name.size());
-        frames_in_flight.emplace_back(frame);
+        window.frames_in_flight.emplace_back(frame);
 #endif
 
         SetDebugName((uint64_t)frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, std::format("Primary command pool [{}]", i));
@@ -235,13 +236,13 @@ RendererVulkan::CreateFrameData() {
     return {};
 }
 
-void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_view) const {
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "ImGui");
 
     VkRenderingAttachmentInfo color_attachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
-        .imageView = swapchain.image_views[p_next_image_index],
+        .imageView = p_image_view,
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,

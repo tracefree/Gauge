@@ -28,7 +28,7 @@ struct RendererVulkan : public Renderer {
         vkb::PhysicalDevice physical_device{};
         vkb::Device device{};
         VkQueue graphics_queue{};
-    } context;
+    } ctx;
 
     struct FrameData {
         VkCommandPool cmd_pool{};
@@ -87,7 +87,7 @@ struct RendererVulkan : public Renderer {
     void OnWindowResized(SDL_WindowID p_window_id, uint p_width, uint p_height) final override;
     void Draw() final override;
     void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const;
-    void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
+    void RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_view) const;
 
     vkb::Instance const* GetInstance() const;
     std::expected<VkCommandPool, std::string> CreateCommandPool() const;
@@ -95,10 +95,12 @@ struct RendererVulkan : public Renderer {
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 
    private:
+    std::expected<void, std::string> WindowCreateFrameData(SDL_WindowID p_window_id);
+
     std::expected<VkShaderModule, std::string> CreateShaderModule(const std::vector<char>& p_code) const;
     std::expected<Pipeline, std::string> CreateGraphicsPipeline(std::string p_name);
     std::expected<void, std::string> CreateSwapchain(bool recreate = false);
-    std::expected<void, std::string> CreateFrameData();
+
     FrameData GetCurrentFrame() const;
     std::expected<void, std::string> InitializeImGui() const;
 };
