@@ -274,13 +274,8 @@ RendererVulkan::CreateSwapchain(bool recreate) {
         swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
         vkDeviceWaitIdle(device);
     }
-    VkSurfaceFormatKHR swapchain_format{
-        .format = VK_FORMAT_R8G8B8A8_SRGB,
-        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-    };
     auto swapchain_ret =
         swapchain_builder
-            //    .set_desired_format(swapchain_format)
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
             .set_desired_extent(window_size.width, window_size.height)
             .set_desired_min_image_count(3)
@@ -447,6 +442,95 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     return pipeline;
 }
 
+static void SetupImGuiStyle() {
+    // Fork of Everforest style from ImThemes
+    ImGuiStyle& style = ImGui::GetStyle();
+
+    style.Alpha = 1.0f;
+    style.DisabledAlpha = 0.6000000238418579f;
+    style.WindowPadding = ImVec2(8.0f, 3.0f);
+    style.WindowRounding = 4.599999904632568f;
+    style.WindowBorderSize = 1.0f;
+    style.WindowMinSize = ImVec2(32.0f, 32.0f);
+    style.WindowTitleAlign = ImVec2(0.5f, 0.5f);
+    style.WindowMenuButtonPosition = ImGuiDir_Left;
+    style.ChildRounding = 0.0f;
+    style.ChildBorderSize = 1.0f;
+    style.PopupRounding = 0.0f;
+    style.PopupBorderSize = 1.0f;
+    style.FramePadding = ImVec2(8.0f, 4.0f);
+    style.FrameRounding = 3.0f;
+    style.FrameBorderSize = 1.0f;
+    style.ItemSpacing = ImVec2(4.0f, 4.0f);
+    style.ItemInnerSpacing = ImVec2(4.0f, 4.0f);
+    style.CellPadding = ImVec2(4.0f, 2.0f);
+    style.IndentSpacing = 21.0f;
+    style.ColumnsMinSpacing = 6.0f;
+    style.ScrollbarSize = 13.0f;
+    style.ScrollbarRounding = 16.0f;
+    style.GrabMinSize = 20.0f;
+    style.GrabRounding = 2.0f;
+    style.TabRounding = 4.0f;
+    style.TabBorderSize = 1.0f;
+    style.ColorButtonPosition = ImGuiDir_Right;
+    style.ButtonTextAlign = ImVec2(0.5f, 0.5f);
+    style.SelectableTextAlign = ImVec2(0.0f, 0.0f);
+
+    style.Colors[ImGuiCol_Text] = ImVec4(0.8745098114013672f, 0.8705882430076599f, 0.8392156958580017f, 1.0f);
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.5843137502670288f, 0.572549045085907f, 0.5215686559677124f, 1.0f);
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_ChildBg] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_PopupBg] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_Border] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_BorderShadow] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 0.0f);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.4000000059604645f, 0.3607843220233917f, 0.3294117748737335f, 1.0f);
+    style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarBg] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.4000000059604645f, 0.3607843220233917f, 0.3294117748737335f, 1.0f);
+    style.Colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.5960784554481506f, 0.5921568870544434f, 0.1019607856869698f, 1.0f);
+    style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.5960784554481506f, 0.5921568870544434f, 0.1019607856869698f, 1.0f);
+    style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.4000000059604645f, 0.3607843220233917f, 0.3294117748737335f, 1.0f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.4000000059604645f, 0.3607843220233917f, 0.3294117748737335f, 1.0f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_Separator] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_SeparatorHovered] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_SeparatorActive] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_ResizeGrip] = ImVec4(0.4000000059604645f, 0.3607843220233917f, 0.3294117748737335f, 1.0f);
+    style.Colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_Tab] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_TabHovered] = ImVec4(0.4000000059604645f, 0.3607843220233917f, 0.3294117748737335f, 1.0f);
+    style.Colors[ImGuiCol_TabActive] = ImVec4(0.4862745106220245f, 0.43529412150383f, 0.3921568691730499f, 1.0f);
+    style.Colors[ImGuiCol_TabUnfocused] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 0.9725490212440491f);
+    style.Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.3137255012989044f, 0.2862745225429535f, 0.2705882489681244f, 1.0f);
+    style.Colors[ImGuiCol_PlotLines] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(0.8392156958580017f, 0.7490196228027344f, 0.4000000059604645f, 1.0f);
+    style.Colors[ImGuiCol_PlotHistogram] = ImVec4(0.7411764860153198f, 0.7176470756530762f, 0.4196078479290009f, 1.0f);
+    style.Colors[ImGuiCol_PlotHistogramHovered] = ImVec4(0.8392156958580017f, 0.7490196228027344f, 0.4000000059604645f, 1.0f);
+    style.Colors[ImGuiCol_TableHeaderBg] = ImVec4(0.8392156958580017f, 0.7490196228027344f, 0.4000000059604645f, 0.6094420552253723f);
+    style.Colors[ImGuiCol_TableBorderStrong] = ImVec4(0.3098039329051971f, 0.3098039329051971f, 0.3490196168422699f, 1.0f);
+    style.Colors[ImGuiCol_TableBorderLight] = ImVec4(0.2274509817361832f, 0.2274509817361832f, 0.2470588237047195f, 1.0f);
+    style.Colors[ImGuiCol_TableRowBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+    style.Colors[ImGuiCol_TableRowBgAlt] = ImVec4(1.0f, 1.0f, 1.0f, 0.05999999865889549f);
+    style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.8392156958580017f, 0.7490196228027344f, 0.4000000059604645f, 0.4313725531101227f);
+    style.Colors[ImGuiCol_DragDropTarget] = ImVec4(0.8392156958580017f, 0.7490196228027344f, 0.4000000059604645f, 0.9019607901573181f);
+    style.Colors[ImGuiCol_NavHighlight] = ImVec4(0.2352941185235977f, 0.2196078449487686f, 0.2117647081613541f, 1.0f);
+    style.Colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.0f, 1.0f, 1.0f, 0.699999988079071f);
+    style.Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.800000011920929f, 0.800000011920929f, 0.800000011920929f, 0.2000000029802322f);
+    style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.800000011920929f, 0.800000011920929f, 0.800000011920929f, 0.3499999940395355f);
+}
+
 std::expected<void, std::string>
 RendererVulkan::InitializeImGui() const {
     IMGUI_CHECKVERSION();
@@ -454,7 +538,7 @@ RendererVulkan::InitializeImGui() const {
     if (!ImGui_ImplSDL3_InitForVulkan(window)) {
         return std::unexpected("Could not initialize ImGui SDL3 for Vulkan");
     }
-    ImGui::StyleColorsDark();
+
     VkDescriptorPoolSize pool_sizes[] = {
         {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
     };
@@ -490,9 +574,7 @@ RendererVulkan::InitializeImGui() const {
     };
 
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, 255);
-    // style.Colors[ImGuiCol_] = ImVec4(0.1f, 0.1f, 0.1f, 255);
+    SetupImGuiStyle();
 
     return {};
 }
@@ -626,7 +708,9 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
 bool gna = false;
 
 void RendererVulkan::Draw() {
+    ZoneScoped;
     {
+        ZoneScopedN("ImGui calls");
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
@@ -681,15 +765,17 @@ void RendererVulkan::Draw() {
     FrameData current_frame = GetCurrentFrame();
     uint next_image_index = 0;
 
-    while (vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
-        ;
-
-    ZoneScoped;
-
-    // TODO: Check result value and recreate swapchain if necessary
-    vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
-                          VK_NULL_HANDLE, &next_image_index);
-
+    {
+        ZoneScopedN("vkWaitForFences");
+        while (vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
+            ;
+    }
+    {
+        ZoneScopedN("vkAcquireNextImage");
+        // TODO: Check result value and recreate swapchain if necessary
+        vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
+                              VK_NULL_HANDLE, &next_image_index);
+    }
     VK_CHECK(vkResetFences(device, 1, &current_frame.queue_submit_fence),
              "Could not reset queue submit fence");
     VK_CHECK(vkResetCommandPool(device, current_frame.cmd_pool, 0),
@@ -704,34 +790,40 @@ void RendererVulkan::Draw() {
     cmd.transition_image(swapchain.images[next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
+    {
+        ZoneScopedN("vkQueueSubmit");
+        // Submit to graphics queue
+        const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+        const VkSubmitInfo submit_info{
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &current_frame.swapchain_acquire_semaphore,
+            .pWaitDstStageMask = &wait_dst_stage_mask,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &current_command_buffer,
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = &swapchain_release_semaphores[next_image_index],
+        };
+        VK_CHECK(vkQueueSubmit(graphics_queue, 1, &submit_info, current_frame.queue_submit_fence),
+                 "Could not submit command buffer to graphics queue");
+    }
 
-    // Submit to graphics queue
-    const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-    const VkSubmitInfo submit_info{
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &current_frame.swapchain_acquire_semaphore,
-        .pWaitDstStageMask = &wait_dst_stage_mask,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &current_command_buffer,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores = &swapchain_release_semaphores[next_image_index],
-    };
-    VK_CHECK(vkQueueSubmit(graphics_queue, 1, &submit_info, current_frame.queue_submit_fence),
-             "Could not submit command buffer to graphics queue");
+    VkResult present_result;
+    {
+        ZoneScopedN("vkQueuePresentKHR");
+        // Present
+        const VkPresentInfoKHR present_info{
+            .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = &swapchain_release_semaphores[next_image_index],
+            .swapchainCount = 1,
+            .pSwapchains = &swapchain.handle,
+            .pImageIndices = &next_image_index,
+            .pResults = nullptr,
+        };
+        present_result = vkQueuePresentKHR(graphics_queue, &present_info);
+    }
 
-    // Present
-    const VkPresentInfoKHR present_info{
-        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores = &swapchain_release_semaphores[next_image_index],
-        .swapchainCount = 1,
-        .pSwapchains = &swapchain.handle,
-        .pImageIndices = &next_image_index,
-        .pResults = nullptr,
-    };
-
-    const VkResult present_result = vkQueuePresentKHR(graphics_queue, &present_info);
     FrameMark;
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
         CHECK(CreateSwapchain(true));
