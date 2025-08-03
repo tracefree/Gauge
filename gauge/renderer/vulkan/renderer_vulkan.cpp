@@ -170,7 +170,7 @@ RendererVulkan::CreateCommandPool() const {
     };
     VkCommandPool cmd_pool;
     VK_CHECK_RET(
-        vkCreateCommandPool(device, &cmd_pool_create_info, nullptr, &cmd_pool),
+        vkCreateCommandPool(ctx.device, &cmd_pool_create_info, nullptr, &cmd_pool),
         "Could not create command pool");
 
     return cmd_pool;
@@ -187,7 +187,7 @@ RendererVulkan::CreateCommandBuffer(
     };
 
     VkCommandBuffer cmd;
-    VK_CHECK_RET(vkAllocateCommandBuffers(device, &cmd_allocate_info, &cmd),
+    VK_CHECK_RET(vkAllocateCommandBuffers(ctx.device, &cmd_allocate_info, &cmd),
                  "Could not allocate command buffer");
 
     return cmd;
@@ -211,17 +211,17 @@ RendererVulkan::CreateFrameData() {
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT,
         };
-        VK_CHECK_RET(vkCreateFence(device, &fence_info, nullptr, &frame.queue_submit_fence),
+        VK_CHECK_RET(vkCreateFence(ctx.device, &fence_info, nullptr, &frame.queue_submit_fence),
                      "Could not create render fence");
 
         VkSemaphoreCreateInfo semaphore_info{
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
         };
-        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
+        VK_CHECK_RET(vkCreateSemaphore(ctx.device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
                      "Could not create acquire semaphore");
 
 #ifdef TRACY_ENABLE
-        frame.tracy_context = TracyVkContext(physical_device, device, graphics_queue, frame.cmd);
+        frame.tracy_context = TracyVkContext(ctx.physical_device, ctx.device, ctx.graphics_queue, frame.cmd);
         std::string tacy_context_name = std::format("Frame In-Flight Index {}", i);
         TracyVkContextName(frame.tracy_context, tacy_context_name.c_str(), tacy_context_name.size());
         frames_in_flight.emplace_back(frame);
@@ -269,10 +269,10 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
 
 std::expected<void, std::string>
 RendererVulkan::CreateSwapchain(bool recreate) {
-    vkb::SwapchainBuilder swapchain_builder{device};
+    vkb::SwapchainBuilder swapchain_builder{ctx.device};
     if (recreate) {
         swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
-        vkDeviceWaitIdle(device);
+        vkDeviceWaitIdle(ctx.device);
     }
     auto swapchain_ret =
         swapchain_builder
@@ -300,7 +300,7 @@ RendererVulkan::CreateSwapchain(bool recreate) {
     swapchain.image_format = swapchain.vkb_swapchain.image_format;
 
     for (VkSemaphore old_semaphore : swapchain_release_semaphores) {
-        vkDestroySemaphore(device, old_semaphore, nullptr);
+        vkDestroySemaphore(ctx.device, old_semaphore, nullptr);
     }
     swapchain_release_semaphores.resize(swapchain.vkb_swapchain.image_count);
 
@@ -308,7 +308,7 @@ RendererVulkan::CreateSwapchain(bool recreate) {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
     for (uint i = 0; i < swapchain.vkb_swapchain.image_count; ++i) {
-        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &swapchain_release_semaphores[i]),
+        VK_CHECK_RET(vkCreateSemaphore(ctx.device, &semaphore_info, nullptr, &swapchain_release_semaphores[i]),
                      "Could not create acquire semaphore");
 
         SetDebugName((uint64_t)swapchain_release_semaphores[i], VK_OBJECT_TYPE_SEMAPHORE, std::format("Swapchain release semaphore [{}]", i));
@@ -410,7 +410,7 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .pPushConstantRanges = &push_constant_range,
     };
 
-    VK_CHECK_RET(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline.layout),
+    VK_CHECK_RET(vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, nullptr, &pipeline.layout),
                  "Could not create pipeline layout");
     SetDebugName((uint64_t)pipeline.layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, std::format("{} layout", p_name));
 
@@ -435,7 +435,7 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .layout = pipeline.layout,
     };
 
-    VK_CHECK_RET(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
+    VK_CHECK_RET(vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
                  "Could not create graphics pipeline");
     SetDebugName((uint64_t)pipeline.handle, VK_OBJECT_TYPE_PIPELINE, p_name);
 
@@ -550,14 +550,14 @@ RendererVulkan::InitializeImGui() const {
         .pPoolSizes = pool_sizes,
     };
     VkDescriptorPool imgui_pool{};
-    VK_CHECK_RET(vkCreateDescriptorPool(device, &pool_info, nullptr, &imgui_pool),
+    VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &imgui_pool),
                  "Could not create ImGui descriptor pool");
 
     ImGui_ImplVulkan_InitInfo imgui_info{
-        .Instance = instance.instance,
-        .PhysicalDevice = physical_device.physical_device,
-        .Device = device.device,
-        .Queue = graphics_queue,
+        .Instance = ctx.instance.instance,
+        .PhysicalDevice = ctx.physical_device.physical_device,
+        .Device = ctx.device.device,
+        .Queue = ctx.graphics_queue,
         .DescriptorPool = imgui_pool,
         .MinImageCount = 2,
         .ImageCount = 2,
@@ -586,7 +586,7 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(
         CreateInstance()
             .and_then([this, p_sdl_window](vkb::Instance p_instance) {
-                instance = p_instance;
+                ctx.instance = p_instance;
                 return CreateSurface(p_instance, p_sdl_window);
             })
             .and_then([this](VkSurfaceKHR p_surface) {
@@ -594,26 +594,26 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
                 int w, h{};
                 SDL_GetWindowSize(window, &w, &h);
                 window_size = {.width = (uint)w, .height = (uint)h};
-                return CreatePhysicalDevice(instance, surface);
+                return CreatePhysicalDevice(ctx.instance, surface);
             })
             .and_then([this](vkb::PhysicalDevice p_physical_device) {
-                physical_device = p_physical_device;
+                ctx.physical_device = p_physical_device;
                 return CreateDevice(p_physical_device);
             })
             .and_then([this](vkb::Device p_device) {
-                device = p_device;
-                return InitializeVolk(instance, device);
+                ctx.device = p_device;
+                return InitializeVolk(ctx.instance, ctx.device);
             })
             .and_then([this]() {
-                SetDebugName((uint64_t)instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
-                SetDebugName((uint64_t)physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
-                SetDebugName((uint64_t)device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
+                SetDebugName((uint64_t)ctx.instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
+                SetDebugName((uint64_t)ctx.physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
+                SetDebugName((uint64_t)ctx.device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
                 SetDebugName((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
-                return GetQueue(device);
+                return GetQueue(ctx.device);
             })
             .and_then([this](VkQueue p_queue) {
-                graphics_queue = p_queue;
-                SetDebugName((uint64_t)graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
+                ctx.graphics_queue = p_queue;
+                SetDebugName((uint64_t)ctx.graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
                 return CreateFrameData();
             })
             .and_then([this]() {
@@ -645,7 +645,7 @@ RendererVulkan::CreateShaderModule(const std::vector<char>& p_code) const {
         .pCode = reinterpret_cast<const uint32_t*>(p_code.data()),
     };
     VkShaderModule shader_module{};
-    VK_CHECK_RET(vkCreateShaderModule(device, &shader_module_info, nullptr, &shader_module), "Could not create shader module");
+    VK_CHECK_RET(vkCreateShaderModule(ctx.device, &shader_module_info, nullptr, &shader_module), "Could not create shader module");
     return shader_module;
 }
 
@@ -782,18 +782,18 @@ void RendererVulkan::Draw() {
     uint next_image_index = 0;
     {
         ZoneScopedN("vkWaitForFences");
-        while (vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
+        while (vkWaitForFences(ctx.device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
             ;
     }
     {
         ZoneScopedN("vkAcquireNextImage");
         // TODO: Check result value and recreate swapchain if necessary
-        vkAcquireNextImageKHR(device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
+        vkAcquireNextImageKHR(ctx.device.device, swapchain.handle, UINT64_MAX, current_frame.swapchain_acquire_semaphore,
                               VK_NULL_HANDLE, &next_image_index);
     }
-    VK_CHECK(vkResetFences(device, 1, &current_frame.queue_submit_fence),
+    VK_CHECK(vkResetFences(ctx.device, 1, &current_frame.queue_submit_fence),
              "Could not reset queue submit fence");
-    VK_CHECK(vkResetCommandPool(device, current_frame.cmd_pool, 0),
+    VK_CHECK(vkResetCommandPool(ctx.device, current_frame.cmd_pool, 0),
              "Could not reset command pool");
 
     VkCommandBuffer current_command_buffer = current_frame.cmd;
@@ -817,7 +817,7 @@ void RendererVulkan::Draw() {
             .signalSemaphoreCount = 1,
             .pSignalSemaphores = &swapchain_release_semaphores[next_image_index],
         };
-        VK_CHECK(vkQueueSubmit(graphics_queue, 1, &submit_info, current_frame.queue_submit_fence),
+        VK_CHECK(vkQueueSubmit(ctx.graphics_queue, 1, &submit_info, current_frame.queue_submit_fence),
                  "Could not submit command buffer to graphics queue");
     }
 
@@ -834,7 +834,7 @@ void RendererVulkan::Draw() {
             .pImageIndices = &next_image_index,
             .pResults = nullptr,
         };
-        present_result = vkQueuePresentKHR(graphics_queue, &present_info);
+        present_result = vkQueuePresentKHR(ctx.graphics_queue, &present_info);
     }
 
     FrameMark;
@@ -847,7 +847,7 @@ void RendererVulkan::Draw() {
 
 vkb::Instance const*
 RendererVulkan::GetInstance() const {
-    return &instance;
+    return &ctx.instance;
 }
 
 RendererVulkan::FrameData
@@ -863,7 +863,7 @@ void RendererVulkan::SetDebugName(uint64_t p_handle, VkObjectType p_type, const 
         .objectHandle = p_handle,
         .pObjectName = p_name.c_str(),
     };
-    vkSetDebugUtilsObjectNameEXT(device, &name_info);
+    vkSetDebugUtilsObjectNameEXT(ctx.device, &name_info);
 #endif  // USE_VULKAN_DEBUG
 }
 

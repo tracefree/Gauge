@@ -22,12 +22,12 @@ namespace Gauge {
 
 struct RendererVulkan : public Renderer {
    private:
-    static struct VulkanContext {
-        vkb::Instance instance;
-        vkb::PhysicalDevice physical_device;
-        vkb::Device device;
-        VkQueue graphics_queue;
-    } ctx;
+    struct VulkanContext {
+        vkb::Instance instance{};
+        vkb::PhysicalDevice physical_device{};
+        vkb::Device device{};
+        VkQueue graphics_queue{};
+    } ctx{};
 
     struct FrameData {
         VkCommandPool cmd_pool{};
@@ -48,11 +48,6 @@ struct RendererVulkan : public Renderer {
         std::vector<VkImageView> image_views;
         VkExtent2D extent;
     } swapchain;
-
-    vkb::Instance instance;
-    vkb::PhysicalDevice physical_device;
-    vkb::Device device;
-    VkQueue graphics_queue;
 
     struct PushConstants {
         glm::vec4 color;

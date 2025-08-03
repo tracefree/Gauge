@@ -8,12 +8,9 @@ struct VertexOutput {
     float4 sv_position : SV_Position;
 };
 
-struct Push {
-    float4 color;
-}
 
-[[vk::push_constant]]
-ConstantBuffer<Push> push_constants;
+//[[vk::push_constant]]
+//ConstantBuffer<Push> push_constants;
 
 [shader("vertex")]
 VertexOutput VertexMain(uint vertex_id : SV_VertexID) {
@@ -25,5 +22,5 @@ VertexOutput VertexMain(uint vertex_id : SV_VertexID) {
 [shader("fragment")]
 float4 FragmentMain() : SV_Target
 {
-    return push_constants.color;
+    return float4(0.0, 1.0, 0.0, 1.0);
 }
