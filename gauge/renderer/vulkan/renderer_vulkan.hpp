@@ -16,6 +16,7 @@
 
 #include <volk.h>
 #include <vulkan/vulkan_core.h>
+#include "thirdparty/imgui/imgui.h"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 #include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
@@ -41,27 +42,28 @@ struct RendererVulkan : public Renderer {
     };
 
     struct Window {
+        uint id{};
+
         struct Size {
             uint width{};
             uint height{};
         } size;
 
         struct SwapchainData {
-            vkb::Swapchain vkb_swapchain;
-            VkSwapchainKHR handle;
-            VkFormat image_format;
+            vkb::Swapchain vkb_swapchain{};
+            VkSwapchainKHR handle{};
+            VkFormat image_format{};
             std::vector<VkImage> images;
             std::vector<VkImageView> image_views;
-            VkExtent2D extent;
-        } swapchain;
-
-        uint id{};
+            VkExtent2D extent{};
+        } swapchain{};
 
         std::vector<VkSemaphore> swapchain_release_semaphores;
         std::vector<FrameData> frames_in_flight;
-        uint64_t current_frame_index;
+        uint64_t current_frame_index{};
+        ImGuiContext* imgui_context{};
 
-        VkSurfaceKHR surface;
+        VkSurfaceKHR surface{};
         SDL_Window* window = nullptr;
     };
 
@@ -79,6 +81,7 @@ struct RendererVulkan : public Renderer {
     } render_state;
 
     Pipeline graphics_pipeline;
+    VkFormat swapchain_format;
 
    public:
     std::expected<void, std::string>
@@ -86,8 +89,7 @@ struct RendererVulkan : public Renderer {
 
     void OnWindowResized(SDL_WindowID p_window_id, uint p_width, uint p_height) final override;
     void Draw() final override;
-    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const;
-    void RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_view) const;
+    void RecordCommands(CommandBufferVulkan* cmd, VkImage p_image) const;
 
     vkb::Instance const* GetInstance() const;
     std::expected<VkCommandPool, std::string> CreateCommandPool() const;
@@ -95,13 +97,17 @@ struct RendererVulkan : public Renderer {
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 
    private:
+    // std::expected<void, std::string> WindowCreateFrameData(SDL_WindowID p_window_id);
     std::expected<void, std::string> WindowCreateFrameData(SDL_WindowID p_window_id);
+    std::expected<void, std::string> WindowCreateSwapchain(SDL_WindowID p_window_id, bool recreate = false);
+    std::expected<void, std::string> WindowInitializeImGui(SDL_WindowID p_window);
+    void WindowRenderImGui(SDL_WindowID p_window_id, CommandBufferVulkan* cmd, VkImageView p_image_view);
+
+    void DrawViewport(CommandBufferVulkan* cmd, VkImage p_image) const;
 
     std::expected<VkShaderModule, std::string> CreateShaderModule(const std::vector<char>& p_code) const;
     std::expected<Pipeline, std::string> CreateGraphicsPipeline(std::string p_name);
-    std::expected<void, std::string> CreateSwapchain(bool recreate = false);
 
     FrameData GetCurrentFrame() const;
-    std::expected<void, std::string> InitializeImGui() const;
 };
 }  // namespace Gauge

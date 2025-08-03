@@ -13,6 +13,7 @@ struct Viewport {
     } position;
     float width{};
     float height{};
+    uint window_id;
 };
 
 struct Renderer {

@@ -27,8 +27,7 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
-#include "thirdparty/imgui/imgui.h"
-
+#include "imgui.h"
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
 #include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
 #include "thirdparty/imgui/imgui_internal.h"
@@ -236,9 +235,12 @@ RendererVulkan::WindowCreateFrameData(SDL_WindowID p_window_id) {
     return {};
 }
 
-void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_view) const {
+void RendererVulkan::WindowRenderImGui(SDL_WindowID p_window_id, CommandBufferVulkan* cmd, VkImageView p_image_view) {
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "ImGui");
+
+    const Window& window = render_state.windows[p_window_id];
+    ImGui::SetCurrentContext(window.imgui_context);
 
     VkRenderingAttachmentInfo color_attachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
@@ -247,7 +249,7 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_v
         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
     };
-    VkRenderingInfo rendering_info{
+    const VkRenderingInfo rendering_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .flags = 0,
         .renderArea =
@@ -255,8 +257,8 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_v
                 .offset = {.x = 0, .y = 0},
                 .extent =
                     {
-                        .width = window_size.width,  // TODO
-                        .height = window_size.height,
+                        .width = window.size.width,
+                        .height = window.size.height,
                     },
             },
         .layerCount = 1,
@@ -269,20 +271,21 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, VkImageView p_image_v
 }
 
 std::expected<void, std::string>
-RendererVulkan::CreateSwapchain(bool recreate) {
-    vkb::SwapchainBuilder swapchain_builder{device};
+RendererVulkan::WindowCreateSwapchain(SDL_WindowID p_window_id, bool recreate) {
+    Window& window = render_state.windows[p_window_id];
+    vkb::SwapchainBuilder swapchain_builder{ctx.device};
     if (recreate) {
-        swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
-        vkDeviceWaitIdle(device);
+        swapchain_builder.set_old_swapchain(window.swapchain.vkb_swapchain);
+        vkDeviceWaitIdle(ctx.device);
     }
     auto swapchain_ret =
         swapchain_builder
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-            .set_desired_extent(window_size.width, window_size.height)
+            .set_desired_extent(window.size.width, window.size.height)
             .set_desired_min_image_count(3)
             .build();
     if (!swapchain_ret) {
-        swapchain.handle = VK_NULL_HANDLE;
+        window.swapchain.handle = VK_NULL_HANDLE;
         return std::unexpected(std::format("Could not create swapchain. vk-bootstrap error code: [{}] {}. Vulkan result: {}",
                                            swapchain_ret.full_error().type.value(),
                                            swapchain_ret.full_error().type.message(),
@@ -290,36 +293,36 @@ RendererVulkan::CreateSwapchain(bool recreate) {
     }
 
     if (recreate) {
-        vkb::destroy_swapchain(swapchain.vkb_swapchain);
+        vkb::destroy_swapchain(window.swapchain.vkb_swapchain);
     }
 
-    swapchain.vkb_swapchain = swapchain_ret.value();
-    swapchain.handle = swapchain.vkb_swapchain.swapchain;
-    swapchain.images = swapchain.vkb_swapchain.get_images().value();
-    swapchain.image_views = swapchain.vkb_swapchain.get_image_views().value();
-    swapchain.extent = swapchain.vkb_swapchain.extent;
-    swapchain.image_format = swapchain.vkb_swapchain.image_format;
+    window.swapchain.vkb_swapchain = swapchain_ret.value();
+    window.swapchain.handle = window.swapchain.vkb_swapchain.swapchain;
+    window.swapchain.images = window.swapchain.vkb_swapchain.get_images().value();
+    window.swapchain.image_views = window.swapchain.vkb_swapchain.get_image_views().value();
+    window.swapchain.extent = window.swapchain.vkb_swapchain.extent;
+    window.swapchain.image_format = window.swapchain.vkb_swapchain.image_format;
 
-    for (VkSemaphore old_semaphore : swapchain_release_semaphores) {
-        vkDestroySemaphore(device, old_semaphore, nullptr);
+    for (VkSemaphore old_semaphore : window.swapchain_release_semaphores) {
+        vkDestroySemaphore(ctx.device, old_semaphore, nullptr);
     }
-    swapchain_release_semaphores.resize(swapchain.vkb_swapchain.image_count);
+    window.swapchain_release_semaphores.resize(window.swapchain.vkb_swapchain.image_count);
 
     VkSemaphoreCreateInfo semaphore_info{
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
     };
-    for (uint i = 0; i < swapchain.vkb_swapchain.image_count; ++i) {
-        VK_CHECK_RET(vkCreateSemaphore(device, &semaphore_info, nullptr, &swapchain_release_semaphores[i]),
+    for (uint i = 0; i < window.swapchain.vkb_swapchain.image_count; ++i) {
+        VK_CHECK_RET(vkCreateSemaphore(ctx.device, &semaphore_info, nullptr, &window.swapchain_release_semaphores[i]),
                      "Could not create acquire semaphore");
 
-        SetDebugName((uint64_t)swapchain_release_semaphores[i], VK_OBJECT_TYPE_SEMAPHORE, std::format("Swapchain release semaphore [{}]", i));
+        SetDebugName((uint64_t)window.swapchain_release_semaphores[i], VK_OBJECT_TYPE_SEMAPHORE, std::format("Swapchain release semaphore [{}]", i));
     }
 
-    SetDebugName((uint64_t)swapchain.handle, VK_OBJECT_TYPE_SWAPCHAIN_KHR, "Swapchain");
+    SetDebugName((uint64_t)window.swapchain.handle, VK_OBJECT_TYPE_SWAPCHAIN_KHR, "Swapchain");
 #ifdef USE_VULKAN_DEBUG
-    for (uint i = 0; i < swapchain.vkb_swapchain.image_count; ++i) {
-        SetDebugName((uint64_t)swapchain.images[i], VK_OBJECT_TYPE_IMAGE, std::format("Swapchain image [{}]", i));
-        SetDebugName((uint64_t)swapchain.image_views[i], VK_OBJECT_TYPE_IMAGE_VIEW, std::format("Swapchain image view [{}]", i));
+    for (uint i = 0; i < window.swapchain.vkb_swapchain.image_count; ++i) {
+        SetDebugName((uint64_t)window.swapchain.images[i], VK_OBJECT_TYPE_IMAGE, std::format("Swapchain image [{}]", i));
+        SetDebugName((uint64_t)window.swapchain.image_views[i], VK_OBJECT_TYPE_IMAGE_VIEW, std::format("Swapchain image view [{}]", i));
     }
 #endif  // USE_VULKAN_DEBUG
 
@@ -411,14 +414,14 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .pPushConstantRanges = &push_constant_range,
     };
 
-    VK_CHECK_RET(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr, &pipeline.layout),
+    VK_CHECK_RET(vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, nullptr, &pipeline.layout),
                  "Could not create pipeline layout");
     SetDebugName((uint64_t)pipeline.layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, std::format("{} layout", p_name));
 
     VkPipelineRenderingCreateInfo pipeline_rendering_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &swapchain.image_format,
+        .pColorAttachmentFormats = &swapchain_format,
     };
 
     VkGraphicsPipelineCreateInfo pipeline_info{
@@ -436,7 +439,7 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .layout = pipeline.layout,
     };
 
-    VK_CHECK_RET(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
+    VK_CHECK_RET(vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
                  "Could not create graphics pipeline");
     SetDebugName((uint64_t)pipeline.handle, VK_OBJECT_TYPE_PIPELINE, p_name);
 
@@ -444,10 +447,14 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
 }
 
 std::expected<void, std::string>
-RendererVulkan::InitializeImGui() const {
+RendererVulkan::WindowInitializeImGui(SDL_WindowID p_window) {
+    Window& window = render_state.windows[p_window];
+
     IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    if (!ImGui_ImplSDL3_InitForVulkan(window)) {
+    window.imgui_context = ImGui::CreateContext();
+    ImGui::SetCurrentContext(window.imgui_context);
+
+    if (!ImGui_ImplSDL3_InitForVulkan(window.window)) {
         return std::unexpected("Could not initialize ImGui SDL3 for Vulkan");
     }
     ImGui::StyleColorsDark();
@@ -462,14 +469,14 @@ RendererVulkan::InitializeImGui() const {
         .pPoolSizes = pool_sizes,
     };
     VkDescriptorPool imgui_pool{};
-    VK_CHECK_RET(vkCreateDescriptorPool(device, &pool_info, nullptr, &imgui_pool),
+    VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &imgui_pool),
                  "Could not create ImGui descriptor pool");
 
     ImGui_ImplVulkan_InitInfo imgui_info{
-        .Instance = instance.instance,
-        .PhysicalDevice = physical_device.physical_device,
-        .Device = device.device,
-        .Queue = graphics_queue,
+        .Instance = ctx.instance.instance,
+        .PhysicalDevice = ctx.physical_device.physical_device,
+        .Device = ctx.device.device,
+        .Queue = ctx.graphics_queue,
         .DescriptorPool = imgui_pool,
         .MinImageCount = 2,
         .ImageCount = 2,
@@ -478,7 +485,7 @@ RendererVulkan::InitializeImGui() const {
         .PipelineRenderingCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
             .colorAttachmentCount = 1,
-            .pColorAttachmentFormats = &swapchain.image_format,
+            .pColorAttachmentFormats = &swapchain_format,
         },
     };
     if (!ImGui_ImplVulkan_Init(&imgui_info)) {
@@ -495,47 +502,51 @@ RendererVulkan::InitializeImGui() const {
 
 std::expected<void, std::string>
 RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
-    window = p_sdl_window;
+    // Create main window
+    const SDL_WindowID window_id = SDL_GetWindowID(p_sdl_window);
+    Window& window = render_state.windows[window_id];
+    window.id = 0;
+    window.size = {.width = 1920, .height = 1080};
+    window.window = p_sdl_window;
+    // window = p_sdl_window;
 
-    CHECK_RET(
+    auto queue_result =
         CreateInstance()
             .and_then([this, p_sdl_window](vkb::Instance p_instance) {
-                instance = p_instance;
+                ctx.instance = p_instance;
                 return CreateSurface(p_instance, p_sdl_window);
             })
-            .and_then([this](VkSurfaceKHR p_surface) {
-                surface = p_surface;
+            .and_then([this, &window](VkSurfaceKHR p_surface) {
+                window.surface = p_surface;
                 int w, h{};
-                SDL_GetWindowSize(window, &w, &h);
-                window_size = {.width = (uint)w, .height = (uint)h};
-                return CreatePhysicalDevice(instance, surface);
+                SDL_GetWindowSize(window.window, &w, &h);
+                window.size.width = (uint)w;
+                window.size.height = (uint)h;
+                return CreatePhysicalDevice(ctx.instance, window.surface);
             })
             .and_then([this](vkb::PhysicalDevice p_physical_device) {
-                physical_device = p_physical_device;
+                ctx.physical_device = p_physical_device;
                 return CreateDevice(p_physical_device);
             })
             .and_then([this](vkb::Device p_device) {
-                device = p_device;
-                return InitializeVolk(instance, device);
+                ctx.device = p_device;
+                return InitializeVolk(ctx.instance, ctx.device);
             })
-            .and_then([this]() {
-                SetDebugName((uint64_t)instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
-                SetDebugName((uint64_t)physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
-                SetDebugName((uint64_t)device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
-                SetDebugName((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
-                return GetQueue(device);
-            })
-            .and_then([this](VkQueue p_queue) {
-                graphics_queue = p_queue;
-                SetDebugName((uint64_t)graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
-                return CreateFrameData();
-            })
-            .and_then([this]() {
-                return CreateSwapchain();
-            })
-            .and_then([this]() {
-                return InitializeImGui();
-            }));
+            .and_then([this, window]() {
+                SetDebugName((uint64_t)ctx.instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
+                SetDebugName((uint64_t)ctx.physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
+                SetDebugName((uint64_t)ctx.device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
+                SetDebugName((uint64_t)window.surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
+                return GetQueue(ctx.device);
+            });
+    CHECK_RET(queue_result);
+    ctx.graphics_queue = queue_result.value();
+    SetDebugName((uint64_t)ctx.graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
+
+    // For window...
+    WindowCreateFrameData(window_id);
+    WindowCreateSwapchain(window_id);
+    WindowInitializeImGui(window_id);
 
     auto graphics_pipeline_result = CreateGraphicsPipeline("Primary graphics pipeline");
     CHECK_RET(graphics_pipeline_result);
@@ -553,19 +564,26 @@ RendererVulkan::CreateShaderModule(const std::vector<char>& p_code) const {
         .pCode = reinterpret_cast<const uint32_t*>(p_code.data()),
     };
     VkShaderModule shader_module{};
-    VK_CHECK_RET(vkCreateShaderModule(device, &shader_module_info, nullptr, &shader_module), "Could not create shader module");
+    VK_CHECK_RET(vkCreateShaderModule(ctx.device, &shader_module_info, nullptr, &shader_module), "Could not create shader module");
     return shader_module;
 }
 
-void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+void RendererVulkan::DrawViewport(CommandBufferVulkan* cmd, VkImage p_image) const {
+    // TODO
+}
+
+void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, VkImage p_image) const {
     ZoneScoped;
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
 
-    for (auto& viewport : viewports) {
+    for (auto& entry : render_state.windows) {
+        TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Window");
+        const Window& window = entry.second;
+        cmd->transition_image(p_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+        DrawViewport(cmd, p_image);
+        RenderIm
     };
-
-    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Triangle");
-
-    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     VkRenderingAttachmentInfo rendering_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
