@@ -34,7 +34,6 @@ struct RendererVulkan : public Renderer {
         VkCommandBuffer cmd{};
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
-
 #ifdef TRACY_ENABLE
         tracy::VkCtx* tracy_context;
 #endif
@@ -80,23 +79,21 @@ struct RendererVulkan : public Renderer {
     std::expected<void, std::string>
     Initialize(SDL_Window* p_sdl_window) final override;
     void Draw() final override;
-    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const;
-    void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
-    void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) const;
-
-    vkb::Instance const* GetInstance() const;
-    std::expected<VkCommandPool, std::string> CreateCommandPool() const;
-    std::expected<VkCommandBuffer, std::string> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
-    void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
-
     void OnWindowResized(uint p_width, uint p_height) final override;
 
    private:
+    FrameData GetCurrentFrame() const;
+    vkb::Instance const* GetInstance() const;
+    std::expected<VkCommandPool, std::string> CreateCommandPool() const;
+    std::expected<VkCommandBuffer, std::string> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
     std::expected<VkShaderModule, std::string> CreateShaderModule(const std::vector<char>& p_code) const;
     std::expected<Pipeline, std::string> CreateGraphicsPipeline(std::string p_name);
     std::expected<void, std::string> CreateSwapchain(bool recreate = false);
     std::expected<void, std::string> CreateFrameData();
-    FrameData GetCurrentFrame() const;
     std::expected<void, std::string> InitializeImGui() const;
+    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const;
+    void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
+    void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) const;
+    void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 };
 }  // namespace Gauge
