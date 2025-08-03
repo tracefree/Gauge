@@ -13,6 +13,8 @@ struct Viewport {
     } position;
     float width{};
     float height{};
+
+    bool fill_window{};
 };
 
 struct Renderer {
@@ -27,6 +29,7 @@ struct Renderer {
     virtual std::expected<void, std::string> Initialize(SDL_Window* p_sdl_window) = 0;
     virtual void Draw() = 0;
     virtual void OnWindowResized(uint p_width, uint p_height) {};
+    virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
 
     Renderer() = default;
     virtual ~Renderer() = default;

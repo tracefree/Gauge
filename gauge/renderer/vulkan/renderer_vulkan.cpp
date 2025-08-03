@@ -627,6 +627,12 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(graphics_pipeline_result);
     graphics_pipeline = graphics_pipeline_result.value();
 
+    render_state.viewports.emplace_back(Viewport{
+        .width = static_cast<float>(window_size.width),
+        .height = static_cast<float>(window_size.height),
+        .fill_window = true,
+    });
+
     initialized = true;
     return {};
 }
@@ -643,15 +649,8 @@ RendererVulkan::CreateShaderModule(const std::vector<char>& p_code) const {
     return shader_module;
 }
 
-void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const {
-    ZoneScoped;
-
-    for (auto& viewport : viewports) {
-    };
-
-    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Triangle");
-
-    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) const {
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
 
     VkRenderingAttachmentInfo rendering_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -691,21 +690,34 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push_constants);
 
     VkViewport vk_viewport{
-        viewport.position.x, viewport.position.y,
-        viewport.width, viewport.height,
+        p_viewport.position.x, p_viewport.position.y,
+        p_viewport.width, p_viewport.height,
         0.0f, 1.0f};
     VkRect2D scissor{VkOffset2D{}, swapchain.extent};
     vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
     vkCmdDraw(cmd->GetHandle(), 3, 1, 0, 0);
 
-    glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
-    projection[1][1] *= -1.0f;
+    // glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
+    // projection[1][1] *= -1.0f;
 
     vkCmdEndRendering(cmd->GetHandle());
 }
 
-bool gna = false;
+void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+    ZoneScoped;
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
+
+    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    for (const auto& viewport : render_state.viewports) {
+        RenderViewport(cmd, viewport, p_next_image_index);
+    };
+
+    RenderImGui(cmd, p_next_image_index);
+
+    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+}
 
 void RendererVulkan::Draw() {
     ZoneScoped;
@@ -715,56 +727,59 @@ void RendererVulkan::Draw() {
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        if (ImGui::BeginMainMenuBar()) {
-            if (ImGui::BeginMenu("Project")) {
-                if (ImGui::MenuItem("New projext...")) {
-                }
-                if (ImGui::MenuItem("Quit", "CTRL+Q")) {
-                    gApp->Quit();
-                }
-                ImGui::EndMenu();
-            }
-            ImGui::EndMainMenuBar();
-        }
-
-        ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
-
-        ImGuiWindowClass window_class;
-        window_class.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoWindowMenuButton;
-        ImGui::SetNextWindowClass(&window_class);
-        if (ImGui::Begin("Filesystem", nullptr, ImGuiWindowFlags_NoCollapse)) {
-            float golor[] = {col.r, col.g, col.b};
-            ImGui::ColorPicker3("Triangle color", golor);
-            col.r = golor[0], col.g = golor[1], col.b = golor[2];
+        if (ImGui::Begin("Settings")) {
         }
         ImGui::End();
-
-        ImGui::SetNextWindowClass(&window_class);
-        if (!ImGui::Begin("Console")) {
-        }
-        ImGui::End();
-
-        ImGui::SetNextWindowClass(&window_class);
-        if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_MenuBar)) {
-            if (ImGui::BeginMenuBar()) {
-                if (ImGui::BeginMenu("Viewport")) {
-                    bool wireframe = false;  // TODO
-                    ImGui::Checkbox("Wireframe", &wireframe);
-                    ImGui::EndMenu();
+        /*
+                if (ImGui::BeginMainMenuBar()) {
+                    if (ImGui::BeginMenu("Project")) {
+                        if (ImGui::MenuItem("New projext...")) {
+                        }
+                        if (ImGui::MenuItem("Quit", "CTRL+Q")) {
+                            gApp->Quit();
+                        }
+                        ImGui::EndMenu();
+                    }
+                    ImGui::EndMainMenuBar();
                 }
-                ImGui::EndMenuBar();
-            }
-        }
-        auto position = ImGui::GetWindowPos();
-        auto size = ImGui::GetWindowSize();
-        viewport = {.position{.x = position.x, .y = position.y}, .width = size.x, .height = size.y};
-        ImGui::End();
 
+                ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
+
+                ImGuiWindowClass window_class;
+                window_class.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoWindowMenuButton;
+                ImGui::SetNextWindowClass(&window_class);
+                if (ImGui::Begin("Filesystem", nullptr, ImGuiWindowFlags_NoCollapse)) {
+                    float golor[] = {col.r, col.g, col.b};
+                    ImGui::ColorPicker3("Triangle color", golor);
+                    col.r = golor[0], col.g = golor[1], col.b = golor[2];
+                }
+                ImGui::End();
+
+                ImGui::SetNextWindowClass(&window_class);
+                if (!ImGui::Begin("Console")) {
+                }
+                ImGui::End();
+
+                ImGui::SetNextWindowClass(&window_class);
+                if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_MenuBar)) {
+                    if (ImGui::BeginMenuBar()) {
+                        if (ImGui::BeginMenu("Viewport")) {
+                            bool wireframe = false;  // TODO
+                            ImGui::Checkbox("Wireframe", &wireframe);
+                            ImGui::EndMenu();
+                        }
+                        ImGui::EndMenuBar();
+                    }
+                }
+                auto position = ImGui::GetWindowPos();
+                auto size = ImGui::GetWindowSize();
+                viewport = {.position{.x = position.x, .y = position.y}, .width = size.x, .height = size.y};
+                ImGui::End();
+        */
         ImGui::Render();
     }
     FrameData current_frame = GetCurrentFrame();
     uint next_image_index = 0;
-
     {
         ZoneScopedN("vkWaitForFences");
         while (vkWaitForFences(device, 1, &current_frame.queue_submit_fence, VK_TRUE, UINT64_MAX) == VK_TIMEOUT)
@@ -786,8 +801,6 @@ void RendererVulkan::Draw() {
 
     CHECK(cmd.Begin());
     RecordCommands(&cmd, next_image_index);
-    RenderImGui(&cmd, next_image_index);
-    cmd.transition_image(swapchain.images[next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
     {
@@ -857,5 +870,11 @@ void RendererVulkan::SetDebugName(uint64_t p_handle, VkObjectType p_type, const 
 void RendererVulkan::OnWindowResized(uint p_width, uint p_height) {
     window_size.width = p_width;
     window_size.height = p_height;
+    for (auto& viewport : render_state.viewports) {
+        if (viewport.fill_window) {
+            viewport.width = p_width;
+            viewport.height = p_height;
+        }
+    }
     CHECK(CreateSwapchain(true));
 }
