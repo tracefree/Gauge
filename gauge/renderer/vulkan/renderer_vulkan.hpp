@@ -35,17 +35,17 @@ struct RendererVulkan : public Renderer {
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
 #ifdef TRACY_ENABLE
-        tracy::VkCtx* tracy_context;
+        tracy::VkCtx* tracy_context{};
 #endif
     };
 
     struct SwapchainData {
         vkb::Swapchain vkb_swapchain;
-        VkSwapchainKHR handle;
-        VkFormat image_format;
+        VkSwapchainKHR handle{};
+        VkFormat image_format{};
         std::vector<VkImage> images;
         std::vector<VkImageView> image_views;
-        VkExtent2D extent;
+        VkExtent2D extent{};
     } swapchain;
 
     struct PushConstants {
@@ -59,11 +59,11 @@ struct RendererVulkan : public Renderer {
         swapchain_release_semaphores;
 
     std::vector<FrameData> frames_in_flight;
-    uint64_t current_frame_index;
+    uint64_t current_frame_index = 0;
 
-    Pipeline graphics_pipeline;
+    Pipeline graphics_pipeline{};
 
-    VkSurfaceKHR surface;
+    VkSurfaceKHR surface{};
     SDL_Window* window = nullptr;
 
     struct WindowSize {
@@ -71,8 +71,29 @@ struct RendererVulkan : public Renderer {
         uint height{};
     } window_size;
 
+    struct Window {
+        struct Size {
+            uint width;
+            uint height;
+        } size{};
+
+        struct SwapchainData {
+            vkb::Swapchain vkb_swapchain;
+            VkSwapchainKHR handle{};
+            VkFormat image_format{};
+            std::vector<VkImage> images;
+            std::vector<VkImageView> image_views;
+            VkExtent2D extent{};
+        } swapchain;
+
+        SDL_Window* handle{};
+        VkSurfaceKHR surface{};
+        VkQueue graphics_queue{};
+    };
+
     struct RenderState {
         std::vector<Viewport> viewports;
+        std::vector<Window> windows;
     } render_state{};
 
    public:
@@ -95,5 +116,8 @@ struct RendererVulkan : public Renderer {
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
     void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) const;
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
+
+    Window GetWindow(uint p_window_id);
+    uint CreateWindow(SDL_Window& p_sdl_window);
 };
 }  // namespace Gauge
