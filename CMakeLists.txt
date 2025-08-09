@@ -42,6 +42,8 @@ add_library(gauge_renderer STATIC
   gauge/renderer/renderer.cpp
   gauge/renderer/vulkan/renderer_vulkan.cpp
   gauge/renderer/vulkan/command_buffer.cpp
+  gauge/renderer/vulkan/graphics_pipeline_builder.cpp
+  gauge/renderer/vulkan/shader_module.cpp
 
   thirdparty/volk/volk.c
 )
@@ -56,6 +58,8 @@ add_library(gauge STATIC
 set_source_files_properties(
   thirdparty/volk/volk.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON
 )
+
+target_compile_definitions(gauge_renderer PRIVATE VK_NO_PROTOTYPES)
 
 target_precompile_headers(gauge_renderer PUBLIC <vector> <print> <string> <unordered_map> <memory>)
 target_include_directories(gauge_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

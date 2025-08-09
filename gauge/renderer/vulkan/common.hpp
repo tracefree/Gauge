@@ -1,6 +1,14 @@
 #pragma once
 
 #include <vulkan/vk_enum_string_helper.h>
+#include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
+
+struct VulkanContext {
+    vkb::Instance instance{};
+    vkb::PhysicalDevice physical_device{};
+    vkb::Device device{};
+    VkQueue graphics_queue{};
+};
 
 #define VK_CHECK(result, message)                 \
     if (result != VK_SUCCESS) [[unlikely]] {      \

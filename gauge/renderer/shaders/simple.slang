@@ -26,6 +26,13 @@ struct FragmentOutput {
     float4 Albedo : COLOR0;
 };
 
+float3[8] vertices = {
+    {1.0, 1.0, 1.0}, {1.0, 1.0, -1.0}, {1.0, -1.0, 1.0}, {1.0, -1.0, -1.0},
+    {-1.0, 1.0, 1.0}, {-1.0, 1.0, -1.0}, {-1.0, -1.0, 1.0}, {-1.0, -1.0, -1.0},
+};
+
+//uint[36] indices {};
+
 [shader("vertex")]
 VertexOutput vertex(uint vertexID: SV_VertexID) {
     let vertex = push_constants.vertices[vertexID];

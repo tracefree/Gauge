@@ -4,10 +4,11 @@
 
 #include <gauge/common.hpp>
 #include <gauge/core/app.hpp>
-#include <gauge/core/filesystem.hpp>
 #include <gauge/core/math.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
+#include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
 #include <gauge/renderer/vulkan/pipeline.hpp>
+#include <gauge/renderer/vulkan/shader_module.hpp>
 
 #include <cassert>
 #include <cstdint>
@@ -31,7 +32,6 @@
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
 #include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
-#include "thirdparty/imgui/imgui_internal.h"
 
 #define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
@@ -327,119 +327,18 @@ RendererVulkan::CreateSwapchain(bool recreate) {
 
 std::expected<Pipeline, std::string>
 RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
-    Pipeline pipeline{};
+    std::string ga = "triangle.spv";
+    auto shader_module_result = ShaderModule::FromFile(ctx, "triangle.spv");
+    CHECK_RET(shader_module_result);
+    ShaderModule shader_module = shader_module_result.value();
 
-    VkShaderModule shader_module{};
-    {
-        auto shader_code_result = FileSystem::ReadFile("triangle.spv");
-        CHECK_RET(shader_code_result);
-        auto shader_module_result = CreateShaderModule(shader_code_result.value());
-        CHECK_RET(shader_module_result);
-        shader_module = shader_module_result.value();
-    }
-
-    VkPipelineShaderStageCreateInfo vertex_shader_stage_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_VERTEX_BIT,
-        .module = shader_module,
-        .pName = "VertexMain",
-    };
-    VkPipelineShaderStageCreateInfo fragment_shader_stage_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .module = shader_module,
-        .pName = "FragmentMain",
-    };
-    VkPipelineShaderStageCreateInfo shader_stage_infos[] = {vertex_shader_stage_info, fragment_shader_stage_info};
-    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
-    VkPipelineDynamicStateCreateInfo dynamic_state_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = 2,
-        .pDynamicStates = dynamic_states,
-    };
-
-    VkPipelineVertexInputStateCreateInfo vertex_input_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-    };
-    VkPipelineInputAssemblyStateCreateInfo input_assembly_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-    };
-
-    VkPipelineViewportStateCreateInfo viewport_state_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-    };
-
-    VkPipelineRasterizationStateCreateInfo rasterization_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .lineWidth = 1.0f,
-    };
-
-    VkPipelineMultisampleStateCreateInfo msaa_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-    };
-
-    VkPipelineColorBlendAttachmentState color_blend_attachment_state{
-        .blendEnable = VK_FALSE,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    };
-
-    VkPipelineColorBlendStateCreateInfo color_blend_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments = &color_blend_attachment_state,
-    };
-
-    VkPushConstantRange push_constant_range{
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        .offset = 0,
-        .size = sizeof(PushConstants),
-    };
-
-    VkPipelineLayoutCreateInfo pipeline_layout_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .pushConstantRangeCount = 1,
-        .pPushConstantRanges = &push_constant_range,
-    };
-
-    VK_CHECK_RET(vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, nullptr, &pipeline.layout),
-                 "Could not create pipeline layout");
-    SetDebugName((uint64_t)pipeline.layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, std::format("{} layout", p_name));
-
-    VkPipelineRenderingCreateInfo pipeline_rendering_info{
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
-        .colorAttachmentCount = 1,
-        .pColorAttachmentFormats = &swapchain.image_format,
-    };
-
-    VkGraphicsPipelineCreateInfo pipeline_info{
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .pNext = &pipeline_rendering_info,
-        .stageCount = 2,
-        .pStages = shader_stage_infos,
-        .pVertexInputState = &vertex_input_info,
-        .pInputAssemblyState = &input_assembly_info,
-        .pViewportState = &viewport_state_info,
-        .pRasterizationState = &rasterization_info,
-        .pMultisampleState = &msaa_info,
-        .pColorBlendState = &color_blend_info,
-        .pDynamicState = &dynamic_state_info,
-        .layout = pipeline.layout,
-    };
-
-    VK_CHECK_RET(vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
-                 "Could not create graphics pipeline");
-    SetDebugName((uint64_t)pipeline.handle, VK_OBJECT_TYPE_PIPELINE, p_name);
-
-    return pipeline;
+    GraphicsPipelineBuilder builder("triangle");
+    return builder
+        .SetVertexStage(shader_module.handle, "VertexMain")
+        .SetFragmentStage(shader_module.handle, "FragmentMain")
+        .AddPushConstantRange((VkShaderStageFlagBits)VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PushConstants))
+        .SetImageFormat(swapchain.image_format)
+        .build(ctx);
 }
 
 static void SetupImGuiStyle() {
@@ -637,18 +536,6 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     return {};
 }
 
-std::expected<VkShaderModule, std::string>
-RendererVulkan::CreateShaderModule(const std::vector<char>& p_code) const {
-    VkShaderModuleCreateInfo shader_module_info{
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = p_code.size(),
-        .pCode = reinterpret_cast<const uint32_t*>(p_code.data()),
-    };
-    VkShaderModule shader_module{};
-    VK_CHECK_RET(vkCreateShaderModule(ctx.device, &shader_module_info, nullptr, &shader_module), "Could not create shader module");
-    return shader_module;
-}
-
 void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) const {
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
 
@@ -661,6 +548,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         .clearValue = {
             .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
         }};
+
     VkRenderingInfo rendering_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
         .flags = 0,
@@ -669,8 +557,8 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
                 .offset = {.x = 0, .y = 0},
                 .extent =
                     {
-                        .width = window_size.width,  // TODO
-                        .height = window_size.height,
+                        .width = (uint)p_viewport.width,
+                        .height = (uint)p_viewport.height,
                     },
             },
         .layerCount = 1,
@@ -680,12 +568,13 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
 
     vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
 
+    glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
+    projection[1][1] *= -1.0f;
     cmd->BindPipeline(graphics_pipeline);
     PushConstants push_constants{
-        .color = col,
-        //    .model_matrix = glm::mat4(1.0f),
-        //    .view_projection = projection,
-        //    .vertex_buffer_address = 0,
+        .model_matrix = glm::mat4(1.0f),
+        .view_projection = projection,
+        .vertex_buffer_address = 0,
     };
     vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push_constants);
 
@@ -697,9 +586,6 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
     vkCmdDraw(cmd->GetHandle(), 3, 1, 0, 0);
-
-    // glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
-    // projection[1][1] *= -1.0f;
 
     vkCmdEndRendering(cmd->GetHandle());
 }

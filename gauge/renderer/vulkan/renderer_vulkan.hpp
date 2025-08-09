@@ -3,6 +3,7 @@
 #include <gauge/core/math.hpp>
 #include <gauge/renderer/renderer.hpp>
 #include <gauge/renderer/vulkan/command_buffer.hpp>
+#include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/pipeline.hpp>
 
 #include <SDL3/SDL_video.h>
@@ -15,19 +16,14 @@
 
 #include <volk.h>
 #include <vulkan/vulkan_core.h>
+
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
-#include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
 namespace Gauge {
 
 struct RendererVulkan : public Renderer {
    private:
-    struct VulkanContext {
-        vkb::Instance instance{};
-        vkb::PhysicalDevice physical_device{};
-        vkb::Device device{};
-        VkQueue graphics_queue{};
-    } ctx{};
+    VulkanContext ctx{};
 
     struct FrameData {
         VkCommandPool cmd_pool{};
@@ -49,10 +45,9 @@ struct RendererVulkan : public Renderer {
     } swapchain;
 
     struct PushConstants {
-        glm::vec4 color;
-        //    glm::mat4 model_matrix;
-        //    glm::mat4 view_projection;
-        //    VkDeviceAddress vertex_buffer_address;
+        glm::mat4 model_matrix;
+        glm::mat4 view_projection;
+        VkDeviceAddress vertex_buffer_address;
     };
 
     std::vector<VkSemaphore>
@@ -86,7 +81,6 @@ struct RendererVulkan : public Renderer {
     vkb::Instance const* GetInstance() const;
     std::expected<VkCommandPool, std::string> CreateCommandPool() const;
     std::expected<VkCommandBuffer, std::string> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
-    std::expected<VkShaderModule, std::string> CreateShaderModule(const std::vector<char>& p_code) const;
     std::expected<Pipeline, std::string> CreateGraphicsPipeline(std::string p_name);
     std::expected<void, std::string> CreateSwapchain(bool recreate = false);
     std::expected<void, std::string> CreateFrameData();

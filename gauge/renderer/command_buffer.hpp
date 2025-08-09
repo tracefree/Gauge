@@ -8,5 +8,7 @@ struct CommandBuffer {
    public:
     virtual std::expected<void, std::string> Begin() = 0;
     virtual std::expected<void, std::string> End() = 0;
+    // virtual void BeginRendering() = 0;
+    // virtual void EndRendering() = 0;
 };
 }  // namespace Gauge
