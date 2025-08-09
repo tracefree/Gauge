@@ -7,17 +7,22 @@ struct VSOutput {
     float2 UV : VertexUV;
 };
 
-
 struct Push {
     float4x4 model_matrix;
     float4x4 view_projection;
-    Vertex *vertices;
+    Vertex* vertices;
 }
 
 [[vk::push_constant]]
 ConstantBuffer<Push> push_constants;
 
-struct FSOutput {
+struct VertexOutput {
+    float4 sv_position : SV_Position;
+    float3x3 tbn_ws : TBN_WS;
+    float2 uv : VertexUV;
+};
+
+struct FragmentOutput {
     float4 Albedo : COLOR0;
 };
 
@@ -36,7 +41,7 @@ VertexOutput vertex(uint vertexID: SV_VertexID) {
     return VertexOutput(
         mul(push_constants.view_projection, world_position),
         tbn_ws,
-        vertex.color,
+    //    vertex.color,
         float2(vertex.uv_x, vertex.uv_y)
     );
 }
@@ -45,12 +50,11 @@ VertexOutput vertex(uint vertexID: SV_VertexID) {
 FragmentOutput fragment(
     float4 position_cs: SV_Position,
     float3x3 tbn_ws: TBN_WS,
-    float4 color: VertexColor,
     float2 uv: VertexUV,
 )
 {
-    let albedo_texture_sample = fragment_params.albedo_texture.Sample(uv);
-    let albedo = fragment_params.material_data.albedo_factors.rgb * color.rgb * albedo_texture_sample.rgb;
+   // let albedo_texture_sample = fragment_params.albedo_texture.Sample(uv);
+   // let albedo = fragment_params.material_data.albedo_factors.rgb * color.rgb * albedo_texture_sample.rgb;
 
-    return FragmentOutput(float4(albedo, 1.0));
+    return FragmentOutput(float4(1.0, 0.0, 0.0, 1.0));
 }
