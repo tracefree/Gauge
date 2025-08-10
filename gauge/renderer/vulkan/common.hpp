@@ -1,12 +1,17 @@
 #pragma once
 
+#include <volk.h>
 #include <vulkan/vk_enum_string_helper.h>
+#include <vulkan/vulkan_core.h>
 #include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
+
+#include <vk_mem_alloc.h>
 
 struct VulkanContext {
     vkb::Instance instance{};
     vkb::PhysicalDevice physical_device{};
     vkb::Device device{};
+    VmaAllocator allocator{};
     VkQueue graphics_queue{};
 };
 

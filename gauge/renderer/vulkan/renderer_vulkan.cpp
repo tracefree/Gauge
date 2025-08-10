@@ -105,7 +105,9 @@ static std::expected<vkb::PhysicalDevice, std::string>
 CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     VkPhysicalDeviceVulkan12Features device_features_12{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+        .descriptorIndexing = VK_TRUE,
         .timelineSemaphore = VK_TRUE,
+        .bufferDeviceAddress = VK_TRUE,
     };
     VkPhysicalDeviceVulkan13Features device_features_13{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
@@ -148,6 +150,25 @@ InitializeVolk(vkb::Instance p_instance, vkb::Device p_device) {
     VK_CHECK_RET(volkInitialize(), "Could not initialize volk");
     volkLoadInstance(p_instance.instance);
     volkLoadDevice(p_device.device);
+    return {};
+}
+
+static std::expected<void, std::string>
+InitializeVulkanMemoryAllocator(VulkanContext& ctx) {
+    VmaVulkanFunctions vulkan_functions;
+    VmaAllocatorCreateInfo vma_allocator_info{
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
+        .physicalDevice = ctx.physical_device.physical_device,
+        .device = ctx.device.device,
+        .pVulkanFunctions = &vulkan_functions,
+        .instance = ctx.instance.instance,
+        .vulkanApiVersion = VK_API_VERSION_1_3,
+
+    };
+    VK_CHECK_RET(vmaImportVulkanFunctionsFromVolk(&vma_allocator_info, &vulkan_functions),
+                 "Could not import vulkan functions from volk for Vulkan Memory Allocator");
+    VK_CHECK_RET(vmaCreateAllocator(&vma_allocator_info, &ctx.allocator),
+                 "Could not create Vulkan Memory Allocator");
     return {};
 }
 
@@ -503,6 +524,9 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             .and_then([this](vkb::Device p_device) {
                 ctx.device = p_device;
                 return InitializeVolk(ctx.instance, ctx.device);
+            })
+            .and_then([&]() {
+                return InitializeVulkanMemoryAllocator(ctx);
             })
             .and_then([this]() {
                 SetDebugName((uint64_t)ctx.instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");

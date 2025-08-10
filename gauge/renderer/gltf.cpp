@@ -42,7 +42,10 @@ static void IteratePositions(fastgltf::Asset& asset, const fastgltf::Primitive& 
 }
 
 static void IterateNormals(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
-    fastgltf::Accessor& accessor = asset.accessors[primitive.findAttribute(Attribute::NORMAL)->accessorIndex];
+    auto attribute = primitive.findAttribute(Attribute::NORMAL);
+    if (attribute == primitive.attributes.end())
+        return;
+    fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
     fastgltf::iterateAccessorWithIndex<glm::vec3>(
         asset,
         accessor,
@@ -52,7 +55,10 @@ static void IterateNormals(fastgltf::Asset& asset, const fastgltf::Primitive& pr
 }
 
 static void IterateTangents(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
-    fastgltf::Accessor& accessor = asset.accessors[primitive.findAttribute(Attribute::TANGENT)->accessorIndex];
+    auto attribute = primitive.findAttribute(Attribute::TANGENT);
+    if (attribute == primitive.attributes.end())
+        return;
+    fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
     fastgltf::iterateAccessorWithIndex<glm::vec4>(
         asset,
         accessor,
@@ -62,7 +68,10 @@ static void IterateTangents(fastgltf::Asset& asset, const fastgltf::Primitive& p
 }
 
 static void IterateUVs(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
-    fastgltf::Accessor& accessor = asset.accessors[primitive.findAttribute(Attribute::UV)->accessorIndex];
+    auto attribute = primitive.findAttribute(Attribute::UV);
+    if (attribute == primitive.attributes.end())
+        return;
+    fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
     fastgltf::iterateAccessorWithIndex<glm::vec2>(
         asset,
         accessor,
@@ -95,7 +104,7 @@ glTF::FromFile(const std::string& p_path) {
             IterateIndices(asset.get(), primitive, mesh);
             IteratePositions(asset.get(), primitive, mesh);
             IterateNormals(asset.get(), primitive, mesh);
-            //  IterateTangents(asset.get(), primitive, mesh);
+            IterateTangents(asset.get(), primitive, mesh);
             IterateUVs(asset.get(), primitive, mesh);
         }
 

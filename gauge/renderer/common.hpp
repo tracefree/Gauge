@@ -3,6 +3,7 @@
 #include <vulkan/vulkan_core.h>
 #include "glm/ext/vector_float3.hpp"
 #include "glm/ext/vector_float4.hpp"
+#include "vk_mem_alloc.h"
 
 struct Vertex {
     glm::vec3 position;

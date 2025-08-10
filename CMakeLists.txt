@@ -44,6 +44,7 @@ add_library(gauge_renderer STATIC
   gauge/renderer/vulkan/command_buffer.cpp
   gauge/renderer/vulkan/graphics_pipeline_builder.cpp
   gauge/renderer/vulkan/shader_module.cpp
+  gauge/renderer/vulkan/vma_usage.cpp
   gauge/renderer/gltf.cpp
 
   thirdparty/volk/volk.c
@@ -61,6 +62,7 @@ set_source_files_properties(
 )
 
 target_include_directories(gauge_renderer PUBLIC thirdparty/fastgltf/include)
+include_directories(gauge_renderer PUBLIC thirdparty/VulkanMemoryAllocator/include)
 
 target_compile_definitions(gauge_renderer PRIVATE VK_NO_PROTOTYPES)
 

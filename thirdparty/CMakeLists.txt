@@ -8,6 +8,14 @@ add_subdirectory(vk-bootstrap)
 set(VOLK_STATIC_DEFINES VK_USE_PLATFORM_WAYLAND_KHR)
 add_subdirectory(volk)
 
+# VulkanMemoryAllocator
+add_subdirectory(VulkanMemoryAllocator)
+add_compile_definitions(
+    VMA_STATIC_VULKAN_FUNCTIONS=0
+    VMA_DYNAMIC_VULKAN_FUNCTIONS=0
+)
+include_directories(VulkanMemoryAllocator/include)
+
 # yaml-cpp
 set(YAML_CPP_BUILD_TOOLS OFF CACHE INTERNAL "" FORCE)
 set(YAML_CPP_BUILD_SHARED_LIBS OFF CACHE INTERNAL "" FORCE)

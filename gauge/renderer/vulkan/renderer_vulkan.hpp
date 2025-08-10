@@ -14,9 +14,6 @@
 #include <string>
 #include <vector>
 
-#include <volk.h>
-#include <vulkan/vulkan_core.h>
-
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
 namespace Gauge {
