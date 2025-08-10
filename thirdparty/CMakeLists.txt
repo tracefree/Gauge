@@ -37,3 +37,7 @@ target_include_directories(imgui PUBLIC
     imgui/
     imgui/backends/
 )
+
+# fastgltf
+add_subdirectory(fastgltf)
+include_directories(fastgltf/include)

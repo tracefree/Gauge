@@ -28,6 +28,7 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
+#include "gauge/renderer/gltf.hpp"
 #include "thirdparty/imgui/imgui.h"
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
@@ -531,6 +532,8 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
         .height = static_cast<float>(window_size.height),
         .fill_window = true,
     });
+
+    auto model = glTF::FromFile("box.glb");
 
     initialized = true;
     return {};

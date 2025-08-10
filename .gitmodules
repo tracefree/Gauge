@@ -19,3 +19,9 @@
 [submodule "thirdparty/imgui"]
 	path = thirdparty/imgui
 	url = git@github.com:ocornut/imgui.git
+[submodule "thirdparty/--recurse-submodules"]
+	path = thirdparty/--recurse-submodules
+	url = git@github.com:spnda/fastgltf.git
+[submodule "thirdparty/fastgltf"]
+	path = thirdparty/fastgltf
+	url = git@github.com:spnda/fastgltf.git

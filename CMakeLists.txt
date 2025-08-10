@@ -44,6 +44,7 @@ add_library(gauge_renderer STATIC
   gauge/renderer/vulkan/command_buffer.cpp
   gauge/renderer/vulkan/graphics_pipeline_builder.cpp
   gauge/renderer/vulkan/shader_module.cpp
+  gauge/renderer/gltf.cpp
 
   thirdparty/volk/volk.c
 )
@@ -59,6 +60,8 @@ set_source_files_properties(
   thirdparty/volk/volk.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON
 )
 
+target_include_directories(gauge_renderer PUBLIC thirdparty/fastgltf/include)
+
 target_compile_definitions(gauge_renderer PRIVATE VK_NO_PROTOTYPES)
 
 target_precompile_headers(gauge_renderer PUBLIC <vector> <print> <string> <unordered_map> <memory>)
@@ -73,6 +76,7 @@ target_link_libraries(gauge_renderer PUBLIC
   vk-bootstrap::vk-bootstrap
   volk::volk
   Tracy::TracyClient
+  fastgltf::fastgltf
   glm
   imgui
 )

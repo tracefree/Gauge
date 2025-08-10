@@ -1,16 +1,16 @@
 #pragma once
 
+#include <sys/types.h>
 #include <expected>
 #include <string>
 
-#include "glm/ext/vector_float3.hpp"
+#include <gauge/renderer/common.hpp>
+#include <unordered_map>
 
 namespace Gauge {
 
 struct glTF {
-    struct Vertex {
-        glm::vec3 position;
-    };
+    std::unordered_map<std::string, Mesh> meshes;
 
     static std::expected<glTF, std::string> FromFile(const std::string& p_path);
 };
