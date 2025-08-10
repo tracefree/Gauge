@@ -10,7 +10,7 @@
 namespace Gauge {
 
 struct glTF {
-    std::unordered_map<std::string, Mesh> meshes;
+    std::unordered_map<std::string, CPUMesh> meshes;
 
     static std::expected<glTF, std::string> FromFile(const std::string& p_path);
 };

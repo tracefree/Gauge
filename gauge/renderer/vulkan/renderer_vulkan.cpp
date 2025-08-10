@@ -2,12 +2,13 @@
 
 #include "VkBootstrap.h"
 
+#include <cstddef>
+#include <cstring>
 #include <gauge/common.hpp>
 #include <gauge/core/app.hpp>
 #include <gauge/core/math.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
-#include <gauge/renderer/vulkan/pipeline.hpp>
 #include <gauge/renderer/vulkan/shader_module.hpp>
 
 #include <cassert>
@@ -28,7 +29,12 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
+#include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
+#include "gauge/renderer/renderer.hpp"
+#include "gauge/renderer/vulkan/command_buffer.hpp"
+#include "glm/ext/matrix_transform.hpp"
+#include "glm/matrix.hpp"
 #include "thirdparty/imgui/imgui.h"
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
@@ -261,6 +267,12 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "ImGui");
 
+    VkDebugUtilsLabelEXT debug_marker_info{
+        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT,
+        .pLabelName = "ImGui",
+    };
+    vkCmdBeginDebugUtilsLabelEXT(cmd->GetHandle(), &debug_marker_info);
+
     VkRenderingAttachmentInfo color_attachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
         .imageView = swapchain.image_views[p_next_image_index],
@@ -287,6 +299,8 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
     vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd->GetHandle());
     vkCmdEndRendering(cmd->GetHandle());
+
+    vkCmdEndDebugUtilsLabelEXT(cmd->GetHandle());
 }
 
 std::expected<void, std::string>
@@ -349,16 +363,16 @@ RendererVulkan::CreateSwapchain(bool recreate) {
 
 std::expected<Pipeline, std::string>
 RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
-    std::string ga = "triangle.spv";
-    auto shader_module_result = ShaderModule::FromFile(ctx, "triangle.spv");
+    std::string ga = "simple.spv";
+    auto shader_module_result = ShaderModule::FromFile(ctx, "simple.spv");
     CHECK_RET(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
 
-    GraphicsPipelineBuilder builder("triangle");
+    GraphicsPipelineBuilder builder("simple");
     return builder
         .SetVertexStage(shader_module.handle, "VertexMain")
         .SetFragmentStage(shader_module.handle, "FragmentMain")
-        .AddPushConstantRange((VkShaderStageFlagBits)VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PushConstants))
+        .AddPushConstantRange((VkShaderStageFlagBits)VK_SHADER_STAGE_VERTEX_BIT, sizeof(PushConstants))
         .SetImageFormat(swapchain.image_format)
         .build(ctx);
 }
@@ -551,22 +565,47 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(graphics_pipeline_result);
     graphics_pipeline = graphics_pipeline_result.value();
 
-    render_state.viewports.emplace_back(Viewport{
+    // Immediate command setup
+    CHECK_RET(CreateCommandPool()
+                  .and_then([&](VkCommandPool p_cmd_pool) {
+                      immediate_command.pool = p_cmd_pool;
+                      return CreateCommandBuffer(immediate_command.pool);
+                  })
+                  .transform([&](VkCommandBuffer p_cmd) {
+                      immediate_command.buffer = p_cmd;
+                  }));
+    VkFenceCreateInfo fence_info{
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+    VK_CHECK_RET(vkCreateFence(ctx.device, &fence_info, nullptr, &immediate_command.fence),
+                 "Could not immediate submit fence");
+
+    // Render state
+    auto main_viewport_result = CreateViewport(ViewportSettings{
         .width = static_cast<float>(window_size.width),
         .height = static_cast<float>(window_size.height),
         .fill_window = true,
+        .use_swapchain = true,
+        .use_depth = true,
     });
+    CHECK_RET(main_viewport_result)
+    render_state.viewports.emplace_back(main_viewport_result.value());
 
-    auto model = glTF::FromFile("box.glb");
+    auto model = glTF::FromFile("character.glb");
+    auto gpu_cube_result = UploadMeshToGPU(model->meshes["Character"]);
+    CHECK(gpu_cube_result);
+
+    render_state.meshes.emplace_back(gpu_cube_result.value());
 
     initialized = true;
     return {};
 }
 
-void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) const {
+void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) {
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
 
-    VkRenderingAttachmentInfo rendering_attachement_info{
+    VkRenderingAttachmentInfo color_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
         .imageView = swapchain.image_views[p_next_image_index],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -584,44 +623,65 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
                 .offset = {.x = 0, .y = 0},
                 .extent =
                     {
-                        .width = (uint)p_viewport.width,
-                        .height = (uint)p_viewport.height,
+                        .width = (uint)p_viewport.settings.width,
+                        .height = (uint)p_viewport.settings.height,
                     },
             },
         .layerCount = 1,
         .colorAttachmentCount = 1,
-        .pColorAttachments = &rendering_attachement_info,
+        .pColorAttachments = &color_attachement_info,
     };
+
+    if (p_viewport.settings.use_depth) {
+        VkRenderingAttachmentInfo depth_attachement_info{
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+            .imageView = p_viewport.depth.view,
+            .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .clearValue = {
+                .depthStencil = {.depth = 0.0f},
+            }};
+        rendering_info.pDepthAttachment = &depth_attachement_info;
+    }
 
     vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
 
-    glm::mat4 projection = glm::perspective(glm::radians(70.0f), (float)(1920.0 / 1080.0), 1000.0f, 0.1f);
-    projection[1][1] *= -1.0f;
-    cmd->BindPipeline(graphics_pipeline);
-    PushConstants push_constants{
-        .model_matrix = glm::mat4(1.0f),
-        .view_projection = projection,
-        .vertex_buffer_address = 0,
-    };
-    vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &push_constants);
-
     VkViewport vk_viewport{
-        p_viewport.position.x, p_viewport.position.y,
-        p_viewport.width, p_viewport.height,
+        p_viewport.settings.position.x, p_viewport.settings.position.y,
+        p_viewport.settings.width, p_viewport.settings.height,
         0.0f, 1.0f};
     VkRect2D scissor{VkOffset2D{}, swapchain.extent};
     vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
-    vkCmdDraw(cmd->GetHandle(), 3, 1, 0, 0);
+
+    glm::mat4 projection = glm::perspective(
+        glm::radians(70.0f),
+        (float)(p_viewport.settings.width / p_viewport.settings.height),
+        10.0f,
+        0.1f);
+    projection[1][1] *= -1.0f;
+
+    cmd->BindPipeline(graphics_pipeline);
+    PushConstants& pcs = GetCurrentFrame().push_constants;
+    pcs.model_matrix = glm::mat4(1.0f);
+    pcs.view_projection = projection * glm::inverse(glm::translate(glm::mat4(1.0f), render_state.camera_position));
+
+    for (const auto& mesh : render_state.meshes) {
+        GetCurrentFrame().push_constants.vertex_buffer_address = mesh.vertex_buffer.address;
+        vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
+        vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
+    }
 
     vkCmdEndRendering(cmd->GetHandle());
 }
 
-void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) {
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
 
-    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
     for (const auto& viewport : render_state.viewports) {
         RenderViewport(cmd, viewport, p_next_image_index);
@@ -629,7 +689,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
 
     RenderImGui(cmd, p_next_image_index);
 
-    cmd->transition_image(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
 void RendererVulkan::Draw() {
@@ -641,6 +701,9 @@ void RendererVulkan::Draw() {
         ImGui::NewFrame();
 
         if (ImGui::Begin("Settings")) {
+            ImGui::SliderFloat("Camera x", &render_state.camera_position.x, -10.0f, 10.0f);
+            ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
+            ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
         }
         ImGui::End();
         /*
@@ -763,8 +826,13 @@ RendererVulkan::GetInstance() const {
     return &ctx.instance;
 }
 
-RendererVulkan::FrameData
+RendererVulkan::FrameData const&
 RendererVulkan::GetCurrentFrame() const {
+    return frames_in_flight[current_frame_index];
+}
+
+RendererVulkan::FrameData&
+RendererVulkan::GetCurrentFrame() {
     return frames_in_flight[current_frame_index];
 }
 
@@ -784,10 +852,209 @@ void RendererVulkan::OnWindowResized(uint p_width, uint p_height) {
     window_size.width = p_width;
     window_size.height = p_height;
     for (auto& viewport : render_state.viewports) {
-        if (viewport.fill_window) {
-            viewport.width = p_width;
-            viewport.height = p_height;
+        if (viewport.settings.fill_window) {
+            OnViewportResized(viewport, p_width, p_height);
         }
     }
     CHECK(CreateSwapchain(true));
+}
+
+void RendererVulkan::OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const {
+    p_viewport.settings.width = p_width;
+    p_viewport.settings.height = p_height;
+    if (p_viewport.settings.use_depth) {
+        DestroyImage(p_viewport.depth);
+        CHECK(CreateDepthImage(p_width, p_height)
+                  .transform([&](GPUImage p_depth) {
+                      p_viewport.depth = p_depth;
+                  }));
+    }
+}
+
+std::expected<BufferAllocation, std::string>
+RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usage, VmaMemoryUsage p_memory_usage) const {
+    BufferAllocation buffer{};
+
+    VkBufferCreateInfo buffer_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = p_allocation_size,
+        .usage = p_usage,
+    };
+    VmaAllocationCreateInfo vma_alloc_info{
+        .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
+        .usage = p_memory_usage,
+    };
+    VK_CHECK_RET(vmaCreateBuffer(
+                     ctx.allocator,
+                     &buffer_info,
+                     &vma_alloc_info,
+                     &buffer.buffer,
+                     &buffer.allocation,
+                     &buffer.info),
+                 "Could not create buffer")
+
+    return buffer;
+}
+
+std::expected<GPUMesh, std::string>
+RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
+    GPUMesh gpu_mesh{};
+    const uint vertex_buffer_size = cpu_mesh.indices.size() * sizeof(Vertex);
+    const size_t index_buffer_size = cpu_mesh.indices.size() * sizeof(uint);
+
+    gpu_mesh.index_count = cpu_mesh.indices.size();
+
+    // Vertices
+    const auto vertex_buffer_result = CreateBuffer(
+        vertex_buffer_size,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+    CHECK_RET(vertex_buffer_result);
+    gpu_mesh.vertex_buffer = vertex_buffer_result.value();
+    VkBufferDeviceAddressInfo vertex_buffer_address_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = gpu_mesh.vertex_buffer.buffer,
+    };
+    gpu_mesh.vertex_buffer.address = vkGetBufferDeviceAddress(ctx.device, &vertex_buffer_address_info);
+
+    // Indices
+    const auto index_buffer_result = CreateBuffer(
+        index_buffer_size,
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+    CHECK_RET(index_buffer_result);
+    gpu_mesh.index_buffer = index_buffer_result.value();
+
+    // Staging
+    BufferAllocation staging_buffer{};
+    const auto staging_buffer_result = CreateBuffer(
+        (vertex_buffer_size + index_buffer_size) * 10,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_COPY);
+    CHECK_RET(staging_buffer_result);
+    staging_buffer = staging_buffer_result.value();
+
+    void* data = staging_buffer.info.pMappedData;
+    memcpy(data, cpu_mesh.vertices.data(), vertex_buffer_size);
+    memcpy((char*)data + vertex_buffer_size, cpu_mesh.indices.data(), index_buffer_size);
+
+    ImmediateSubmit([&](VkCommandBuffer cmd) {
+        const VkBufferCopy vertex_copy{
+            .size = vertex_buffer_size,
+        };
+        vkCmdCopyBuffer(cmd, staging_buffer.buffer, gpu_mesh.vertex_buffer.buffer, 1, &vertex_copy);
+
+        const VkBufferCopy index_copy{
+            .srcOffset = vertex_buffer_size,
+            .size = index_buffer_size,
+        };
+        vkCmdCopyBuffer(cmd, staging_buffer.buffer, gpu_mesh.index_buffer.buffer, 1, &index_copy);
+    });
+
+    vmaDestroyBuffer(ctx.allocator, staging_buffer.buffer, staging_buffer.allocation);
+
+    return gpu_mesh;
+}
+
+std::expected<void, std::string>
+RendererVulkan::ImmediateSubmit(std::function<void(VkCommandBuffer p_cmd)>&& function) const {
+    vkResetFences(ctx.device, 1, &immediate_command.fence);
+    vkResetCommandPool(ctx.device, immediate_command.pool, 0);
+
+    const VkCommandBufferBeginInfo cmd_begin_info{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    VK_CHECK_RET(vkBeginCommandBuffer(immediate_command.buffer, &cmd_begin_info),
+                 "Could not begin immediate command buffer");
+
+    function(immediate_command.buffer);
+
+    VK_CHECK_RET(vkEndCommandBuffer(immediate_command.buffer),
+                 "Could not end immediate command buffer");
+
+    const VkSubmitInfo submit_info{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &immediate_command.buffer,
+    };
+    VK_CHECK_RET(vkQueueSubmit(ctx.graphics_queue, 1, &submit_info, immediate_command.fence),
+                 "Could not submit immediate command");
+    VK_CHECK_RET(vkWaitForFences(ctx.device, 1, &immediate_command.fence, VK_TRUE, UINT64_MAX),
+                 "Could not wait for immediate submit fence");
+
+    return {};
+}
+
+std::expected<GPUImage, std::string>
+RendererVulkan::CreateDepthImage(const uint p_width, const uint p_height) const {
+    GPUImage depth{};
+    depth.format = VK_FORMAT_D32_SFLOAT;
+    depth.extent = {p_width, p_height, 1};
+
+    const VkImageCreateInfo image_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = depth.format,
+        .extent = depth.extent,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+    };
+    const VmaAllocationCreateInfo image_allocation_info{
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    };
+    VK_CHECK_RET(vmaCreateImage(ctx.allocator, &image_info, &image_allocation_info, &depth.image, &depth.allocation.allocation, &depth.allocation.info),
+                 "Could not create depth image");
+    SetDebugName((uint64_t)depth.image, VK_OBJECT_TYPE_IMAGE, "Depth image");
+
+    const VkImageViewCreateInfo view_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = depth.image,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = depth.format,
+        .subresourceRange = VkImageSubresourceRange{
+            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        }};
+    VK_CHECK(vkCreateImageView(ctx.device, &view_info, nullptr, &depth.view),
+             "Could not create depth image view");
+    SetDebugName((uint64_t)depth.view, VK_OBJECT_TYPE_IMAGE_VIEW, "Depth image view");
+
+    ImmediateSubmit([&](VkCommandBuffer p_cmd) {
+        CommandBufferVulkan cmd(p_cmd);
+        cmd.TransitionImage(depth.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
+    });
+
+    return depth;
+}
+
+void RendererVulkan::DestroyImage(GPUImage& p_image) const {
+    vkDestroyImageView(ctx.device, p_image.view, nullptr);
+    vmaDestroyImage(ctx.allocator, p_image.image, p_image.allocation.allocation);
+}
+
+std::expected<RendererVulkan::Viewport, std::string> RendererVulkan::CreateViewport(const ViewportSettings& p_settings) const {
+    Viewport viewport{
+        .settings = p_settings,
+    };
+
+    if (!p_settings.use_swapchain) {
+        // TODO: Create color attachment
+    }
+
+    if (p_settings.use_depth) {
+        CHECK_RET(CreateDepthImage(p_settings.width, p_settings.height)
+                      .transform([&](GPUImage p_depth) {
+                          viewport.depth = p_depth;
+                      }));
+    }
+
+    return viewport;
 }

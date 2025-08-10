@@ -7,19 +7,20 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/types.hpp>
 #include <filesystem>
+#include <print>
 #include "glm/ext/vector_float2.hpp"
 #include "glm/ext/vector_float4.hpp"
 
 using namespace Gauge;
 
 namespace Attribute {
-constexpr const char* POSITION = "POSTION";
+constexpr const char* POSITION = "POSITION";
 constexpr const char* NORMAL = "NORMAL";
 constexpr const char* UV = "TEXCOORD_0";
 constexpr const char* TANGENT = "TANGENT";
 }  // namespace Attribute
 
-static void IterateIndices(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
+static void IterateIndices(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, CPUMesh& mesh) {
     fastgltf::Accessor& accessor = asset.accessors[primitive.indicesAccessor.value()];
     mesh.indices.reserve(accessor.count);
     fastgltf::iterateAccessor<uint>(
@@ -30,8 +31,10 @@ static void IterateIndices(fastgltf::Asset& asset, const fastgltf::Primitive& pr
         });
 }
 
-static void IteratePositions(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
-    fastgltf::Accessor& accessor = asset.accessors[primitive.findAttribute(Attribute::POSITION)->accessorIndex];
+static void IteratePositions(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, CPUMesh& mesh) {
+    auto attriubte = primitive.findAttribute(Attribute::POSITION);
+    assert(attriubte != primitive.attributes.end());
+    fastgltf::Accessor& accessor = asset.accessors[attriubte->accessorIndex];
     mesh.vertices.resize(accessor.count);
     fastgltf::iterateAccessorWithIndex<glm::vec3>(
         asset,
@@ -41,7 +44,7 @@ static void IteratePositions(fastgltf::Asset& asset, const fastgltf::Primitive& 
         });
 }
 
-static void IterateNormals(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
+static void IterateNormals(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, CPUMesh& mesh) {
     auto attribute = primitive.findAttribute(Attribute::NORMAL);
     if (attribute == primitive.attributes.end())
         return;
@@ -54,7 +57,7 @@ static void IterateNormals(fastgltf::Asset& asset, const fastgltf::Primitive& pr
         });
 }
 
-static void IterateTangents(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
+static void IterateTangents(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, CPUMesh& mesh) {
     auto attribute = primitive.findAttribute(Attribute::TANGENT);
     if (attribute == primitive.attributes.end())
         return;
@@ -67,7 +70,7 @@ static void IterateTangents(fastgltf::Asset& asset, const fastgltf::Primitive& p
         });
 }
 
-static void IterateUVs(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, Mesh& mesh) {
+static void IterateUVs(fastgltf::Asset& asset, const fastgltf::Primitive& primitive, CPUMesh& mesh) {
     auto attribute = primitive.findAttribute(Attribute::UV);
     if (attribute == primitive.attributes.end())
         return;
@@ -98,9 +101,10 @@ glTF::FromFile(const std::string& p_path) {
     }
 
     for (const auto& gltf_mesh : asset->meshes) {
-        Mesh mesh{};
+        CPUMesh mesh{};
 
-        for (auto&& primitive : gltf_mesh.primitives) {
+        {
+            auto&& primitive = gltf_mesh.primitives[2];
             IterateIndices(asset.get(), primitive, mesh);
             IteratePositions(asset.get(), primitive, mesh);
             IterateNormals(asset.get(), primitive, mesh);

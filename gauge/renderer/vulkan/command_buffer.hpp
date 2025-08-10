@@ -1,7 +1,7 @@
 #pragma once
 
 #include <gauge/renderer/command_buffer.hpp>
-#include <gauge/renderer/vulkan/pipeline.hpp>
+#include <gauge/renderer/vulkan/common.hpp>
 
 #include <expected>
 #include <string>
@@ -17,7 +17,7 @@ struct CommandBufferVulkan final : public CommandBuffer {
     std::expected<void, std::string> Begin() final override;
     std::expected<void, std::string> End() final override;
 
-    void transition_image(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags = VK_IMAGE_ASPECT_NONE) const;
+    void TransitionImage(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags = VK_IMAGE_ASPECT_NONE) const;
     VkCommandBuffer GetHandle();
     void BindPipeline(const Pipeline& p_pipeline);
 

@@ -1,4 +1,5 @@
 #include "command_buffer.hpp"
+#include <vulkan/vulkan_core.h>
 
 #include <gauge/renderer/vulkan/common.hpp>
 
@@ -32,7 +33,7 @@ CommandBufferVulkan::CommandBufferVulkan(VkCommandBuffer p_cmd) {
     cmd = p_cmd;
 }
 
-void CommandBufferVulkan::transition_image(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags) const {
+void CommandBufferVulkan::TransitionImage(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags) const {
     VkImageAspectFlags aspect_mask;
     if (p_aspect_flags == VK_IMAGE_ASPECT_NONE) {
         aspect_mask = (p_target_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL || p_current_layout == VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
@@ -52,7 +53,9 @@ void CommandBufferVulkan::transition_image(VkImage p_image, VkImageLayout p_curr
         case VK_IMAGE_LAYOUT_UNDEFINED:
             src_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
             break;
-        default:;
+        default:
+            src_stage_mask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+            src_access_mask = VK_ACCESS_2_MEMORY_WRITE_BIT;
     }
 
     VkAccessFlagBits2 dst_access_mask{};
@@ -65,7 +68,9 @@ void CommandBufferVulkan::transition_image(VkImage p_image, VkImageLayout p_curr
         case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
             dst_stage_mask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
             break;
-        default:;
+        default:
+            dst_stage_mask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+            dst_access_mask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
     }
 
     VkImageMemoryBarrier2 image_barrier{

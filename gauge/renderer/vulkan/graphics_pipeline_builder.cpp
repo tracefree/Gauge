@@ -1,5 +1,6 @@
 #include "graphics_pipeline_builder.hpp"
-#include "gauge/renderer/vulkan/pipeline.hpp"
+#include <vulkan/vulkan_core.h>
+#include "gauge/renderer/vulkan/common.hpp"
 
 using namespace Gauge;
 
@@ -75,7 +76,7 @@ GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .lineWidth = 1.0f,
     };
 
@@ -87,6 +88,13 @@ GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
     VkPipelineColorBlendAttachmentState color_blend_attachment_state{
         .blendEnable = VK_FALSE,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    };
+
+    const VkPipelineDepthStencilStateCreateInfo depth_state_info{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_TRUE,
+        .depthWriteEnable = VK_TRUE,
+        .depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL,
     };
 
     VkPipelineColorBlendStateCreateInfo color_blend_info{
@@ -111,6 +119,7 @@ GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
         .colorAttachmentCount = 1,
         .pColorAttachmentFormats = &image_format,
+        .depthAttachmentFormat = VK_FORMAT_D32_SFLOAT,
     };
 
     VkGraphicsPipelineCreateInfo pipeline_info{
@@ -123,6 +132,7 @@ GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
         .pViewportState = &viewport_state_info,
         .pRasterizationState = &rasterization_info,
         .pMultisampleState = &msaa_info,
+        .pDepthStencilState = &depth_state_info,
         .pColorBlendState = &color_blend_info,
         .pDynamicState = &dynamic_state_info,
         .layout = pipeline.layout,

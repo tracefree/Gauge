@@ -1,7 +1,6 @@
 #pragma once
 
 #include <gauge/renderer/vulkan/common.hpp>
-#include <gauge/renderer/vulkan/pipeline.hpp>
 
 #include <volk.h>
 #include <vulkan/vulkan_core.h>

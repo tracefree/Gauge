@@ -6,7 +6,7 @@
 
 namespace Gauge {
 
-struct Viewport {
+struct ViewportSettings {
     struct Position {
         float x{};
         float y{};
@@ -15,6 +15,8 @@ struct Viewport {
     float height{};
 
     bool fill_window{};
+    bool use_swapchain{};
+    bool use_depth{};
 };
 
 struct Renderer {

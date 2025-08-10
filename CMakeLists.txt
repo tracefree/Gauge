@@ -50,6 +50,8 @@ add_library(gauge_renderer STATIC
   thirdparty/volk/volk.c
 )
 
+target_compile_definitions(gauge_renderer PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
+
 add_library(gauge STATIC
   gauge/core/app.cpp
   gauge/core/config.cpp

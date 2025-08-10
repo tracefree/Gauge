@@ -3,6 +3,6 @@ struct Vertex {
     float uv_x;
     float3 normal;
     float uv_y;
-    float4 color;
+  //  float4 color;
     float4 tangent;
 }

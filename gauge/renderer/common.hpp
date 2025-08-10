@@ -13,10 +13,7 @@ struct Vertex {
     glm::vec4 tangent;
 };
 
-struct Mesh {
+struct CPUMesh {
     std::vector<Vertex> vertices;
     std::vector<uint> indices;
-
-    VkDeviceAddress vertex_buffer;
-    VkDeviceAddress index_buffer;
 };
