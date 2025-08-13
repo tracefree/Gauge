@@ -1,0 +1,28 @@
+#pragma once
+
+#include <gauge/math/common.hpp>
+
+namespace Gauge {
+
+struct Transform {
+    Vec3 position{0.0f, 0.0f, 0.0f};
+    glm::quat rotation{glm::identity<Quaternion>()};
+    float scale{1.0f};
+
+    Mat4 get_matrix() const;
+    const Transform operator*(Transform const& rhs);
+
+    Transform() {}
+    Transform(Transform const& p_transform);
+    Transform(Vec3 p_position, glm::quat p_rotation, float p_scale);
+    ~Transform() {}
+};
+
+namespace Math {
+template <typename T>
+T interpolate(T a, T b, float duration, float delta) {
+    return a + (b - a) * (1.0f - std::exp(-delta / duration));
+}
+}  // namespace Math
+
+}  // namespace Gauge

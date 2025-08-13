@@ -26,8 +26,8 @@ struct RendererVulkan : public Renderer {
     VulkanContext ctx{};
 
     struct PushConstants {
-        glm::mat4 model_matrix;
-        glm::mat4 view_projection;
+        Mat4 model_matrix;
+        Mat4 view_projection;
         VkDeviceAddress vertex_buffer_address;
     };
 
@@ -74,8 +74,8 @@ struct RendererVulkan : public Renderer {
 
     struct RenderState {
         std::vector<Viewport> viewports;
-        std::vector<GPUMesh> meshes;
-        glm::vec3 camera_position{};
+        std::vector<Model> models;
+        Vec3 camera_position{};
     } render_state{};
 
     struct ImmediateCommand {
@@ -94,7 +94,6 @@ struct RendererVulkan : public Renderer {
    private:
     FrameData const& GetCurrentFrame() const;
     FrameData& GetCurrentFrame();
-    vkb::Instance const* GetInstance() const;
 
     std::expected<VkCommandPool, std::string> CreateCommandPool() const;
     std::expected<VkCommandBuffer, std::string> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
@@ -104,6 +103,7 @@ struct RendererVulkan : public Renderer {
     std::expected<void, std::string> CreateImmadiateCommand();
     std::expected<GPUImage, std::string> CreateDepthImage(const uint p_width, const uint p_height) const;
     std::expected<Viewport, std::string> CreateViewport(const ViewportSettings& p_settings) const;
+    std::expected<BufferAllocation, std::string> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
 
     void DestroyImage(GPUImage& p_image) const;
 
@@ -112,8 +112,8 @@ struct RendererVulkan : public Renderer {
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
     void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index);
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
-    std::expected<GPUMesh, std::string> UploadMeshToGPU(const CPUMesh& mesh) const;
-    std::expected<BufferAllocation, std::string> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
+
     std::expected<void, std::string> ImmediateSubmit(std::function<void(VkCommandBuffer p_cmd)>&& function) const;
+    std::expected<GPUMesh, std::string> UploadMeshToGPU(const CPUMesh& mesh) const;
 };
 }  // namespace Gauge

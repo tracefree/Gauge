@@ -23,11 +23,11 @@ struct FragmentOutput {
 VertexOutput VertexMain(uint vertexID: SV_VertexID) {
     let vertex = push_constants.vertices[vertexID];
     let model_matrix = push_constants.model_matrix;
-    var tbn_ws = float3x3(1.0);
-     //normalize(mul(model_matrix, float4(vertex.tangent.xyz, 0.0)).xyz),
-     //normalize(mul(model_matrix, float4(cross(vertex.normal, vertex.tangent.xyz) * vertex.tangent.w, 0.0)).xyz),
-     //normalize(mul(model_matrix, float4(vertex.normal, 0.0)).xyz)
-    //);
+    var tbn_ws = float3x3(
+        normalize(mul(model_matrix, float4(vertex.tangent.xyz, 0.0)).xyz),
+        normalize(mul(model_matrix, float4(cross(vertex.normal, vertex.tangent.xyz) * vertex.tangent.w, 0.0)).xyz),
+        normalize(mul(model_matrix, float4(vertex.normal, 0.0)).xyz)
+    );
 
     let world_position = mul(push_constants.model_matrix, float4(vertex.position, 1.0));
     
@@ -48,6 +48,7 @@ FragmentOutput FragmentMain(
 {
    // let albedo_texture_sample = fragment_params.albedo_texture.Sample(uv);
    // let albedo = fragment_params.material_data.albedo_factors.rgb * color.rgb * albedo_texture_sample.rgb;
-
-    return FragmentOutput(float4(0.0, uv.x, uv.y, 1.0));
+    let normal_ts = float3(0.0, 0.0, 1.0);
+    let normal_ws = mul(normal_ts, tbn_ws);
+    return FragmentOutput(float4(normal_ws, 1.0));
 }

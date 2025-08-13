@@ -2,6 +2,7 @@
 
 #include "VkBootstrap.h"
 
+#include <cmath>
 #include <cstddef>
 #include <cstring>
 #include <gauge/common.hpp>
@@ -29,11 +30,13 @@
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 
+#include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
 #include "gauge/renderer/renderer.hpp"
 #include "gauge/renderer/vulkan/command_buffer.hpp"
 #include "glm/ext/matrix_transform.hpp"
+#include "glm/fwd.hpp"
 #include "glm/matrix.hpp"
 #include "thirdparty/imgui/imgui.h"
 
@@ -592,12 +595,26 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
 
-    auto model = glTF::FromFile("character.glb");
-    auto gpu_cube_result = UploadMeshToGPU(model->meshes["Character"]);
-    CHECK(gpu_cube_result);
-
-    render_state.meshes.emplace_back(gpu_cube_result.value());
-
+    {
+        auto gltf_model = glTF::FromFile("character.glb");
+        Model model{};
+        for (const auto& mesh : gltf_model->meshes) {
+            auto gpu_mesh_result = UploadMeshToGPU(mesh.second);
+            CHECK_RET(gpu_mesh_result);
+            model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
+        }
+        render_state.models.emplace_back(model);
+    }
+    {
+        auto gltf_model = glTF::FromFile("skeleton.glb");
+        Model model{};
+        for (const auto& mesh : gltf_model->meshes) {
+            auto gpu_mesh_result = UploadMeshToGPU(mesh.second);
+            CHECK_RET(gpu_mesh_result);
+            model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
+        }
+        render_state.models.emplace_back(model);
+    }
     initialized = true;
     return {};
 }
@@ -655,7 +672,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
 
-    glm::mat4 projection = glm::perspective(
+    Mat4 projection = glm::perspective(
         glm::radians(70.0f),
         (float)(p_viewport.settings.width / p_viewport.settings.height),
         10.0f,
@@ -664,14 +681,17 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
 
     cmd->BindPipeline(graphics_pipeline);
     PushConstants& pcs = GetCurrentFrame().push_constants;
-    pcs.model_matrix = glm::mat4(1.0f);
+
     pcs.view_projection = projection * glm::inverse(glm::translate(glm::mat4(1.0f), render_state.camera_position));
 
-    for (const auto& mesh : render_state.meshes) {
-        GetCurrentFrame().push_constants.vertex_buffer_address = mesh.vertex_buffer.address;
-        vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
-        vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
+    for (const auto& model : render_state.models) {
+        pcs.model_matrix = model.transform.get_matrix();
+        for (const auto& mesh : model.meshes) {
+            pcs.vertex_buffer_address = mesh.data.vertex_buffer.address;
+            vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
+            vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.data.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdDrawIndexed(cmd->GetHandle(), mesh.data.index_count, 1, 0, 0, 0);
+        }
     }
 
     vkCmdEndRendering(cmd->GetHandle());
@@ -692,6 +712,8 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
 }
 
+float angle = 0.0f;
+
 void RendererVulkan::Draw() {
     ZoneScoped;
     {
@@ -706,6 +728,15 @@ void RendererVulkan::Draw() {
             ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
         }
         ImGui::End();
+
+        for (auto& model : render_state.models) {
+            if (ImGui::Begin(model.meshes[0].name.c_str())) {
+                ImGui::SliderFloat("Position x", &model.transform.position.x, -5.0f, 5.0f);
+                ImGui::SliderFloat("Rotation y", &angle, -M_PI, M_PI);
+                model.transform.rotation = Quaternion(Vec3(0.0f, angle, 0.0f));
+            }
+            ImGui::End();
+        }
         /*
                 if (ImGui::BeginMainMenuBar()) {
                     if (ImGui::BeginMenu("Project")) {
@@ -821,11 +852,6 @@ void RendererVulkan::Draw() {
     current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
 }
 
-vkb::Instance const*
-RendererVulkan::GetInstance() const {
-    return &ctx.instance;
-}
-
 RendererVulkan::FrameData const&
 RendererVulkan::GetCurrentFrame() const {
     return frames_in_flight[current_frame_index];
@@ -899,7 +925,7 @@ RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usag
 std::expected<GPUMesh, std::string>
 RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     GPUMesh gpu_mesh{};
-    const uint vertex_buffer_size = cpu_mesh.indices.size() * sizeof(Vertex);
+    const uint vertex_buffer_size = cpu_mesh.vertices.size() * sizeof(Vertex);
     const size_t index_buffer_size = cpu_mesh.indices.size() * sizeof(uint);
 
     gpu_mesh.index_count = cpu_mesh.indices.size();

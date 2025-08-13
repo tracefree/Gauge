@@ -101,18 +101,17 @@ glTF::FromFile(const std::string& p_path) {
     }
 
     for (const auto& gltf_mesh : asset->meshes) {
-        CPUMesh mesh{};
-
-        {
-            auto&& primitive = gltf_mesh.primitives[2];
+        // asset->nodes[0].transform
+        for (uint i = 0; i < gltf_mesh.primitives.size(); ++i) {
+            CPUMesh mesh{};
+            const fastgltf::Primitive& primitive = gltf_mesh.primitives[i];
             IterateIndices(asset.get(), primitive, mesh);
             IteratePositions(asset.get(), primitive, mesh);
             IterateNormals(asset.get(), primitive, mesh);
             IterateTangents(asset.get(), primitive, mesh);
             IterateUVs(asset.get(), primitive, mesh);
+            gltf.meshes[std::format("{}_{}", gltf_mesh.name, i)] = mesh;
         }
-
-        gltf.meshes[std::string(gltf_mesh.name)] = mesh;
     }
 
     return gltf;

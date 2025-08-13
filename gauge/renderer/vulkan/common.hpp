@@ -1,11 +1,20 @@
 #pragma once
 
+#include <gauge/math/transform.hpp>
+
 #include <volk.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
+#include "glm/ext/vector_float3.hpp"
+#include "glm/fwd.hpp"
 #include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
 #include <vk_mem_alloc.h>
+
+#include <string>
+#include <vector>
+
+namespace Gauge {
 
 struct VulkanContext {
     vkb::Instance instance{};
@@ -48,6 +57,17 @@ struct GPUImage {
     ImageAllocation allocation{};
 };
 
+struct Mesh {
+    std::string name;
+    GPUMesh data;
+    // TODO: Material
+};
+
+struct Model {
+    std::vector<Mesh> meshes;
+    Transform transform{};
+};
+
 #define VK_CHECK(result, message)                 \
     if (result != VK_SUCCESS) [[unlikely]] {      \
         std::println("Gauge Error: {}", message); \
@@ -57,3 +77,5 @@ struct GPUImage {
     if (result != VK_SUCCESS) [[unlikely]] {                                                                  \
         return std::unexpected(std::format("{}. Vulkan result: {}.", return_value, string_VkResult(result))); \
     }
+
+}  // namespace Gauge
