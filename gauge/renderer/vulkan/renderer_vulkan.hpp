@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include "gauge/math/common.hpp"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
 namespace Gauge {
@@ -79,7 +80,7 @@ struct RendererVulkan : public Renderer {
     struct RenderState {
         std::vector<Viewport> viewports;
         std::vector<Model> models;
-        Vec3 camera_position{};
+        Vec3 camera_position = Vec3(0.0f, 0.9f, 1.8f);
     } render_state{};
 
     struct ImmediateCommand {
@@ -101,9 +102,9 @@ struct RendererVulkan : public Renderer {
     Result<VkCommandPool> CreateCommandPool() const;
     Result<VkCommandBuffer> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
     Result<Pipeline> CreateGraphicsPipeline(std::string p_name);
-    Result<void> CreateSwapchain(bool recreate = false);
-    Result<void> CreateFrameData();
-    Result<void> CreateImmadiateCommand();
+    Result<> CreateSwapchain(bool recreate = false);
+    Result<> CreateFrameData();
+    Result<> CreateImmadiateCommand();
     Result<GPUImage> CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFlags p_usage, bool p_mipmapped = false, VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT, VkImageAspectFlagBits p_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT) const;
     Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height) const;
     Result<Viewport> CreateViewport(const ViewportSettings& p_settings) const;

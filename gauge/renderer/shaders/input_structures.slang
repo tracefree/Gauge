@@ -6,3 +6,9 @@ struct Vertex {
   //  float4 color;
     float4 tangent;
 }
+
+struct Material {
+  float4 albedo;
+  uint texture_albedo;
+  uint texture_normal;
+}

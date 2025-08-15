@@ -116,6 +116,7 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     VkPhysicalDeviceVulkan12Features device_features_12{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .descriptorIndexing = VK_TRUE,
+        .descriptorBindingPartiallyBound = VK_TRUE,
         .timelineSemaphore = VK_TRUE,
         .bufferDeviceAddress = VK_TRUE,
     };
@@ -155,7 +156,7 @@ CreateDevice(vkb::PhysicalDevice p_physical_device) {
     return device_ret.value();
 }
 
-static Result<void>
+static Result<>
 InitializeVolk(vkb::Instance p_instance, vkb::Device p_device) {
     VK_CHECK_RET(volkInitialize(), "Could not initialize volk");
     volkLoadInstance(p_instance.instance);
@@ -163,7 +164,7 @@ InitializeVolk(vkb::Instance p_instance, vkb::Device p_device) {
     return {};
 }
 
-static Result<void>
+static Result<>
 InitializeVulkanMemoryAllocator(VulkanContext& ctx) {
     VmaVulkanFunctions vulkan_functions;
     VmaAllocatorCreateInfo vma_allocator_info{
@@ -225,7 +226,7 @@ RendererVulkan::CreateCommandBuffer(
     return cmd;
 }
 
-Result<void>
+Result<>
 RendererVulkan::CreateFrameData() {
     frames_in_flight.reserve(max_frames_in_flight);
     for (uint i = 0; i < max_frames_in_flight; i++) {
@@ -307,7 +308,7 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
     vkCmdEndDebugUtilsLabelEXT(cmd->GetHandle());
 }
 
-Result<void>
+Result<>
 RendererVulkan::CreateSwapchain(bool recreate) {
     vkb::SwapchainBuilder swapchain_builder{ctx.device};
     if (recreate) {
@@ -470,7 +471,7 @@ static void SetupImGuiStyle() {
     style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.800000011920929f, 0.800000011920929f, 0.800000011920929f, 0.3499999940395355f);
 }
 
-Result<void>
+Result<>
 RendererVulkan::InitializeImGui() const {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -518,7 +519,7 @@ RendererVulkan::InitializeImGui() const {
     return {};
 }
 
-Result<void>
+Result<>
 RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     window = p_sdl_window;
 
@@ -1074,7 +1075,7 @@ RendererVulkan::UploadTextureToGPU(const Texture& p_texture) const {
         });
 }
 
-Result<void>
+Result<>
 RendererVulkan::ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const {
     vkResetFences(ctx.device, 1, &immediate_command.fence);
     vkResetCommandPool(ctx.device, immediate_command.pool, 0);

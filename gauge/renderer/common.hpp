@@ -1,19 +1,31 @@
 #pragma once
 
+#include <gauge/math/common.hpp>
+
 #include <vulkan/vulkan_core.h>
 #include "glm/ext/vector_float3.hpp"
 #include "glm/ext/vector_float4.hpp"
 #include "vk_mem_alloc.h"
 
+namespace Gauge {
+
 struct Vertex {
-    glm::vec3 position;
+    Vec3 position;
     float uv_x;
-    glm::vec3 normal;
+    Vec3 normal;
     float uv_y;
-    glm::vec4 tangent;
+    Vec4 tangent;
 };
 
 struct CPUMesh {
     std::vector<Vertex> vertices;
     std::vector<uint> indices;
 };
+
+struct GPUMaterial {
+    Vec4 albedo;
+    uint texture_albedo;
+    uint texture_normal;
+};
+
+}  // namespace Gauge
