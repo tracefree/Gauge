@@ -1,9 +1,17 @@
 #include "input_structures.slang"
 
+struct Scene {
+    float4x4 view_projection;
+    float time;
+    // Lights
+}
+ConstantBuffer<Scene> scene;
+
 struct Push {
     float4x4 model_matrix;
     float4x4 view_projection;
     Vertex* vertices;
+    // Material ID
 }
 
 [[vk::push_constant]]

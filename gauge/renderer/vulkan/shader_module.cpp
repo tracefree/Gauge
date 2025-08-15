@@ -7,14 +7,14 @@
 
 using namespace Gauge;
 
-std::expected<ShaderModule, std::string>
+Result<ShaderModule>
 ShaderModule::FromFile(const VulkanContext& ctx, std::string p_file_name) {
     auto shader_code_result = FileSystem::ReadFile(p_file_name);
     CHECK_RET(shader_code_result);
     return ShaderModule::FromCode(ctx, shader_code_result.value());
 }
 
-std::expected<ShaderModule, std::string>
+Result<ShaderModule>
 ShaderModule::FromCode(const VulkanContext& ctx, std::vector<char> p_code) {
     ShaderModule shader_module{};
     VkShaderModuleCreateInfo shader_module_info{

@@ -1,10 +1,8 @@
 #pragma once
 
+#include <gauge/common.hpp>
 #include <gauge/renderer/command_buffer.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
-
-#include <expected>
-#include <string>
 
 #include <volk.h>
 
@@ -14,8 +12,8 @@ struct CommandBufferVulkan final : public CommandBuffer {
     VkCommandBuffer cmd;
 
    public:
-    std::expected<void, std::string> Begin() final override;
-    std::expected<void, std::string> End() final override;
+    Result<> Begin() final override;
+    Result<> End() final override;
 
     void TransitionImage(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags = VK_IMAGE_ASPECT_NONE) const;
     VkCommandBuffer GetHandle();

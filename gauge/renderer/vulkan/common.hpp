@@ -5,8 +5,6 @@
 #include <volk.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
-#include "glm/ext/vector_float3.hpp"
-#include "glm/fwd.hpp"
 #include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
 #include <vk_mem_alloc.h>
@@ -30,31 +28,30 @@ struct Pipeline {
     VkPipelineBindPoint bind_point;
 };
 
-struct BufferAllocation {
-    VkBuffer buffer{};
-    VkDeviceAddress address{};
-    VmaAllocation allocation{};
+struct Allocation {
+    VmaAllocation handle{};
     VmaAllocationInfo info{};
+};
+
+struct GPUBuffer {
+    VkBuffer handle{};
+    VkDeviceAddress address{};
+    Allocation allocation{};
 };
 
 struct GPUMesh {
     uint index_count;
-    BufferAllocation index_buffer{};
-    BufferAllocation vertex_buffer{};
-};
-
-struct ImageAllocation {
-    VmaAllocation allocation{};
-    VmaAllocationInfo info{};
+    GPUBuffer index_buffer{};
+    GPUBuffer vertex_buffer{};
 };
 
 struct GPUImage {
-    VkImage image{};
+    VkImage handle{};
     VkImageView view{};
     VkFormat format{};
     VkExtent3D extent{};
     VkDeviceMemory memory{};
-    ImageAllocation allocation{};
+    Allocation allocation{};
 };
 
 struct Mesh {
@@ -73,9 +70,9 @@ struct Model {
         std::println("Gauge Error: {}", message); \
     }
 
-#define VK_CHECK_RET(result, return_value)                                                                    \
-    if (result != VK_SUCCESS) [[unlikely]] {                                                                  \
-        return std::unexpected(std::format("{}. Vulkan result: {}.", return_value, string_VkResult(result))); \
+#define VK_CHECK_RET(result, return_value)                                                          \
+    if (result != VK_SUCCESS) [[unlikely]] {                                                        \
+        return Error(std::format("{}. Vulkan result: {}.", return_value, string_VkResult(result))); \
     }
 
 }  // namespace Gauge

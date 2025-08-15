@@ -1,10 +1,16 @@
 #pragma once
 
 #include <functional>
+#include <gauge/common.hpp>
 #include <gauge/core/math.hpp>
+
 #include <gauge/renderer/renderer.hpp>
+
 #include <gauge/renderer/vulkan/command_buffer.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
+
+#include <gauge/renderer/common.hpp>
+#include <gauge/renderer/texture.hpp>
 
 #include <SDL3/SDL_video.h>
 #include <vulkan/vulkan_core.h>
@@ -15,8 +21,6 @@
 #include <string>
 #include <vector>
 
-#include "gauge/renderer/common.hpp"
-#include "glm/ext/vector_float3.hpp"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
 namespace Gauge {
@@ -85,8 +89,7 @@ struct RendererVulkan : public Renderer {
     } immediate_command{};
 
    public:
-    std::expected<void, std::string>
-    Initialize(SDL_Window* p_sdl_window) final override;
+    Result<> Initialize(SDL_Window* p_sdl_window) final override;
     void Draw() final override;
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;
@@ -95,25 +98,26 @@ struct RendererVulkan : public Renderer {
     FrameData const& GetCurrentFrame() const;
     FrameData& GetCurrentFrame();
 
-    std::expected<VkCommandPool, std::string> CreateCommandPool() const;
-    std::expected<VkCommandBuffer, std::string> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
-    std::expected<Pipeline, std::string> CreateGraphicsPipeline(std::string p_name);
-    std::expected<void, std::string> CreateSwapchain(bool recreate = false);
-    std::expected<void, std::string> CreateFrameData();
-    std::expected<void, std::string> CreateImmadiateCommand();
-    std::expected<GPUImage, std::string> CreateDepthImage(const uint p_width, const uint p_height) const;
-    std::expected<Viewport, std::string> CreateViewport(const ViewportSettings& p_settings) const;
-    std::expected<BufferAllocation, std::string> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
-
+    Result<VkCommandPool> CreateCommandPool() const;
+    Result<VkCommandBuffer> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
+    Result<Pipeline> CreateGraphicsPipeline(std::string p_name);
+    Result<void> CreateSwapchain(bool recreate = false);
+    Result<void> CreateFrameData();
+    Result<void> CreateImmadiateCommand();
+    Result<GPUImage> CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFlags p_usage, bool p_mipmapped = false, VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT, VkImageAspectFlagBits p_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT) const;
+    Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height) const;
+    Result<Viewport> CreateViewport(const ViewportSettings& p_settings) const;
+    Result<GPUBuffer> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
     void DestroyImage(GPUImage& p_image) const;
 
-    std::expected<void, std::string> InitializeImGui() const;
+    Result<> InitializeImGui() const;
     void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index);
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
     void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index);
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 
-    std::expected<void, std::string> ImmediateSubmit(std::function<void(VkCommandBuffer p_cmd)>&& function) const;
-    std::expected<GPUMesh, std::string> UploadMeshToGPU(const CPUMesh& mesh) const;
+    Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
+    Result<GPUMesh> UploadMeshToGPU(const CPUMesh& mesh) const;
+    Result<GPUImage> UploadTextureToGPU(const Texture& p_texture) const;
 };
 }  // namespace Gauge

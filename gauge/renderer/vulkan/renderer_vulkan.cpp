@@ -34,6 +34,7 @@
 #include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
 #include "gauge/renderer/renderer.hpp"
+#include "gauge/renderer/texture.hpp"
 #include "gauge/renderer/vulkan/command_buffer.hpp"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
@@ -66,17 +67,17 @@ VkBool32 validation_layer_callback(
 }
 #endif
 
-static std::expected<VkSurfaceKHR, std::string>
+static Result<VkSurfaceKHR>
 CreateSurface(vkb::Instance p_instance, SDL_Window* p_window) {
     VkSurfaceKHR r_surface;
     if (!SDL_Vulkan_CreateSurface(p_window, p_instance.instance, nullptr,
                                   &r_surface)) [[unlikely]] {
-        return std::unexpected(SDL_GetError());
+        return Error(SDL_GetError());
     }
     return r_surface;
 }
 
-static std::expected<vkb::Instance, std::string>
+static Result<vkb::Instance>
 CreateInstance() {
     vkb::InstanceBuilder instance_builder;
     instance_builder = instance_builder
@@ -102,15 +103,15 @@ CreateInstance() {
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
-        return std::unexpected(std::format("Could not create Vulkan instance. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
-                                           instance_ret.full_error().type.value(),
-                                           instance_ret.full_error().type.message(),
-                                           string_VkResult(instance_ret.full_error().vk_result)));
+        return Error(std::format("Could not create Vulkan instance. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                 instance_ret.full_error().type.value(),
+                                 instance_ret.full_error().type.message(),
+                                 string_VkResult(instance_ret.full_error().vk_result)));
     }
     return instance_ret.value();
 }
 
-static std::expected<vkb::PhysicalDevice, std::string>
+static Result<vkb::PhysicalDevice>
 CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     VkPhysicalDeviceVulkan12Features device_features_12{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
@@ -133,28 +134,28 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
             .set_required_features_13(device_features_13)
             .select();
     if (!physical_device_ret) {
-        return std::unexpected(std::format("Could not create Vulkan physical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
-                                           physical_device_ret.full_error().type.value(),
-                                           physical_device_ret.full_error().type.message(),
-                                           string_VkResult(physical_device_ret.full_error().vk_result)));
+        return Error(std::format("Could not create Vulkan physical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                 physical_device_ret.full_error().type.value(),
+                                 physical_device_ret.full_error().type.message(),
+                                 string_VkResult(physical_device_ret.full_error().vk_result)));
     }
     return physical_device_ret.value();
 }
 
-static std::expected<vkb::Device, std::string>
+static Result<vkb::Device>
 CreateDevice(vkb::PhysicalDevice p_physical_device) {
     vkb::DeviceBuilder device_builder{p_physical_device};
     auto device_ret = device_builder.build();
     if (!device_ret) {
-        return std::unexpected(std::format("Could not create Vulkan logical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
-                                           device_ret.full_error().type.value(),
-                                           device_ret.full_error().type.message(),
-                                           string_VkResult(device_ret.full_error().vk_result)));
+        return Error(std::format("Could not create Vulkan logical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                 device_ret.full_error().type.value(),
+                                 device_ret.full_error().type.message(),
+                                 string_VkResult(device_ret.full_error().vk_result)));
     }
     return device_ret.value();
 }
 
-static std::expected<void, std::string>
+static Result<void>
 InitializeVolk(vkb::Instance p_instance, vkb::Device p_device) {
     VK_CHECK_RET(volkInitialize(), "Could not initialize volk");
     volkLoadInstance(p_instance.instance);
@@ -162,7 +163,7 @@ InitializeVolk(vkb::Instance p_instance, vkb::Device p_device) {
     return {};
 }
 
-static std::expected<void, std::string>
+static Result<void>
 InitializeVulkanMemoryAllocator(VulkanContext& ctx) {
     VmaVulkanFunctions vulkan_functions;
     VmaAllocatorCreateInfo vma_allocator_info{
@@ -181,19 +182,19 @@ InitializeVulkanMemoryAllocator(VulkanContext& ctx) {
     return {};
 }
 
-static std::expected<VkQueue, std::string>
+static Result<VkQueue>
 GetQueue(vkb::Device p_device) {
     auto graphics_queue_ret = p_device.get_queue(vkb::QueueType::graphics);
     if (!graphics_queue_ret) {
-        return std::unexpected(std::format("Could not get graphics queue. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
-                                           graphics_queue_ret.full_error().type.value(),
-                                           graphics_queue_ret.full_error().type.message(),
-                                           string_VkResult(graphics_queue_ret.full_error().vk_result)));
+        return Error(std::format("Could not get graphics queue. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
+                                 graphics_queue_ret.full_error().type.value(),
+                                 graphics_queue_ret.full_error().type.message(),
+                                 string_VkResult(graphics_queue_ret.full_error().vk_result)));
     }
     return graphics_queue_ret.value();
 }
 
-std::expected<VkCommandPool, std::string>
+Result<VkCommandPool>
 RendererVulkan::CreateCommandPool() const {
     const VkCommandPoolCreateInfo cmd_pool_create_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -207,7 +208,7 @@ RendererVulkan::CreateCommandPool() const {
     return cmd_pool;
 }
 
-std::expected<VkCommandBuffer, std::string>
+Result<VkCommandBuffer>
 RendererVulkan::CreateCommandBuffer(
     VkCommandPool p_cmd_pool) const {
     const VkCommandBufferAllocateInfo cmd_allocate_info{
@@ -224,7 +225,7 @@ RendererVulkan::CreateCommandBuffer(
     return cmd;
 }
 
-std::expected<void, std::string>
+Result<void>
 RendererVulkan::CreateFrameData() {
     frames_in_flight.reserve(max_frames_in_flight);
     for (uint i = 0; i < max_frames_in_flight; i++) {
@@ -306,7 +307,7 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
     vkCmdEndDebugUtilsLabelEXT(cmd->GetHandle());
 }
 
-std::expected<void, std::string>
+Result<void>
 RendererVulkan::CreateSwapchain(bool recreate) {
     vkb::SwapchainBuilder swapchain_builder{ctx.device};
     if (recreate) {
@@ -321,10 +322,10 @@ RendererVulkan::CreateSwapchain(bool recreate) {
             .build();
     if (!swapchain_ret) {
         swapchain.handle = VK_NULL_HANDLE;
-        return std::unexpected(std::format("Could not create swapchain. vk-bootstrap error code: [{}] {}. Vulkan result: {}",
-                                           swapchain_ret.full_error().type.value(),
-                                           swapchain_ret.full_error().type.message(),
-                                           string_VkResult(swapchain_ret.full_error().vk_result)));
+        return Error(std::format("Could not create swapchain. vk-bootstrap error code: [{}] {}. Vulkan result: {}",
+                                 swapchain_ret.full_error().type.value(),
+                                 swapchain_ret.full_error().type.message(),
+                                 string_VkResult(swapchain_ret.full_error().vk_result)));
     }
 
     if (recreate) {
@@ -364,7 +365,7 @@ RendererVulkan::CreateSwapchain(bool recreate) {
     return {};
 }
 
-std::expected<Pipeline, std::string>
+Result<Pipeline>
 RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     std::string ga = "simple.spv";
     auto shader_module_result = ShaderModule::FromFile(ctx, "simple.spv");
@@ -469,12 +470,12 @@ static void SetupImGuiStyle() {
     style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.800000011920929f, 0.800000011920929f, 0.800000011920929f, 0.3499999940395355f);
 }
 
-std::expected<void, std::string>
+Result<void>
 RendererVulkan::InitializeImGui() const {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     if (!ImGui_ImplSDL3_InitForVulkan(window)) {
-        return std::unexpected("Could not initialize ImGui SDL3 for Vulkan");
+        return Error("Could not initialize ImGui SDL3 for Vulkan");
     }
 
     VkDescriptorPoolSize pool_sizes[] = {
@@ -508,7 +509,7 @@ RendererVulkan::InitializeImGui() const {
         },
     };
     if (!ImGui_ImplVulkan_Init(&imgui_info)) {
-        return std::unexpected("Could not initialize ImGui for Vulkan");
+        return Error("Could not initialize ImGui for Vulkan");
     };
 
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -517,7 +518,7 @@ RendererVulkan::InitializeImGui() const {
     return {};
 }
 
-std::expected<void, std::string>
+Result<void>
 RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     window = p_sdl_window;
 
@@ -604,16 +605,14 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
         }
         render_state.models.emplace_back(model);
-    }
-    {
-        auto gltf_model = glTF::FromFile("skeleton.glb");
-        Model model{};
-        for (const auto& mesh : gltf_model->meshes) {
-            auto gpu_mesh_result = UploadMeshToGPU(mesh.second);
-            CHECK_RET(gpu_mesh_result);
-            model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
+
+        auto texture_result = Texture::FromFile("tunic_top_a.png")
+                                  .and_then([&](Texture p_texture) {
+                                      return UploadTextureToGPU(p_texture);
+                                  });
+        CHECK(texture_result);
+        if (texture_result) {
         }
-        render_state.models.emplace_back(model);
     }
     initialized = true;
     return {};
@@ -689,7 +688,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         for (const auto& mesh : model.meshes) {
             pcs.vertex_buffer_address = mesh.data.vertex_buffer.address;
             vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
-            vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.data.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
+            vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.data.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(cmd->GetHandle(), mesh.data.index_count, 1, 0, 0, 0);
         }
     }
@@ -897,9 +896,9 @@ void RendererVulkan::OnViewportResized(Viewport& p_viewport, uint p_width, uint 
     }
 }
 
-std::expected<BufferAllocation, std::string>
+Result<GPUBuffer>
 RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usage, VmaMemoryUsage p_memory_usage) const {
-    BufferAllocation buffer{};
+    GPUBuffer buffer{};
 
     VkBufferCreateInfo buffer_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -914,15 +913,15 @@ RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usag
                      ctx.allocator,
                      &buffer_info,
                      &vma_alloc_info,
-                     &buffer.buffer,
-                     &buffer.allocation,
-                     &buffer.info),
+                     &buffer.handle,
+                     &buffer.allocation.handle,
+                     &buffer.allocation.info),
                  "Could not create buffer")
 
     return buffer;
 }
 
-std::expected<GPUMesh, std::string>
+Result<GPUMesh>
 RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     GPUMesh gpu_mesh{};
     const uint vertex_buffer_size = cpu_mesh.vertices.size() * sizeof(Vertex);
@@ -939,7 +938,7 @@ RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     gpu_mesh.vertex_buffer = vertex_buffer_result.value();
     VkBufferDeviceAddressInfo vertex_buffer_address_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-        .buffer = gpu_mesh.vertex_buffer.buffer,
+        .buffer = gpu_mesh.vertex_buffer.handle,
     };
     gpu_mesh.vertex_buffer.address = vkGetBufferDeviceAddress(ctx.device, &vertex_buffer_address_info);
 
@@ -952,7 +951,7 @@ RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     gpu_mesh.index_buffer = index_buffer_result.value();
 
     // Staging
-    BufferAllocation staging_buffer{};
+    GPUBuffer staging_buffer{};
     const auto staging_buffer_result = CreateBuffer(
         (vertex_buffer_size + index_buffer_size) * 10,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -960,30 +959,123 @@ RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     CHECK_RET(staging_buffer_result);
     staging_buffer = staging_buffer_result.value();
 
-    void* data = staging_buffer.info.pMappedData;
+    void* data = staging_buffer.allocation.info.pMappedData;
     memcpy(data, cpu_mesh.vertices.data(), vertex_buffer_size);
     memcpy((char*)data + vertex_buffer_size, cpu_mesh.indices.data(), index_buffer_size);
 
-    ImmediateSubmit([&](VkCommandBuffer cmd) {
+    ImmediateSubmit([&](CommandBufferVulkan cmd) {
         const VkBufferCopy vertex_copy{
             .size = vertex_buffer_size,
         };
-        vkCmdCopyBuffer(cmd, staging_buffer.buffer, gpu_mesh.vertex_buffer.buffer, 1, &vertex_copy);
+        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, gpu_mesh.vertex_buffer.handle, 1, &vertex_copy);
 
         const VkBufferCopy index_copy{
             .srcOffset = vertex_buffer_size,
             .size = index_buffer_size,
         };
-        vkCmdCopyBuffer(cmd, staging_buffer.buffer, gpu_mesh.index_buffer.buffer, 1, &index_copy);
+        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, gpu_mesh.index_buffer.handle, 1, &index_copy);
     });
 
-    vmaDestroyBuffer(ctx.allocator, staging_buffer.buffer, staging_buffer.allocation);
+    vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
 
     return gpu_mesh;
 }
 
-std::expected<void, std::string>
-RendererVulkan::ImmediateSubmit(std::function<void(VkCommandBuffer p_cmd)>&& function) const {
+Result<GPUImage>
+RendererVulkan::CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFlags p_usage, bool p_mipmapped, VkSampleCountFlagBits p_sample_count, VkImageAspectFlagBits p_aspect_flags) const {
+    GPUImage image{
+        .format = p_format,
+        .extent = p_size,
+    };
+
+    const VkImageCreateInfo image_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .imageType = VK_IMAGE_TYPE_2D,
+        .format = image.format,
+        .extent = image.extent,
+        .mipLevels = p_mipmapped ? (static_cast<uint32_t>(std::floor(std::log2(std::max(p_size.width, p_size.height)))) + 1) : 1,
+        .arrayLayers = 1,
+        .samples = p_sample_count,
+        .tiling = VK_IMAGE_TILING_OPTIMAL,
+        .usage = p_usage,
+    };
+    const VmaAllocationCreateInfo image_allocation_info{
+        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
+        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    };
+    VK_CHECK_RET(vmaCreateImage(ctx.allocator, &image_info, &image_allocation_info, &image.handle, &image.allocation.handle, &image.allocation.info),
+                 "Could not create image");
+    // SetDebugName((uint64_t)image.handle, VK_OBJECT_TYPE_IMAGE, "Depth image");
+
+    const VkImageViewCreateInfo view_info{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image.handle,
+        .viewType = VK_IMAGE_VIEW_TYPE_2D,
+        .format = image.format,
+        .subresourceRange = VkImageSubresourceRange{
+            .aspectMask = p_aspect_flags,
+            .baseMipLevel = 0,
+            .levelCount = image_info.mipLevels,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        }};
+
+    VK_CHECK(vkCreateImageView(ctx.device, &view_info, nullptr, &image.view),
+             "Could not create image view");
+    // SetDebugName((uint64_t)image.view, VK_OBJECT_TYPE_IMAGE_VIEW, "Depth image view");
+    return image;
+}
+
+Result<GPUImage>
+RendererVulkan::UploadTextureToGPU(const Texture& p_texture) const {
+    GPUImage image{};
+    GPUBuffer staging_buffer{};
+    const VkExtent3D image_extent = {.width = p_texture.width, .height = p_texture.height, .depth = 1};
+    return CreateImage(
+               image_extent,
+               p_texture.use_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM,
+               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+        .and_then([&](GPUImage p_image) {
+            image = p_image;
+            return CreateBuffer(
+                p_texture.GetSize(),
+                VK_BUFFER_USAGE_2_TRANSFER_SRC_BIT,
+                VMA_MEMORY_USAGE_CPU_TO_GPU);
+        })
+        .and_then([&](GPUBuffer p_staging_buffer) {
+            staging_buffer = p_staging_buffer;
+            memcpy(staging_buffer.allocation.info.pMappedData, p_texture.data, p_texture.GetSize());
+            return ImmediateSubmit([&](CommandBufferVulkan cmd) {
+                cmd.TransitionImage(
+                    image.handle,
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                const VkBufferImageCopy buffer_image_copy{
+                    .imageSubresource = {
+                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                        .layerCount = 1,
+                    },
+                    .imageExtent = image_extent};
+                vkCmdCopyBufferToImage(
+                    cmd.GetHandle(),
+                    staging_buffer.handle,
+                    image.handle,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    1, &buffer_image_copy);
+                cmd.TransitionImage(
+                    image.handle,
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            });
+        })
+        .and_then([&]() -> Result<GPUImage> {
+            vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
+            return image;
+        });
+}
+
+Result<void>
+RendererVulkan::ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const {
     vkResetFences(ctx.device, 1, &immediate_command.fence);
     vkResetCommandPool(ctx.device, immediate_command.pool, 0);
 
@@ -1012,61 +1104,32 @@ RendererVulkan::ImmediateSubmit(std::function<void(VkCommandBuffer p_cmd)>&& fun
     return {};
 }
 
-std::expected<GPUImage, std::string>
+Result<GPUImage>
 RendererVulkan::CreateDepthImage(const uint p_width, const uint p_height) const {
-    GPUImage depth{};
-    depth.format = VK_FORMAT_D32_SFLOAT;
-    depth.extent = {p_width, p_height, 1};
-
-    const VkImageCreateInfo image_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = depth.format,
-        .extent = depth.extent,
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = VK_IMAGE_TILING_OPTIMAL,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-    };
-    const VmaAllocationCreateInfo image_allocation_info{
-        .usage = VMA_MEMORY_USAGE_GPU_ONLY,
-        .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    };
-    VK_CHECK_RET(vmaCreateImage(ctx.allocator, &image_info, &image_allocation_info, &depth.image, &depth.allocation.allocation, &depth.allocation.info),
-                 "Could not create depth image");
-    SetDebugName((uint64_t)depth.image, VK_OBJECT_TYPE_IMAGE, "Depth image");
-
-    const VkImageViewCreateInfo view_info{
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = depth.image,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = depth.format,
-        .subresourceRange = VkImageSubresourceRange{
-            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        }};
-    VK_CHECK(vkCreateImageView(ctx.device, &view_info, nullptr, &depth.view),
-             "Could not create depth image view");
-    SetDebugName((uint64_t)depth.view, VK_OBJECT_TYPE_IMAGE_VIEW, "Depth image view");
-
-    ImmediateSubmit([&](VkCommandBuffer p_cmd) {
-        CommandBufferVulkan cmd(p_cmd);
-        cmd.TransitionImage(depth.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL, VK_IMAGE_ASPECT_DEPTH_BIT);
-    });
-
-    return depth;
+    return CreateImage(
+               {p_width, p_height, 1},
+               VK_FORMAT_D32_SFLOAT,
+               VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+               false, VK_SAMPLE_COUNT_1_BIT,
+               VK_IMAGE_ASPECT_DEPTH_BIT)
+        .transform([&](GPUImage depth) {
+            ImmediateSubmit([&depth](CommandBufferVulkan cmd) {
+                cmd.TransitionImage(
+                    depth.handle,
+                    VK_IMAGE_LAYOUT_UNDEFINED,
+                    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                    VK_IMAGE_ASPECT_DEPTH_BIT);
+            });
+            return depth;
+        });
 }
 
 void RendererVulkan::DestroyImage(GPUImage& p_image) const {
     vkDestroyImageView(ctx.device, p_image.view, nullptr);
-    vmaDestroyImage(ctx.allocator, p_image.image, p_image.allocation.allocation);
+    vmaDestroyImage(ctx.allocator, p_image.handle, p_image.allocation.handle);
 }
 
-std::expected<RendererVulkan::Viewport, std::string> RendererVulkan::CreateViewport(const ViewportSettings& p_settings) const {
+Result<RendererVulkan::Viewport> RendererVulkan::CreateViewport(const ViewportSettings& p_settings) const {
     Viewport viewport{
         .settings = p_settings,
     };

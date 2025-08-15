@@ -34,7 +34,7 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetImageFormat(VkFormat p_form
     return *this;
 }
 
-std::expected<Pipeline, std::string>
+Result<Pipeline>
 GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
     Pipeline pipeline{};
 

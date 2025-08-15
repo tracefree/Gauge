@@ -1,5 +1,6 @@
 #pragma once
 
+#include <gauge/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 
 #include <volk.h>
@@ -31,7 +32,7 @@ struct GraphicsPipelineBuilder {
     GraphicsPipelineBuilder& SetFragmentStage(VkShaderModule p_shader_module, const char* p_entry_point);
     GraphicsPipelineBuilder& SetImageFormat(VkFormat p_format);
 
-    std::expected<Pipeline, std::string> build(const VulkanContext& ctx) const;
+    Result<Pipeline> build(const VulkanContext& ctx) const;
 
     GraphicsPipelineBuilder(std::string p_name = "");
     ~GraphicsPipelineBuilder() {}

@@ -1,12 +1,14 @@
 #pragma once
 
-#include <expected>
+#include <gauge/common.hpp>
+
 #include <vector>
+
 namespace Gauge {
 
 namespace FileSystem {
 
-std::expected<std::vector<char>, std::string> ReadFile(const std::string& p_path);
+Result<std::vector<char>> ReadFile(const std::string& p_path);
 
 }
 

@@ -1,5 +1,6 @@
 #include "gltf.hpp"
 
+#include <gauge/common.hpp>
 #include <gauge/renderer/common.hpp>
 
 #include <fastgltf/core.hpp>
@@ -7,7 +8,6 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/types.hpp>
 #include <filesystem>
-#include <print>
 #include "glm/ext/vector_float2.hpp"
 #include "glm/ext/vector_float4.hpp"
 
@@ -84,7 +84,7 @@ static void IterateUVs(fastgltf::Asset& asset, const fastgltf::Primitive& primit
         });
 }
 
-std::expected<glTF, std::string>
+Result<glTF>
 glTF::FromFile(const std::string& p_path) {
     glTF gltf{};
 
@@ -92,12 +92,12 @@ glTF::FromFile(const std::string& p_path) {
     fastgltf::Parser parser;
     auto data = fastgltf::GltfDataBuffer::FromPath(path);
     if (data.error() != fastgltf::Error::None) {
-        return std::unexpected(std::format("Could not load glTF file. fastgltf error: {}", fastgltf::getErrorMessage(data.error())));
+        return Error(std::format("Could not load glTF file. fastgltf error: {}", fastgltf::getErrorMessage(data.error())));
     }
 
     auto asset = parser.loadGltf(data.get(), path.parent_path(), fastgltf::Options::None);
     if (asset.error() != fastgltf::Error::None) {
-        return std::unexpected(std::format("Could not parse glTF file. fastgltf error: {}", fastgltf::getErrorMessage(asset.error())));
+        return Error(std::format("Could not parse glTF file. fastgltf error: {}", fastgltf::getErrorMessage(asset.error())));
     }
 
     for (const auto& gltf_mesh : asset->meshes) {

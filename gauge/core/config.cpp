@@ -5,11 +5,12 @@
 #include <expected>
 
 #include <yaml-cpp/yaml.h>
+#include "gauge/common.hpp"
 #include "thirdparty/tracy/public/tracy/Tracy.hpp"
 
 using namespace Gauge;
 
-std::expected<ProjectSettings, std::string>
+Result<ProjectSettings>
 Gauge::LoadProjectSettings(const std::string p_path) {
     ZoneScoped;
     YAML::Node config = YAML::LoadFile(p_path);
@@ -25,6 +26,6 @@ Gauge::LoadProjectSettings(const std::string p_path) {
             .fullscreen = config["fullscreen"].as<bool>(),
         };
     } catch (YAML::Exception& e) {
-        return std::unexpected(std::format("YAML: {}", e.msg));
+        return Error(std::format("YAML: {}", e.msg));
     }
 }

@@ -3,11 +3,9 @@
 
 #include <gauge/renderer/vulkan/common.hpp>
 
-#include <expected>
-
 using namespace Gauge;
 
-std::expected<void, std::string>
+Result<>
 CommandBufferVulkan::Begin() {
     const VkCommandBufferBeginInfo cmd_begin_info{
         .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -21,7 +19,7 @@ CommandBufferVulkan::Begin() {
     return {};
 }
 
-std::expected<void, std::string>
+Result<>
 CommandBufferVulkan::End() {
     VK_CHECK_RET(vkEndCommandBuffer(cmd),
                  "Could not end command buffer");

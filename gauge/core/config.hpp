@@ -1,6 +1,6 @@
 #pragma once
 
-#include <expected>
+#include <gauge/common.hpp>
 #include <gauge/ui/window.hpp>
 
 #include <string>
@@ -23,6 +23,6 @@ struct ProjectSettings {
     bool fullscreen = false;
 };
 
-std::expected<ProjectSettings, std::string>
+Result<ProjectSettings>
 LoadProjectSettings(const std::string p_path);
 }  // namespace Gauge

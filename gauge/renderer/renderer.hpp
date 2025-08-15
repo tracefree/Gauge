@@ -1,6 +1,6 @@
 #pragma once
 
-#include <expected>
+#include <gauge/common.hpp>
 
 #include <SDL3/SDL_video.h>
 
@@ -28,7 +28,7 @@ struct Renderer {
     uint GetFramesInFlight() const;
     void SetFramesInFlight(uint p_max_frames_in_flight);
 
-    virtual std::expected<void, std::string> Initialize(SDL_Window* p_sdl_window) = 0;
+    virtual Result<> Initialize(SDL_Window* p_sdl_window) = 0;
     virtual void Draw() = 0;
     virtual void OnWindowResized(uint p_width, uint p_height) {};
     virtual void OnMouseMoved(float p_position_x, float p_position_y) {};

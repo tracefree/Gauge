@@ -39,13 +39,15 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 add_library(gauge_renderer STATIC
+  gauge/renderer/gltf.cpp
   gauge/renderer/renderer.cpp
+  gauge/renderer/stb_image_usage.cpp
+  gauge/renderer/texture.cpp
   gauge/renderer/vulkan/renderer_vulkan.cpp
   gauge/renderer/vulkan/command_buffer.cpp
   gauge/renderer/vulkan/graphics_pipeline_builder.cpp
   gauge/renderer/vulkan/shader_module.cpp
   gauge/renderer/vulkan/vma_usage.cpp
-  gauge/renderer/gltf.cpp
 
   thirdparty/volk/volk.c
 )
@@ -57,6 +59,7 @@ add_library(gauge STATIC
   gauge/core/config.cpp
   gauge/core/filesystem.cpp
   gauge/ui/window.cpp
+  gauge/math/transform.cpp
 )
 
 set_source_files_properties(
@@ -81,6 +84,7 @@ target_link_libraries(gauge_renderer PUBLIC
   volk::volk
   Tracy::TracyClient
   fastgltf::fastgltf
+  GPUOpen::VulkanMemoryAllocator
   glm
   imgui
 )
