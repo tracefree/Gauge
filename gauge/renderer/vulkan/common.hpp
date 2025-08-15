@@ -5,6 +5,7 @@
 #include <volk.h>
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
+#include "gauge/renderer/common.hpp"
 #include "thirdparty/vk-bootstrap/src/VkBootstrap.h"
 
 #include <vk_mem_alloc.h>
@@ -50,14 +51,14 @@ struct GPUImage {
     VkImageView view{};
     VkFormat format{};
     VkExtent3D extent{};
-    VkDeviceMemory memory{};
+    // VkDeviceMemory memory{};
     Allocation allocation{};
 };
 
 struct Mesh {
     std::string name;
     GPUMesh data;
-    // TODO: Material
+    GPUMaterial material;
 };
 
 struct Model {

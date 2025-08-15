@@ -52,8 +52,6 @@ using namespace Gauge;
 
 extern App* gApp;
 
-glm::vec4 col{0.0f, 1.0f, 0.0f, 1.0f};
-
 #ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
 VkBool32 validation_layer_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT p_message_severity,
@@ -113,10 +111,18 @@ CreateInstance() {
 
 static Result<vkb::PhysicalDevice>
 CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
+    VkPhysicalDeviceFeatures device_features{
+        .samplerAnisotropy = VK_TRUE,
+    };
+    VkPhysicalDeviceVulkan11Features device_features_11{
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .shaderDrawParameters = VK_TRUE,
+    };
     VkPhysicalDeviceVulkan12Features device_features_12{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
         .descriptorIndexing = VK_TRUE,
         .descriptorBindingPartiallyBound = VK_TRUE,
+        .runtimeDescriptorArray = VK_TRUE,
         .timelineSemaphore = VK_TRUE,
         .bufferDeviceAddress = VK_TRUE,
     };
@@ -131,6 +137,8 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     auto physical_device_ret =
         selector.set_surface(p_surface)
             .set_minimum_version(1, 3)
+            .set_required_features(device_features)
+            .set_required_features_11(device_features_11)
             .set_required_features_12(device_features_12)
             .set_required_features_13(device_features_13)
             .select();
@@ -366,6 +374,96 @@ RendererVulkan::CreateSwapchain(bool recreate) {
     return {};
 }
 
+Result<VkDescriptorPool>
+RendererVulkan::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags) const {
+    VkDescriptorPool pool{};
+    VkDescriptorPoolCreateInfo pool_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+        .maxSets = (uint)p_pool_sizes.size() * MAX_DESCRIPTOR_SETS,
+        .poolSizeCount = (uint)p_pool_sizes.size(),
+        .pPoolSizes = p_pool_sizes.data(),
+    };
+    VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &pool),
+                 "Could not create descriptor pool");
+    return pool;
+}
+
+Result<VkDescriptorSetLayout>
+RendererVulkan::CreateDescriptorSetLayout() const {
+    VkDescriptorSetLayout layout{};
+    VkSampler immputable_samplers[] = {samplers.linear, samplers.nearest};
+    const VkDescriptorSetLayoutBinding bindings[]{
+        {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 2,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+            .pImmutableSamplers = immputable_samplers,
+        },
+        {
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        },
+    };
+
+    const VkDescriptorSetLayoutCreateInfo layout_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
+        .bindingCount = 2,
+        .pBindings = bindings};
+    VK_CHECK_RET(vkCreateDescriptorSetLayout(
+                     ctx.device,
+                     &layout_info,
+                     nullptr,
+                     &layout),
+                 "Could not create descriptor set layout");
+    return layout;
+}
+
+Result<VkDescriptorSet>
+RendererVulkan::CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const {
+    VkDescriptorSet descriptor_set{};
+
+    const VkDescriptorSetAllocateInfo allocate_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = p_pool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &p_layout};
+
+    VK_CHECK_RET(vkAllocateDescriptorSets(
+                     ctx.device,
+                     &allocate_info,
+                     &descriptor_set),
+                 "Could not create descriptor set");
+    return descriptor_set;
+}
+
+Result<VkSampler>
+RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
+    VkSampler sampler{};
+    VkSamplerCreateInfo sampler_info{
+        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+        .magFilter = p_filter_mode,
+        .minFilter = p_filter_mode,
+        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+        .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+        .mipLodBias = 0.0f,
+        .anisotropyEnable = VK_TRUE,
+        .maxAnisotropy = 1.0f,
+        .minLod = 0.0f,
+        .maxLod = VK_LOD_CLAMP_NONE,
+        .borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
+    };
+    VK_CHECK_RET(vkCreateSampler(ctx.device, &sampler_info, nullptr, &sampler),
+                 "Could not create sampler");
+    return sampler;
+}
+
 Result<Pipeline>
 RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     std::string ga = "simple.spv";
@@ -377,7 +475,8 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     return builder
         .SetVertexStage(shader_module.handle, "VertexMain")
         .SetFragmentStage(shader_module.handle, "FragmentMain")
-        .AddPushConstantRange((VkShaderStageFlagBits)VK_SHADER_STAGE_VERTEX_BIT, sizeof(PushConstants))
+        .AddDescriptorSetLayout(global_descriptor.layout)
+        .AddPushConstantRange((VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
         .SetImageFormat(swapchain.image_format)
         .build(ctx);
 }
@@ -479,19 +578,13 @@ RendererVulkan::InitializeImGui() const {
         return Error("Could not initialize ImGui SDL3 for Vulkan");
     }
 
-    VkDescriptorPoolSize pool_sizes[] = {
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-    };
-    VkDescriptorPoolCreateInfo pool_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 1000,
-        .poolSizeCount = (uint32_t)std::size(pool_sizes),
-        .pPoolSizes = pool_sizes,
-    };
-    VkDescriptorPool imgui_pool{};
-    VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &imgui_pool),
-                 "Could not create ImGui descriptor pool");
+    auto pool_result = CreateDescriptorPool(
+        {
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        },
+        VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+    CHECK_RET(pool_result);
+    VkDescriptorPool imgui_pool = pool_result.value();
 
     ImGui_ImplVulkan_InitInfo imgui_info{
         .Instance = ctx.instance.instance,
@@ -522,47 +615,88 @@ RendererVulkan::InitializeImGui() const {
 Result<>
 RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     window = p_sdl_window;
-
     CHECK_RET(
         CreateInstance()
-            .and_then([this, p_sdl_window](vkb::Instance p_instance) {
+            .and_then([&](vkb::Instance p_instance) {
                 ctx.instance = p_instance;
-                return CreateSurface(p_instance, p_sdl_window);
+                return CreateSurface(p_instance, window);
             })
-            .and_then([this](VkSurfaceKHR p_surface) {
+            .and_then([&](VkSurfaceKHR p_surface) {
                 surface = p_surface;
                 int w, h{};
                 SDL_GetWindowSize(window, &w, &h);
                 window_size = {.width = (uint)w, .height = (uint)h};
                 return CreatePhysicalDevice(ctx.instance, surface);
             })
-            .and_then([this](vkb::PhysicalDevice p_physical_device) {
+            .and_then([&](vkb::PhysicalDevice p_physical_device) {
                 ctx.physical_device = p_physical_device;
                 return CreateDevice(p_physical_device);
             })
-            .and_then([this](vkb::Device p_device) {
+            .and_then([&](vkb::Device p_device) {
                 ctx.device = p_device;
                 return InitializeVolk(ctx.instance, ctx.device);
             })
             .and_then([&]() {
                 return InitializeVulkanMemoryAllocator(ctx);
             })
-            .and_then([this]() {
+            .transform([&]() {
                 SetDebugName((uint64_t)ctx.instance.instance, VK_OBJECT_TYPE_INSTANCE, "Primary instance");
                 SetDebugName((uint64_t)ctx.physical_device.physical_device, VK_OBJECT_TYPE_PHYSICAL_DEVICE, "Primary physical device");
                 SetDebugName((uint64_t)ctx.device.device, VK_OBJECT_TYPE_DEVICE, "Primary device");
                 SetDebugName((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
+            })
+            .and_then([&]() {
                 return GetQueue(ctx.device);
             })
-            .and_then([this](VkQueue p_queue) {
+            .transform([&](VkQueue p_queue) {
                 ctx.graphics_queue = p_queue;
                 SetDebugName((uint64_t)ctx.graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
+            })
+            .and_then([&]() {
                 return CreateFrameData();
             })
-            .and_then([this]() {
+            .and_then([&]() {
                 return CreateSwapchain();
             })
-            .and_then([this]() {
+            .and_then([&]() {
+                return CreateSampler(VK_FILTER_LINEAR);
+            })
+            .and_then([&](VkSampler p_linear_filter) {
+                samplers.linear = p_linear_filter;
+                return CreateSampler(VK_FILTER_NEAREST);
+            })
+            .transform([&](VkSampler p_nearest_filter) {
+                samplers.nearest = p_nearest_filter;
+            })
+            .and_then([&]() {
+                return CreateDescriptorPool({
+                                                {
+                                                    .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+                                                    .descriptorCount = 2,
+                                                },
+                                                {
+                                                    .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                                                    .descriptorCount = MAX_DESCRIPTOR_SETS,
+                                                },
+                                            },
+                                            VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT);
+            })
+            .transform([&](VkDescriptorPool p_pool) {
+                global_descriptor.pool = p_pool;
+            })
+            .and_then([&]() {
+                return CreateDescriptorSetLayout();
+            })
+            .transform([&](VkDescriptorSetLayout p_layout) {
+                global_descriptor.layout = p_layout;
+            })
+            .and_then([&]() {
+                return CreateDescriptorSet(global_descriptor.pool, global_descriptor.layout);
+            })
+            .transform([&](VkDescriptorSet p_set) {
+                global_descriptor.set = p_set;
+            })
+            .and_then([&]() {
                 return InitializeImGui();
             }));
 
@@ -597,27 +731,45 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
 
-    {
-        auto gltf_model = glTF::FromFile("character.glb");
-        Model model{};
-        for (const auto& mesh : gltf_model->meshes) {
-            auto gpu_mesh_result = UploadMeshToGPU(mesh.second);
-            CHECK_RET(gpu_mesh_result);
-            model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
-        }
-        render_state.models.emplace_back(model);
-
-        auto texture_result = Texture::FromFile("tunic_top_a.png")
-                                  .and_then([&](Texture p_texture) {
-                                      return UploadTextureToGPU(p_texture);
-                                  });
-        CHECK(texture_result);
-        if (texture_result) {
-        }
+    auto gltf_model = glTF::FromFile("character.glb");
+    Model model{};
+    for (const auto& mesh : gltf_model->meshes) {
+        auto gpu_mesh_result = UploadMeshToGPU(mesh.second);
+        CHECK_RET(gpu_mesh_result);
+        model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
     }
+    render_state.models.emplace_back(model);
+
+    auto texture_result = Texture::FromFile("tunic_top_a.png")
+                              .and_then([&](Texture p_texture) {
+                                  return UploadTextureToGPU(p_texture);
+                              });
+    CHECK(texture_result);
+    GPUImage texture = texture_result.value();
+
+    {
+        VkDescriptorImageInfo image_info{
+            .imageView = texture.view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        VkWriteDescriptorSet write{
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = global_descriptor.set,
+            .dstBinding = 1,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .pImageInfo = &image_info,
+        };
+
+        vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+    }
+
     initialized = true;
     return {};
 }
+
+static bool linear = true;
 
 void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) {
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
@@ -675,7 +827,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     Mat4 projection = glm::perspective(
         glm::radians(70.0f),
         (float)(p_viewport.settings.width / p_viewport.settings.height),
-        10.0f,
+        100.0f,
         0.1f);
     projection[1][1] *= -1.0f;
 
@@ -683,12 +835,12 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     PushConstants& pcs = GetCurrentFrame().push_constants;
 
     pcs.view_projection = projection * glm::inverse(glm::translate(glm::mat4(1.0f), render_state.camera_position));
-
+    pcs.sampler = linear ? 0 : 1;
     for (const auto& model : render_state.models) {
         pcs.model_matrix = model.transform.get_matrix();
         for (const auto& mesh : model.meshes) {
             pcs.vertex_buffer_address = mesh.data.vertex_buffer.address;
-            vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
+            vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
             vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.data.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(cmd->GetHandle(), mesh.data.index_count, 1, 0, 0, 0);
         }
@@ -702,6 +854,8 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
 
     cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    vkCmdBindDescriptorSets(cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 1, &global_descriptor.set, 0, nullptr);
 
     for (const auto& viewport : render_state.viewports) {
         RenderViewport(cmd, viewport, p_next_image_index);
@@ -726,6 +880,7 @@ void RendererVulkan::Draw() {
             ImGui::SliderFloat("Camera x", &render_state.camera_position.x, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
+            ImGui::Checkbox("Linear", &linear);
         }
         ImGui::End();
 

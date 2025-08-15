@@ -34,6 +34,7 @@ struct RendererVulkan : public Renderer {
         Mat4 model_matrix;
         Mat4 view_projection;
         VkDeviceAddress vertex_buffer_address;
+        uint sampler;
     };
 
     struct FrameData {
@@ -42,6 +43,11 @@ struct RendererVulkan : public Renderer {
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
         PushConstants push_constants{};
+
+        // Updated every frame: Camera position, lights...
+        VkDescriptorPool viewport_descriptor_pool{};
+        std::vector<VkDescriptorSet> viewport_descriptor_sets{};
+
 #ifdef TRACY_ENABLE
         tracy::VkCtx* tracy_context{};
 #endif
@@ -61,6 +67,8 @@ struct RendererVulkan : public Renderer {
         GPUImage depth{};
     };
 
+    const uint MAX_DESCRIPTOR_SETS = 16536;
+
     std::vector<VkSemaphore>
         swapchain_release_semaphores;
 
@@ -68,6 +76,13 @@ struct RendererVulkan : public Renderer {
     uint64_t current_frame_index = 0;
 
     Pipeline graphics_pipeline{};
+
+    // Updated when loading assets: Textures, samplers, materials...
+    struct GlobalDescriptor {
+        VkDescriptorPool pool{};
+        VkDescriptorSetLayout layout{};
+        VkDescriptorSet set{};
+    } global_descriptor;
 
     VkSurfaceKHR surface{};
     SDL_Window* window = nullptr;
@@ -89,6 +104,11 @@ struct RendererVulkan : public Renderer {
         VkFence fence{};
     } immediate_command{};
 
+    struct Samplers {
+        VkSampler linear{};
+        VkSampler nearest{};
+    } samplers;
+
    public:
     Result<> Initialize(SDL_Window* p_sdl_window) final override;
     void Draw() final override;
@@ -101,6 +121,10 @@ struct RendererVulkan : public Renderer {
 
     Result<VkCommandPool> CreateCommandPool() const;
     Result<VkCommandBuffer> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
+    Result<VkDescriptorPool> CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags) const;
+    Result<VkDescriptorSetLayout> CreateDescriptorSetLayout() const;
+    Result<VkDescriptorSet> CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const;
+    Result<VkSampler> CreateSampler(VkFilter p_filter_mode) const;
     Result<Pipeline> CreateGraphicsPipeline(std::string p_name);
     Result<> CreateSwapchain(bool recreate = false);
     Result<> CreateFrameData();
@@ -109,6 +133,7 @@ struct RendererVulkan : public Renderer {
     Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height) const;
     Result<Viewport> CreateViewport(const ViewportSettings& p_settings) const;
     Result<GPUBuffer> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
+
     void DestroyImage(GPUImage& p_image) const;
 
     Result<> InitializeImGui() const;

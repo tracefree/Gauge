@@ -1,18 +1,35 @@
 #include "input_structures.slang"
 
+struct MaterialData {
+    Texture2D* textures;
+};
+
 struct Scene {
     float4x4 view_projection;
-    float time;
     // Lights
 }
-ConstantBuffer<Scene> scene;
+
+struct Globals {
+    float time;
+    //Scene* scenes;
+}
+
+enum Sampler {
+    LINEAR,
+    NEAREST,
+}
 
 struct Push {
     float4x4 model_matrix;
     float4x4 view_projection;
     Vertex* vertices;
+    Sampler sampler;
     // Material ID
 }
+
+ConstantBuffer<SamplerState[]> samplers;
+ConstantBuffer<Texture2D[]> textures;
+//ConstantBuffer<Globals> global;
 
 [[vk::push_constant]]
 ConstantBuffer<Push> push_constants;
@@ -54,9 +71,9 @@ FragmentOutput FragmentMain(
     float2 uv: VertexUV,
 )
 {
-   // let albedo_texture_sample = fragment_params.albedo_texture.Sample(uv);
-   // let albedo = fragment_params.material_data.albedo_factors.rgb * color.rgb * albedo_texture_sample.rgb;
+    let albedo_texture = textures[0].Sample(samplers[push_constants.sampler], uv);
+    
     let normal_ts = float3(0.0, 0.0, 1.0);
     let normal_ws = mul(normal_ts, tbn_ws);
-    return FragmentOutput(float4(normal_ws, 1.0));
+    return FragmentOutput(albedo_texture);
 }

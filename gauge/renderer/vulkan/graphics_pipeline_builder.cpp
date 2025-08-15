@@ -6,10 +6,15 @@ using namespace Gauge;
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::AddPushConstantRange(VkShaderStageFlags p_shader_stage_flags, uint p_size) {
     push_constant_ranges.emplace_back(VkPushConstantRange{
-        .stageFlags = p_shader_stage_flags,
+        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
         .offset = 0,
         .size = p_size,
     });
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::AddDescriptorSetLayout(VkDescriptorSetLayout p_descriptor_set_layout) {
+    descriptor_set_layouts.push_back(p_descriptor_set_layout);
     return *this;
 }
 
@@ -112,6 +117,8 @@ GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
 
     const VkPipelineLayoutCreateInfo pipeline_layout_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = (uint)descriptor_set_layouts.size(),
+        .pSetLayouts = descriptor_set_layouts.data(),
         .pushConstantRangeCount = (uint)push_constant_ranges.size(),
         .pPushConstantRanges = push_constant_ranges.data(),
     };
