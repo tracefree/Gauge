@@ -1,5 +1,5 @@
 #include "graphics_pipeline_builder.hpp"
-#include <vulkan/vulkan_core.h>
+
 #include "gauge/renderer/vulkan/common.hpp"
 
 using namespace Gauge;

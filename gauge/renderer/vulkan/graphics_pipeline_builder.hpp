@@ -3,9 +3,6 @@
 #include <gauge/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 
-#include <volk.h>
-#include <vulkan/vulkan_core.h>
-#include <expected>
 #include <string>
 #include <vector>
 

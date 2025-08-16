@@ -7,7 +7,6 @@
 #include <print>
 
 #include <SDL3/SDL.h>
-#include <vulkan/vulkan.h>
 #include "thirdparty/tracy/public/common/TracySystem.hpp"
 
 using namespace Gauge;

@@ -4,6 +4,7 @@
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/texture.hpp>
+#include <gauge/scene/node.hpp>
 
 #include <sys/types.h>
 #include <optional>
@@ -11,7 +12,7 @@
 #include "gauge/math/transform.hpp"
 
 namespace fastgltf {
-struct Asset;
+class Asset;
 }
 
 namespace Gauge {
@@ -51,19 +52,21 @@ struct glTF {
         std::vector<Primitive> primitives;
     };
 
+    std::string name;
     std::vector<glTF::Node> nodes;
     std::vector<glTF::Texture> textures;
     std::vector<glTF::Material> materials;
     std::vector<glTF::Mesh> meshes;
-
-   public:
-    static Result<glTF> FromFile(const std::string& p_path);
 
    private:
     Result<> LoadNodes(const fastgltf::Asset& p_asset);
     Result<> LoadTextures(const fastgltf::Asset& p_asset);
     Result<> LoadMaterials(const fastgltf::Asset& p_asset);
     Result<> LoadMeshes(const fastgltf::Asset& p_asset);
+
+   public:
+    static Result<glTF> FromFile(const std::string& p_path);
+    Result<Ref<Gauge::Node>> CreateNode();
 };
 
 }  // namespace Gauge

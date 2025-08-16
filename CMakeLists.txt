@@ -59,6 +59,8 @@ add_library(gauge STATIC
   gauge/core/filesystem.cpp
   gauge/ui/window.cpp
   gauge/math/transform.cpp
+  gauge/scene/node.cpp
+  gauge/components/mesh_instance.cpp
 )
 
 set_source_files_properties(
@@ -69,6 +71,7 @@ target_include_directories(gauge_renderer PUBLIC thirdparty/fastgltf/include)
 include_directories(gauge_renderer PUBLIC thirdparty/VulkanMemoryAllocator/include)
 
 target_compile_definitions(gauge_renderer PRIVATE VK_NO_PROTOTYPES)
+#target_compile_definitions(gauge PRIVATE VK_NO_PROTOTYPES)
 
 target_precompile_headers(gauge_renderer PUBLIC <vector> <print> <string> <unordered_map> <memory>)
 target_include_directories(gauge_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

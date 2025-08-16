@@ -1,6 +1,7 @@
 #pragma once
 
 #include <expected>
+#include <memory>
 
 namespace Gauge {
 
@@ -9,6 +10,12 @@ using Result = std::expected<T, std::string>;
 
 template <class E>
 using Error = std::unexpected<E>;
+
+template <typename T>
+using Ref = std::shared_ptr<T>;
+
+// Resource ID
+typedef uint64_t RID;
 
 #define CHECK(result)                              \
     if (!result) [[unlikely]] {                    \

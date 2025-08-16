@@ -2,7 +2,7 @@
 
 #include <functional>
 #include <gauge/common.hpp>
-#include <gauge/core/math.hpp>
+#include <gauge/math/common.hpp>
 
 #include <gauge/renderer/renderer.hpp>
 
@@ -13,7 +13,6 @@
 #include <gauge/renderer/texture.hpp>
 
 #include <SDL3/SDL_video.h>
-#include <vulkan/vulkan_core.h>
 #include <cstdint>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float4.hpp>
@@ -122,6 +121,10 @@ struct RendererVulkan : public Renderer {
    public:
     Result<> Initialize(SDL_Window* p_sdl_window) final override;
     void Draw() final override;
+
+    // virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
+    // virtual void DestroyMesh(RID p_rid) final override;
+
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;
 

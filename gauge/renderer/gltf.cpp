@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <gauge/common.hpp>
+#include <gauge/components/mesh_instance.hpp>
 #include <gauge/renderer/common.hpp>
 
 #include <fastgltf/core.hpp>
@@ -9,16 +10,20 @@
 #include <fastgltf/tools.hpp>
 #include <fastgltf/types.hpp>
 #include <filesystem>
+#include <memory>
 #include <print>
 #include <variant>
 #include "fastgltf/math.hpp"
 #include "fastgltf/util.hpp"
+#include "gauge/core/app.hpp"
 #include "gauge/math/common.hpp"
 #include "glm/ext/vector_float2.hpp"
 #include "glm/ext/vector_float4.hpp"
 #include "thirdparty/stb/stb_image.h"
 
 using namespace Gauge;
+
+extern App* gApp;
 
 namespace Attribute {
 constexpr const char* POSITION = "POSITION";
@@ -66,10 +71,10 @@ static void IteratePositions(const fastgltf::Asset& asset, const fastgltf::Primi
     assert(attriubte != fg_primitive.attributes.end());
     const fastgltf::Accessor& accessor = asset.accessors[attriubte->accessorIndex];
     primitive.vertices.resize(accessor.count);
-    fastgltf::iterateAccessorWithIndex<glm::vec3>(
+    fastgltf::iterateAccessorWithIndex<Vec3>(
         asset,
         accessor,
-        [&](glm::vec3 position, size_t index) {
+        [&](Vec3 position, size_t index) {
             primitive.vertices[index].position = position;
         });
 }
@@ -79,10 +84,10 @@ static void IterateNormals(const fastgltf::Asset& asset, const fastgltf::Primiti
     if (attribute == fg_primitive.attributes.end())
         return;
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
-    fastgltf::iterateAccessorWithIndex<glm::vec3>(
+    fastgltf::iterateAccessorWithIndex<Vec3>(
         asset,
         accessor,
-        [&](glm::vec3 normal, size_t index) {
+        [&](Vec3 normal, size_t index) {
             primitive.vertices[index].normal = normal;
         });
 }
@@ -92,10 +97,10 @@ static void IterateTangents(const fastgltf::Asset& asset, const fastgltf::Primit
     if (attribute == fg_primitive.attributes.end())
         return;
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
-    fastgltf::iterateAccessorWithIndex<glm::vec4>(
+    fastgltf::iterateAccessorWithIndex<Vec4>(
         asset,
         accessor,
-        [&](glm::vec4 tangent, size_t index) {
+        [&](Vec4 tangent, size_t index) {
             primitive.vertices[index].tangent = tangent;
         });
 }
@@ -105,10 +110,10 @@ static void IterateUVs(const fastgltf::Asset& asset, const fastgltf::Primitive& 
     if (attribute == fg_primitive.attributes.end())
         return;
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
-    fastgltf::iterateAccessorWithIndex<glm::vec2>(
+    fastgltf::iterateAccessorWithIndex<Vec2>(
         asset,
         accessor,
-        [&](glm::vec2 uv, size_t index) {
+        [&](Vec2 uv, size_t index) {
             primitive.vertices[index].uv_x = uv.x;
             primitive.vertices[index].uv_y = uv.y;
         });
@@ -252,5 +257,40 @@ glTF::FromFile(const std::string& p_path) {
                       return gltf.LoadMeshes(asset.get());
                   }));
 
+    // gApp->renderer;
     return gltf;
+}
+
+Result<Ref<Gauge::Node>> glTF::CreateNode() {
+    std::vector<Ref<Gauge::Node>> instanced_nodes;
+    instanced_nodes.resize(nodes.size());
+    for (uint i = 0; i < nodes.size(); ++i) {
+        instanced_nodes[i] = std::make_shared<Gauge::Node>();
+        instanced_nodes[i]->name = nodes[i].name;
+        instanced_nodes[i]->local_transform = nodes[i].transform;
+        if (nodes[i].mesh.has_value()) {
+            const glTF::Mesh& mesh = meshes[nodes[i].mesh.value()];
+            Ref<MeshInstance> mesh_component = std::make_shared<MeshInstance>();
+            instanced_nodes[i]->components.emplace_back(mesh_component);
+        }
+    }
+
+    std::vector<bool> has_parent;
+    has_parent.resize(nodes.size());
+    for (uint i = 0; i < nodes.size(); ++i) {
+        for (uint child_index : nodes[i].children) {
+            instanced_nodes[i]->children.push_back(instanced_nodes[child_index]);
+            has_parent[child_index] = true;
+        }
+    }
+
+    Ref<Gauge::Node> root_node = std::make_shared<Gauge::Node>();
+    root_node->name = name;
+    for (uint i = 0; i < nodes.size(); ++i) {
+        if (!has_parent[i]) {
+            root_node->children.push_back(instanced_nodes[i]);
+        }
+    }
+
+    return root_node;
 }

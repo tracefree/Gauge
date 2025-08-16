@@ -4,7 +4,7 @@
 #include <gauge/core/filesystem.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 
-#include <vulkan/vulkan_core.h>
+#include <volk.h>
 #include <string>
 #include <vector>
 

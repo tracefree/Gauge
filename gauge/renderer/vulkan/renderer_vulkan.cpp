@@ -7,7 +7,7 @@
 #include <cstring>
 #include <gauge/common.hpp>
 #include <gauge/core/app.hpp>
-#include <gauge/core/math.hpp>
+#include <gauge/math/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
 #include <gauge/renderer/vulkan/shader_module.hpp>
@@ -27,8 +27,6 @@
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
 #include <sys/types.h>
-#include <vulkan/vk_enum_string_helper.h>
-#include <vulkan/vulkan_core.h>
 
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
@@ -36,6 +34,7 @@
 #include "gauge/renderer/renderer.hpp"
 #include "gauge/renderer/texture.hpp"
 #include "gauge/renderer/vulkan/command_buffer.hpp"
+#include "gauge/scene/node.hpp"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
 #include "glm/matrix.hpp"
@@ -817,6 +816,9 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
 
     auto gltf_model = glTF::FromFile("character.glb");
     CHECK_RET(gltf_model);
+
+    Ref<Node> character = gltf_model->CreateNode().value();
+
     Model model{};
     for (const glTF::Mesh& mesh : gltf_model->meshes) {
         for (const glTF::Primitive& primitive : mesh.primitives) {
@@ -906,7 +908,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     cmd->BindPipeline(graphics_pipeline);
     PushConstants& pcs = GetCurrentFrame().push_constants;
 
-    pcs.view_projection = projection * glm::inverse(glm::translate(glm::mat4(1.0f), render_state.camera_position));
+    pcs.view_projection = projection * glm::inverse(glm::translate(Mat4(1.0f), render_state.camera_position));
     pcs.sampler = linear ? 0 : 1;
     pcs.material_index = tex;
     for (const auto& model : render_state.models) {

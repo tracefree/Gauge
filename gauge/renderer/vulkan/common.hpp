@@ -2,7 +2,9 @@
 
 #include <gauge/math/transform.hpp>
 
+#define VK_NO_PROTOTYPES 1
 #include <volk.h>
+
 #include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan_core.h>
 #include "gauge/renderer/common.hpp"
