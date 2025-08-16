@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "gauge/math/common.hpp"
+#include "gauge/renderer/gltf.hpp"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
 namespace Gauge {
@@ -153,7 +154,10 @@ struct RendererVulkan : public Renderer {
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 
     Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
+
+    Result<GPUMesh> UploadMeshToGPU(const std::vector<Vertex>& p_vertices, const std::vector<uint>& p_indices) const;
     Result<GPUMesh> UploadMeshToGPU(const CPUMesh& mesh) const;
+    Result<GPUMesh> UploadMeshToGPU(const glTF::Primitive& primitive) const;
     Result<GPUImage> UploadTextureToGPU(const Texture& p_texture) const;
 };
 }  // namespace Gauge

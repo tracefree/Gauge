@@ -6,26 +6,64 @@
 #include <gauge/renderer/texture.hpp>
 
 #include <sys/types.h>
+#include <optional>
 #include <string>
-#include <unordered_map>
+#include "gauge/math/transform.hpp"
+
+namespace fastgltf {
+struct Asset;
+}
 
 namespace Gauge {
 
 struct glTF {
-    struct PBRMaterial {
+   public:
+    struct Node {
+        std::string name;
+        Transform transform{};
+        std::vector<uint> children;
+        std::optional<uint> mesh;
+    };
+
+    struct Texture {
+        std::string name;
+        Gauge::Texture data{};
+    };
+
+    struct Material {
+        std::string name;
         Vec4 albedo{1.0f};
         float roughness{};
         float metallic{};
-        std::string texture_albedo;
-        std::string texture_normal;
-        std::string texture_metallic_roughness;
+        std::optional<uint> texture_albedo_index;
+        std::optional<uint> texture_normal_index;
+        std::optional<uint> texture_metallic_roughness_index;
     };
-    std::unordered_map<std::string, CPUMesh> meshes;
-    std::unordered_map<std::string, Texture> textures;
-    std::unordered_map<std::string, PBRMaterial> materials;
 
-    static Result<glTF>
-    FromFile(const std::string& p_path);
+    struct Primitive {
+        std::vector<Vertex> vertices;
+        std::vector<uint> indices;
+        std::optional<uint> material_index;
+    };
+
+    struct Mesh {
+        std::string name;
+        std::vector<Primitive> primitives;
+    };
+
+    std::vector<glTF::Node> nodes;
+    std::vector<glTF::Texture> textures;
+    std::vector<glTF::Material> materials;
+    std::vector<glTF::Mesh> meshes;
+
+   public:
+    static Result<glTF> FromFile(const std::string& p_path);
+
+   private:
+    Result<> LoadNodes(const fastgltf::Asset& p_asset);
+    Result<> LoadTextures(const fastgltf::Asset& p_asset);
+    Result<> LoadMaterials(const fastgltf::Asset& p_asset);
+    Result<> LoadMeshes(const fastgltf::Asset& p_asset);
 };
 
 }  // namespace Gauge

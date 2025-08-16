@@ -17,6 +17,8 @@ struct Texture {
 
     size_t GetSize() const;
     static Result<Texture> FromFile(const std::string& p_path);
+
+    ~Texture();
 };
 
 }  // namespace Gauge

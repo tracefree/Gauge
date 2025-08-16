@@ -816,11 +816,14 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     render_state.viewports.emplace_back(main_viewport_result.value());
 
     auto gltf_model = glTF::FromFile("character.glb");
+    CHECK_RET(gltf_model);
     Model model{};
-    for (const auto& mesh : gltf_model->meshes) {
-        auto gpu_mesh_result = UploadMeshToGPU(mesh.second);
-        CHECK_RET(gpu_mesh_result);
-        model.meshes.emplace_back(Mesh{.name = mesh.first, .data = gpu_mesh_result.value()});
+    for (const glTF::Mesh& mesh : gltf_model->meshes) {
+        for (const glTF::Primitive& primitive : mesh.primitives) {
+            auto gpu_mesh_result = UploadMeshToGPU(primitive);
+            CHECK_RET(gpu_mesh_result);
+            model.meshes.emplace_back(Mesh{.name = mesh.name, .data = gpu_mesh_result.value()});
+        }
     }
     render_state.models.emplace_back(model);
 
@@ -1149,12 +1152,12 @@ RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usag
 }
 
 Result<GPUMesh>
-RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
+RendererVulkan::UploadMeshToGPU(const std::vector<Vertex>& p_vertices, const std::vector<uint>& p_indices) const {
     GPUMesh gpu_mesh{};
-    const uint vertex_buffer_size = cpu_mesh.vertices.size() * sizeof(Vertex);
-    const size_t index_buffer_size = cpu_mesh.indices.size() * sizeof(uint);
+    const uint vertex_buffer_size = p_vertices.size() * sizeof(Vertex);
+    const size_t index_buffer_size = p_indices.size() * sizeof(uint);
 
-    gpu_mesh.index_count = cpu_mesh.indices.size();
+    gpu_mesh.index_count = p_indices.size();
 
     // Vertices
     const auto vertex_buffer_result = CreateBuffer(
@@ -1187,8 +1190,8 @@ RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     staging_buffer = staging_buffer_result.value();
 
     void* data = staging_buffer.allocation.info.pMappedData;
-    memcpy(data, cpu_mesh.vertices.data(), vertex_buffer_size);
-    memcpy((char*)data + vertex_buffer_size, cpu_mesh.indices.data(), index_buffer_size);
+    memcpy(data, p_vertices.data(), vertex_buffer_size);
+    memcpy((char*)data + vertex_buffer_size, p_indices.data(), index_buffer_size);
 
     ImmediateSubmit([&](CommandBufferVulkan cmd) {
         const VkBufferCopy vertex_copy{
@@ -1206,6 +1209,11 @@ RendererVulkan::UploadMeshToGPU(const CPUMesh& cpu_mesh) const {
     vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
 
     return gpu_mesh;
+}
+
+Result<GPUMesh>
+RendererVulkan::UploadMeshToGPU(const glTF::Primitive& primitive) const {
+    return UploadMeshToGPU(primitive.vertices, primitive.indices);
 }
 
 Result<GPUImage>

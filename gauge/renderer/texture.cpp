@@ -20,3 +20,10 @@ Result<Texture> Texture::FromFile(const std::string& p_path) {
     texture.number_channels = ch;
     return texture;
 }
+
+Texture::~Texture() {
+    if (data != nullptr) {
+        // TODO: Clean up
+        // stbi_image_free(data);
+    }
+}
