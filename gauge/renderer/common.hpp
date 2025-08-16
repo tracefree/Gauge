@@ -1,5 +1,6 @@
 #pragma once
 
+#include <gauge/common.hpp>
 #include <gauge/math/common.hpp>
 
 namespace Gauge {
@@ -18,9 +19,11 @@ struct CPUMesh {
 };
 
 struct GPUMaterial {
-    Vec4 albedo;
-    uint texture_albedo;
-    uint texture_normal;
+    Vec4 albedo = Vec4(1.0f);
+    float metallic = 0.0f;
+    float roughness = 0.0f;
+    RID texture_albedo = 0;
+    RID texture_normal = 2;
 };
 
 }  // namespace Gauge

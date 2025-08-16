@@ -9,6 +9,8 @@ struct Vertex {
 
 struct Material {
   float4 albedo;
+  float metallic;
+  float roughness;
   uint texture_albedo;
   uint texture_normal;
 }

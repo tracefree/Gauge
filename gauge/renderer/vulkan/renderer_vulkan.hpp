@@ -1,21 +1,18 @@
 #pragma once
 
-#include <functional>
 #include <gauge/common.hpp>
 #include <gauge/math/common.hpp>
-
+#include <gauge/renderer/common.hpp>
 #include <gauge/renderer/renderer.hpp>
-
+#include <gauge/renderer/texture.hpp>
 #include <gauge/renderer/vulkan/command_buffer.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
-
-#include <gauge/renderer/common.hpp>
-#include <gauge/renderer/texture.hpp>
+#include <gauge/scene/scene_tree.hpp>
 
 #include <SDL3/SDL_video.h>
 #include <cstdint>
-#include <glm/ext/matrix_float4x4.hpp>
-#include <glm/ext/vector_float4.hpp>
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -65,6 +62,7 @@ struct RendererVulkan : public Renderer {
     struct Viewport {
         ViewportSettings settings{};
         GPUImage depth{};
+        std::shared_ptr<SceneTree> scene_tree{};
     };
 
     const uint MAX_DESCRIPTOR_SETS = 16536;
@@ -110,10 +108,16 @@ struct RendererVulkan : public Renderer {
     } samplers;
 
     struct GlobalResources {
-        GPUImage texture_white;
-        GPUImage texture_black;
-        GPUImage texture_normal;
-        GPUImage texture_missing;
+        RID texture_white;
+        RID texture_black;
+        RID texture_normal;
+        RID texture_missing;
+
+        std::vector<GPUMesh> meshes;
+        std::vector<GPUImage> textures;
+        std::vector<GPUMaterial> materials;
+
+        GPUBuffer materials_buffer;
     } resources;
 
     bool linear = true;
@@ -122,8 +126,14 @@ struct RendererVulkan : public Renderer {
     Result<> Initialize(SDL_Window* p_sdl_window) final override;
     void Draw() final override;
 
-    // virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
-    // virtual void DestroyMesh(RID p_rid) final override;
+    virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
+    virtual void DestroyMesh(RID p_rid) final override;
+
+    virtual RID CreateTexture(const Texture& p_texture) final override;
+    virtual void DestroyTexture(RID p_rid) final override;
+
+    virtual RID CreateMaterial(const GPUMaterial& p_material) final override;
+    virtual void DestroyMaterial(RID p_rid) final override;
 
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;

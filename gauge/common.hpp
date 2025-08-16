@@ -15,7 +15,7 @@ template <typename T>
 using Ref = std::shared_ptr<T>;
 
 // Resource ID
-typedef uint64_t RID;
+typedef uint32_t RID;
 
 #define CHECK(result)                              \
     if (!result) [[unlikely]] {                    \

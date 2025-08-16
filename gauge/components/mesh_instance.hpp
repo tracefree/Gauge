@@ -1,15 +1,20 @@
 #pragma once
 
+#include <gauge/common.hpp>
+#include <vector>
 #include "gauge/components/component.hpp"
-#include "gauge/components/drawable.hpp"
 
 namespace Gauge {
 
-struct MeshInstance : public Component, public IDrawable {
-    // GPUMesh mesh{};
+struct MeshInstance : public Component {
+    struct Surface {
+        RID primitive;
+        RID material;
+    };
+    std::vector<Surface> surfaces;
 
    public:
-    virtual void Draw() const override;
+    virtual void Draw() override;
 
     MeshInstance() {}
     ~MeshInstance() {}

@@ -3,6 +3,7 @@
 namespace Gauge {
 
 struct Component {
+    virtual void Draw() {}
 };
 
 }  // namespace Gauge

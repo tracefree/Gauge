@@ -13,6 +13,8 @@ struct Node {
 
     std::vector<Ref<Node>> children;
     std::vector<Ref<Component>> components;
+
+    void Draw();
 };
 
 }  // namespace Gauge

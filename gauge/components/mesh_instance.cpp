@@ -1,6 +1,20 @@
 #include "mesh_instance.hpp"
+#include <print>
+#include "gauge/core/app.hpp"
+#include "gauge/math/transform.hpp"
+#include "gauge/renderer/renderer.hpp"
 
 using namespace Gauge;
 
-void MeshInstance::Draw() const {
+extern App* gApp;
+
+void MeshInstance::Draw() {
+    for (const auto& surface : surfaces) {
+        gApp->renderer->draw_objects.emplace_back(
+            Renderer::DrawObject{
+                .primitive = surface.primitive,
+                .material = surface.material,
+                .transform = Transform{},
+            });
+    }
 }

@@ -19,6 +19,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/trigonometric.hpp>
+#include <memory>
 #include <print>
 #include <string>
 #include <tracy/Tracy.hpp>
@@ -27,6 +28,7 @@
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
 #include <sys/types.h>
+#include <vulkan/vulkan_core.h>
 
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
@@ -35,6 +37,7 @@
 #include "gauge/renderer/texture.hpp"
 #include "gauge/renderer/vulkan/command_buffer.hpp"
 #include "gauge/scene/node.hpp"
+#include "gauge/scene/scene_tree.hpp"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
 #include "glm/matrix.hpp"
@@ -393,7 +396,7 @@ Result<VkDescriptorSetLayout>
 RendererVulkan::CreateDescriptorSetLayout() const {
     VkDescriptorSetLayout layout{};
     VkSampler immputable_samplers[] = {samplers.linear, samplers.nearest};
-    const VkDescriptorSetLayoutBinding bindings[]{
+    std::vector<VkDescriptorSetLayoutBinding> bindings{
         {
             .binding = 0,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -407,13 +410,19 @@ RendererVulkan::CreateDescriptorSetLayout() const {
             .descriptorCount = MAX_DESCRIPTOR_SETS,
             .stageFlags = VK_SHADER_STAGE_ALL,
         },
+        {
+            .binding = 2,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_ALL,
+        },
     };
 
     const VkDescriptorSetLayoutCreateInfo layout_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
         .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
-        .bindingCount = 2,
-        .pBindings = bindings};
+        .bindingCount = (uint)bindings.size(),
+        .pBindings = bindings.data()};
     VK_CHECK_RET(vkCreateDescriptorSetLayout(
                      ctx.device,
                      &layout_info,
@@ -482,81 +491,64 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
 }
 
 Result<> RendererVulkan::InitializeGlobalResources() {
-    // White
-    uint white_data = glm::packUnorm4x8(Vec4(1.0f));
-    Texture white{
-        .data = (unsigned char*)&white_data,
+    uint white = glm::packUnorm4x8(Vec4(1.0f));
+    resources.texture_white = CreateTexture({
+        .data = (unsigned char*)&white,
         .width = 1,
         .height = 1,
         .use_srgb = false,
-    };
-    CHECK_RET(UploadTextureToGPU(white)
-                  .transform([&](GPUImage image) {
-                      resources.texture_white = image;
-                  }));
+    });
 
-    // Black
-    uint black_data = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 0.0f, 1.0f));
-    Texture black{
-        .data = (unsigned char*)&black_data,
+    uint black = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 0.0f, 1.0f));
+    resources.texture_black = CreateTexture({
+        .data = (unsigned char*)&black,
         .width = 1,
         .height = 1,
         .use_srgb = false,
-    };
-    CHECK_RET(UploadTextureToGPU(black)
-                  .transform([&](GPUImage image) {
-                      resources.texture_black = image;
-                  }));
+    });
 
-    // Default normal
-    uint normal_data = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 1.0f, 1.0f));
-    Texture normal{
-        .data = (unsigned char*)&normal_data,
+    uint normal = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 1.0f, 1.0f));
+    resources.texture_normal = CreateTexture({
+        .data = (unsigned char*)&normal,
         .width = 1,
         .height = 1,
         .use_srgb = false,
-    };
-    CHECK_RET(UploadTextureToGPU(normal)
-                  .transform([&](GPUImage image) {
-                      resources.texture_normal = image;
-                  }));
+    });
 
-    // Missing texture
-    uint magenta_data = glm::packUnorm4x8(Vec4(1.0f, 0.0f, 1.0f, 1.0f));
-    std::array<uint32_t, 16 * 16> missing_data;
+    uint magenta = glm::packUnorm4x8(Vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    std::array<uint32_t, 16 * 16> missing;
     for (int x = 0; x < 16; x++) {
         for (int y = 0; y < 16; y++) {
-            missing_data[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta_data : black_data;
+            missing[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta : black;
         }
     }
-    Texture missing{
-        .data = (unsigned char*)&missing_data,
+    resources.texture_missing = CreateTexture({
+        .data = (unsigned char*)&missing,
         .width = 16,
         .height = 16,
         .use_srgb = false,
-    };
-    CHECK_RET(UploadTextureToGPU(missing)
-                  .transform([&](GPUImage image) {
-                      resources.texture_missing = image;
-                  }));
+    });
 
-    // Create descriptors
-    std::vector<VkDescriptorImageInfo> image_infos;
-    for (const GPUImage& image : {resources.texture_white, resources.texture_black, resources.texture_normal, resources.texture_missing}) {
-        image_infos.emplace_back(VkDescriptorImageInfo{
-            .imageView = image.view,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        });
-    }
+    Result<GPUBuffer> buffer_result =
+        CreateBuffer(
+            sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_GPU_ONLY);
+    CHECK_RET(buffer_result);
+    resources.materials_buffer = buffer_result.value();
+
+    VkDescriptorBufferInfo buffer_info{
+        .buffer = resources.materials_buffer.handle,
+        .range = sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS,
+    };
     VkWriteDescriptorSet write{
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = global_descriptor.set,
-        .dstBinding = 1,
+        .dstBinding = 2,
         .dstArrayElement = 0,
-        .descriptorCount = (uint)image_infos.size(),
-        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        .pImageInfo = image_infos.data(),
-    };
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        .pBufferInfo = &buffer_info};
     vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
 
     return {};
@@ -759,6 +751,10 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
                                                     .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                                                     .descriptorCount = MAX_DESCRIPTOR_SETS,
                                                 },
+                                                {
+                                                    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                                                    .descriptorCount = 1,
+                                                },
                                             },
                                             VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT);
             })
@@ -814,30 +810,11 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
 
-    auto gltf_model = glTF::FromFile("character.glb");
+    auto gltf_model = glTF::FromFile("character2.glb");
     CHECK_RET(gltf_model);
-
     Ref<Node> character = gltf_model->CreateNode().value();
-
-    Model model{};
-    for (const glTF::Mesh& mesh : gltf_model->meshes) {
-        for (const glTF::Primitive& primitive : mesh.primitives) {
-            auto gpu_mesh_result = UploadMeshToGPU(primitive);
-            CHECK_RET(gpu_mesh_result);
-            model.meshes.emplace_back(Mesh{.name = mesh.name, .data = gpu_mesh_result.value()});
-        }
-    }
-    render_state.models.emplace_back(model);
-
-    auto texture_result = Texture::FromFile("tunic_top_a.png")
-                              .and_then([&](Texture p_texture) {
-                                  return UploadTextureToGPU(p_texture);
-                              });
-    CHECK(texture_result);
-    GPUImage texture = texture_result.value();
-
-    {
-    }
+    render_state.viewports[0].scene_tree = std::make_shared<SceneTree>();
+    render_state.viewports[0].scene_tree->root = character;
 
     initialized = true;
     return {};
@@ -910,17 +887,18 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
 
     pcs.view_projection = projection * glm::inverse(glm::translate(Mat4(1.0f), render_state.camera_position));
     pcs.sampler = linear ? 0 : 1;
-    pcs.material_index = tex;
-    for (const auto& model : render_state.models) {
-        pcs.model_matrix = model.transform.get_matrix();
-        for (const auto& mesh : model.meshes) {
-            pcs.vertex_buffer_address = mesh.data.vertex_buffer.address;
-            vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
-            vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.data.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdDrawIndexed(cmd->GetHandle(), mesh.data.index_count, 1, 0, 0, 0);
-        }
-    }
 
+    draw_objects.clear();
+    p_viewport.scene_tree->Draw();
+    for (const DrawObject& draw_object : draw_objects) {
+        pcs.model_matrix = draw_object.transform.get_matrix();
+        const GPUMesh& mesh = resources.meshes[draw_object.primitive];
+        pcs.vertex_buffer_address = mesh.vertex_buffer.address;
+        pcs.material_index = draw_object.material;
+        vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
+        vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
+    }
     vkCmdEndRendering(cmd->GetHandle());
 }
 
@@ -956,7 +934,7 @@ void RendererVulkan::Draw() {
             ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
             ImGui::Checkbox("Linear", &linear);
-            ImGui::SliderInt("Texture", &tex, 0, 4);
+            ImGui::SliderInt("Texture", &tex, 0, 20);
         }
         ImGui::End();
 
@@ -1185,7 +1163,7 @@ RendererVulkan::UploadMeshToGPU(const std::vector<Vertex>& p_vertices, const std
     // Staging
     GPUBuffer staging_buffer{};
     const auto staging_buffer_result = CreateBuffer(
-        (vertex_buffer_size + index_buffer_size) * 10,
+        (vertex_buffer_size + index_buffer_size),
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VMA_MEMORY_USAGE_CPU_COPY);
     CHECK_RET(staging_buffer_result);
@@ -1383,4 +1361,81 @@ Result<RendererVulkan::Viewport> RendererVulkan::CreateViewport(const ViewportSe
     }
 
     return viewport;
+}
+
+RID RendererVulkan::CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) {
+    RID rid = (RID)0;
+    CHECK(UploadMeshToGPU(p_vertices, p_indices)
+              .transform([&](GPUMesh p_mesh) {
+                  resources.meshes.push_back(p_mesh);
+                  rid = (RID)(resources.meshes.size() - 1);
+              }));
+    return rid;
+}
+
+void RendererVulkan::DestroyMesh(RID p_rid) {
+    // TODO
+}
+
+RID RendererVulkan::CreateTexture(const Texture& p_texture) {
+    RID rid = (RID)0;
+    Result<GPUImage> image_result =
+        UploadTextureToGPU(p_texture)
+            .transform([&](GPUImage p_image) {
+                resources.textures.push_back(p_image);
+                rid = (RID)(resources.textures.size() - 1);
+                return p_image;
+            });
+    CHECK(image_result);
+    if (!image_result) {
+        return rid;
+    }
+    VkDescriptorImageInfo image_info{
+        .imageView = image_result->view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+    VkWriteDescriptorSet write{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = global_descriptor.set,
+        .dstBinding = 1,
+        .dstArrayElement = (uint)rid,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        .pImageInfo = &image_info,
+    };
+    vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+    return rid;
+}
+
+void RendererVulkan::DestroyTexture(RID p_rid) {
+    // TODO
+}
+
+RID RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
+    resources.materials.push_back(p_material);
+    // Staging
+    const auto staging_buffer_result = CreateBuffer(
+        sizeof(GPUMaterial),
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_COPY);
+    CHECK(staging_buffer_result);
+    GPUBuffer staging_buffer = staging_buffer_result.value();
+
+    void* data = staging_buffer.allocation.info.pMappedData;
+    memcpy(data, &p_material, sizeof(GPUMaterial));
+
+    ImmediateSubmit([&](CommandBufferVulkan cmd) {
+        const VkBufferCopy buffer_copy{
+            .dstOffset = (resources.materials.size() - 1) * sizeof(GPUMaterial),
+            .size = sizeof(GPUMaterial),
+        };
+        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, resources.materials_buffer.handle, 1, &buffer_copy);
+    });
+
+    vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
+    return (RID)(resources.materials.size() - 1);
+}
+
+void RendererVulkan::DestroyMaterial(RID p_rid) {
+    // TODO
 }

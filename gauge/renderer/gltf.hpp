@@ -27,11 +27,13 @@ struct glTF {
     };
 
     struct Texture {
+        RID rid;
         std::string name;
         Gauge::Texture data{};
     };
 
     struct Material {
+        RID rid;
         std::string name;
         Vec4 albedo{1.0f};
         float roughness{};
@@ -42,12 +44,14 @@ struct glTF {
     };
 
     struct Primitive {
+        RID rid;
         std::vector<Vertex> vertices;
         std::vector<uint> indices;
         std::optional<uint> material_index;
     };
 
     struct Mesh {
+        RID rid;
         std::string name;
         std::vector<Primitive> primitives;
     };

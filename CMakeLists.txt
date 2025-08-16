@@ -60,6 +60,7 @@ add_library(gauge STATIC
   gauge/ui/window.cpp
   gauge/math/transform.cpp
   gauge/scene/node.cpp
+  gauge/scene/scene_tree.cpp
   gauge/components/mesh_instance.cpp
 )
 

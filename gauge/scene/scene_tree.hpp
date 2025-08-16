@@ -7,6 +7,8 @@ namespace Gauge {
 
 struct SceneTree {
     Ref<Node> root;
+
+    void Draw();
 };
 
 }  // namespace Gauge

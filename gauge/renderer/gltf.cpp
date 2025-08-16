@@ -17,8 +17,6 @@
 #include "fastgltf/util.hpp"
 #include "gauge/core/app.hpp"
 #include "gauge/math/common.hpp"
-#include "glm/ext/vector_float2.hpp"
-#include "glm/ext/vector_float4.hpp"
 #include "thirdparty/stb/stb_image.h"
 
 using namespace Gauge;
@@ -146,29 +144,33 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
         glTF::Texture& texture = textures[i];
         auto fg_image = p_asset.images[fg_texture.imageIndex.value()];
         std::string err;
+        bool texture_found = false;
         std::visit(fastgltf::visitor{
                        [&](fastgltf::sources::URI& file_path) {
                            std::println("path {}", file_path.uri.c_str());
                            // TODO: Implement
+                       },
+                       [&](const fastgltf::sources::Array& array) {
+                           std::println("Array!");
                        },
                        [&](fastgltf::sources::BufferView& view) {
                            auto& buffer_view = p_asset.bufferViews[view.bufferViewIndex];
                            auto& buffer = p_asset.buffers[buffer_view.bufferIndex];
                            std::visit(
                                fastgltf::visitor{
-                                   [&](fastgltf::sources::Array& array) {
+                                   [&](auto& argument) {
+                                       err = "Could not load texture: Buffer type not implemented";
+                                   },
+                                   [&](const fastgltf::sources::Array& array) {
                                        int width, height, number_channels;
                                        texture.data.data = stbi_load_from_memory((stbi_uc*)array.bytes.data() + buffer_view.byteOffset, static_cast<int>(buffer_view.byteLength), &width, &height, &number_channels, 4);
                                        texture.data.width = (uint)width;
                                        texture.data.height = (uint)width;
+                                       texture_found = true;
                                        if (!texture.data.data) {
                                            err = "Could not load texture: Couldn't load data from memory";
                                            texture.data.data = nullptr;
                                        }
-                                   },
-                                   [&](auto& argument) {
-                                       //    std::println("Buffer type?");
-                                       //    err = "Could not load texture: Buffer type not implemented";
                                    },
                                },
                                buffer.data);
@@ -180,6 +182,9 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
                    fg_image.data);
         if (!err.empty()) {
             return Error(err);
+        }
+        if (texture_found) {
+            texture.rid = gApp->renderer->CreateTexture(texture.data);
         }
     }
     return {};
@@ -194,15 +199,26 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
         material.albedo = Vec4FromFastGLTF(fg_material.pbrData.baseColorFactor);
         material.metallic = fg_material.pbrData.metallicFactor;
         material.roughness = fg_material.pbrData.roughnessFactor;
+
+        GPUMaterial gpu_material{
+            .albedo = material.albedo,
+            .metallic = material.metallic,
+            .roughness = material.roughness,
+        };
+
         if (fg_material.pbrData.baseColorTexture.has_value()) {
             material.texture_albedo_index = fg_material.pbrData.baseColorTexture->textureIndex;
+            gpu_material.texture_albedo = textures[material.texture_albedo_index.value()].rid;
         }
         if (fg_material.normalTexture.has_value()) {
             material.texture_normal_index = fg_material.normalTexture->textureIndex;
+            gpu_material.texture_normal = textures[material.texture_normal_index.value()].rid;
         }
         if (fg_material.pbrData.metallicRoughnessTexture.has_value()) {
             material.texture_metallic_roughness_index = fg_material.pbrData.metallicRoughnessTexture->textureIndex;
         }
+
+        material.rid = gApp->renderer->CreateMaterial(gpu_material);
     }
     return {};
 }
@@ -224,6 +240,8 @@ Result<> glTF::LoadMeshes(const fastgltf::Asset& p_asset) {
             IterateNormals(p_asset, fg_primitive, primitive);
             IterateTangents(p_asset, fg_primitive, primitive);
             IterateUVs(p_asset, fg_primitive, primitive);
+
+            primitive.rid = gApp->renderer->CreateMesh(primitive.vertices, primitive.indices);
             mesh.primitives.push_back(primitive);
         }
     }
@@ -271,7 +289,13 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() {
         if (nodes[i].mesh.has_value()) {
             const glTF::Mesh& mesh = meshes[nodes[i].mesh.value()];
             Ref<MeshInstance> mesh_component = std::make_shared<MeshInstance>();
-            instanced_nodes[i]->components.emplace_back(mesh_component);
+            for (const auto& primitive : mesh.primitives) {
+                mesh_component->surfaces.emplace_back(MeshInstance::Surface{
+                    .primitive = primitive.rid,
+                    .material = materials[primitive.material_index.value_or(0)].rid,
+                });
+            }
+            instanced_nodes[i]->components.push_back(mesh_component);
         }
     }
 

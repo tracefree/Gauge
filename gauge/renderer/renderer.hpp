@@ -2,6 +2,8 @@
 
 #include <gauge/common.hpp>
 #include <gauge/renderer/common.hpp>
+#include "gauge/math/transform.hpp"
+#include "gauge/renderer/texture.hpp"
 
 #include <SDL3/SDL_video.h>
 
@@ -21,6 +23,15 @@ struct ViewportSettings {
 };
 
 struct Renderer {
+   public:
+    struct DrawObject {
+        RID primitive;
+        RID material;
+        Transform transform;
+    };
+
+    std::vector<DrawObject> draw_objects;
+
    protected:
     bool initialized = false;
     uint max_frames_in_flight = 3;
@@ -33,16 +44,16 @@ struct Renderer {
     virtual void Draw() = 0;
     virtual void OnWindowResized(uint p_width, uint p_height) {};
     virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
-    /*
-        virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices);
-        virtual void DestroyMesh(RID p_rid);
 
-        virtual RID CreateMaterial();
-        virtual void DestroyMaterial(RID p_rid);
+    virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;
+    virtual void DestroyMesh(RID p_rid) = 0;
 
-        virtual RID CreateTexture();
-        virtual void DestroyTexture(RID p_rid);
-    */
+    virtual RID CreateTexture(const Texture& p_texture) = 0;
+    virtual void DestroyTexture(RID p_rid) = 0;
+
+    virtual RID CreateMaterial(const GPUMaterial& p_material) = 0;
+    virtual void DestroyMaterial(RID p_rid) = 0;
+
     Renderer() = default;
     virtual ~Renderer() = default;
 };
