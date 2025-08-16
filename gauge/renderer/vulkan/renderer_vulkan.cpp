@@ -39,6 +39,7 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/fwd.hpp"
 #include "glm/matrix.hpp"
+#include "glm/packing.hpp"
 #include "thirdparty/imgui/imgui.h"
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
@@ -404,7 +405,7 @@ RendererVulkan::CreateDescriptorSetLayout() const {
         {
             .binding = 1,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = 1,
+            .descriptorCount = MAX_DESCRIPTOR_SETS,
             .stageFlags = VK_SHADER_STAGE_ALL,
         },
     };
@@ -479,6 +480,87 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .AddPushConstantRange((VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
         .SetImageFormat(swapchain.image_format)
         .build(ctx);
+}
+
+Result<> RendererVulkan::InitializeGlobalResources() {
+    // White
+    uint white_data = glm::packUnorm4x8(Vec4(1.0f));
+    Texture white{
+        .data = (unsigned char*)&white_data,
+        .width = 1,
+        .height = 1,
+        .use_srgb = false,
+    };
+    CHECK_RET(UploadTextureToGPU(white)
+                  .transform([&](GPUImage image) {
+                      resources.texture_white = image;
+                  }));
+
+    // Black
+    uint black_data = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 0.0f, 1.0f));
+    Texture black{
+        .data = (unsigned char*)&black_data,
+        .width = 1,
+        .height = 1,
+        .use_srgb = false,
+    };
+    CHECK_RET(UploadTextureToGPU(black)
+                  .transform([&](GPUImage image) {
+                      resources.texture_black = image;
+                  }));
+
+    // Default normal
+    uint normal_data = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 1.0f, 1.0f));
+    Texture normal{
+        .data = (unsigned char*)&normal_data,
+        .width = 1,
+        .height = 1,
+        .use_srgb = false,
+    };
+    CHECK_RET(UploadTextureToGPU(normal)
+                  .transform([&](GPUImage image) {
+                      resources.texture_normal = image;
+                  }));
+
+    // Missing texture
+    uint magenta_data = glm::packUnorm4x8(Vec4(1.0f, 0.0f, 1.0f, 1.0f));
+    std::array<uint32_t, 16 * 16> missing_data;
+    for (int x = 0; x < 16; x++) {
+        for (int y = 0; y < 16; y++) {
+            missing_data[y * 16 + x] = ((x % 2) ^ (y % 2)) ? magenta_data : black_data;
+        }
+    }
+    Texture missing{
+        .data = (unsigned char*)&missing_data,
+        .width = 16,
+        .height = 16,
+        .use_srgb = false,
+    };
+    CHECK_RET(UploadTextureToGPU(missing)
+                  .transform([&](GPUImage image) {
+                      resources.texture_missing = image;
+                  }));
+
+    // Create descriptors
+    std::vector<VkDescriptorImageInfo> image_infos;
+    for (const GPUImage& image : {resources.texture_white, resources.texture_black, resources.texture_normal, resources.texture_missing}) {
+        image_infos.emplace_back(VkDescriptorImageInfo{
+            .imageView = image.view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        });
+    }
+    VkWriteDescriptorSet write{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = global_descriptor.set,
+        .dstBinding = 1,
+        .dstArrayElement = 0,
+        .descriptorCount = (uint)image_infos.size(),
+        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        .pImageInfo = image_infos.data(),
+    };
+    vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+
+    return {};
 }
 
 static void SetupImGuiStyle() {
@@ -720,6 +802,8 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     VK_CHECK_RET(vkCreateFence(ctx.device, &fence_info, nullptr, &immediate_command.fence),
                  "Could not immediate submit fence");
 
+    CHECK_RET(InitializeGlobalResources());
+
     // Render state
     auto main_viewport_result = CreateViewport(ViewportSettings{
         .width = static_cast<float>(window_size.width),
@@ -748,28 +832,13 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     GPUImage texture = texture_result.value();
 
     {
-        VkDescriptorImageInfo image_info{
-            .imageView = texture.view,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
-        VkWriteDescriptorSet write{
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = global_descriptor.set,
-            .dstBinding = 1,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .pImageInfo = &image_info,
-        };
-
-        vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
     }
 
     initialized = true;
     return {};
 }
 
-static bool linear = true;
+static int tex = 0;
 
 void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) {
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
@@ -836,6 +905,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
 
     pcs.view_projection = projection * glm::inverse(glm::translate(glm::mat4(1.0f), render_state.camera_position));
     pcs.sampler = linear ? 0 : 1;
+    pcs.material_index = tex;
     for (const auto& model : render_state.models) {
         pcs.model_matrix = model.transform.get_matrix();
         for (const auto& mesh : model.meshes) {
@@ -881,6 +951,7 @@ void RendererVulkan::Draw() {
             ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
             ImGui::Checkbox("Linear", &linear);
+            ImGui::SliderInt("Texture", &tex, 0, 4);
         }
         ImGui::End();
 

@@ -24,7 +24,7 @@ struct Push {
     float4x4 view_projection;
     Vertex* vertices;
     Sampler sampler;
-    // Material ID
+    int material_id;
 }
 
 ConstantBuffer<SamplerState[]> samplers;
@@ -71,7 +71,7 @@ FragmentOutput FragmentMain(
     float2 uv: VertexUV,
 )
 {
-    let albedo_texture = textures[0].Sample(samplers[push_constants.sampler], uv);
+    let albedo_texture = textures[push_constants.material_id].Sample(samplers[push_constants.sampler], uv);
     
     let normal_ts = float3(0.0, 0.0, 1.0);
     let normal_ws = mul(normal_ts, tbn_ws);

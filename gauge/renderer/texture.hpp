@@ -10,7 +10,7 @@ struct Texture {
     unsigned char* data{};
     uint width{};
     uint height{};
-    uint number_channels{};
+    uint number_channels = 4;
 
     bool mipmapped{};
     bool use_srgb = true;

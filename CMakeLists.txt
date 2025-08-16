@@ -3,7 +3,6 @@ project(gauge VERSION 0.0.1 LANGUAGES CXX C)
 
 # --- Setup ---
 find_program(CCACHE_FOUND ccache)
-include(FetchContent)
 
 if(CCACHE_FOUND)
   set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)

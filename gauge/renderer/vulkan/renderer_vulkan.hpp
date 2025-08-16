@@ -15,7 +15,6 @@
 #include <SDL3/SDL_video.h>
 #include <vulkan/vulkan_core.h>
 #include <cstdint>
-#include <expected>
 #include <glm/ext/matrix_float4x4.hpp>
 #include <glm/ext/vector_float4.hpp>
 #include <string>
@@ -35,6 +34,7 @@ struct RendererVulkan : public Renderer {
         Mat4 view_projection;
         VkDeviceAddress vertex_buffer_address;
         uint sampler;
+        uint material_index;
     };
 
     struct FrameData {
@@ -109,6 +109,15 @@ struct RendererVulkan : public Renderer {
         VkSampler nearest{};
     } samplers;
 
+    struct GlobalResources {
+        GPUImage texture_white;
+        GPUImage texture_black;
+        GPUImage texture_normal;
+        GPUImage texture_missing;
+    } resources;
+
+    bool linear = true;
+
    public:
     Result<> Initialize(SDL_Window* p_sdl_window) final override;
     void Draw() final override;
@@ -136,6 +145,7 @@ struct RendererVulkan : public Renderer {
 
     void DestroyImage(GPUImage& p_image) const;
 
+    Result<> InitializeGlobalResources();
     Result<> InitializeImGui() const;
     void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index);
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
