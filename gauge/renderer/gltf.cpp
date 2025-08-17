@@ -300,6 +300,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() {
                 });
             }
             instanced_nodes[i]->components.push_back(mesh_component);
+            mesh_component->node = instanced_nodes[i];
         }
     }
 
@@ -307,7 +308,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() {
     has_parent.resize(nodes.size());
     for (uint i = 0; i < nodes.size(); ++i) {
         for (uint child_index : nodes[i].children) {
-            instanced_nodes[i]->children.push_back(instanced_nodes[child_index]);
+            instanced_nodes[i]->AddChild(instanced_nodes[child_index]);
             has_parent[child_index] = true;
         }
     }
@@ -316,7 +317,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() {
     root_node->name = name;
     for (uint i = 0; i < nodes.size(); ++i) {
         if (!has_parent[i]) {
-            root_node->children.push_back(instanced_nodes[i]);
+            root_node->AddChild(instanced_nodes[i]);
         }
     }
 

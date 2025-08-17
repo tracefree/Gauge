@@ -1,4 +1,6 @@
 #include "mesh_instance.hpp"
+
+#include <gauge/scene/node.hpp>
 #include "gauge/core/app.hpp"
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/renderer.hpp"
@@ -13,7 +15,7 @@ void MeshInstance::Draw() {
             Renderer::DrawObject{
                 .primitive = surface.primitive,
                 .material = surface.material,
-                .transform = Transform{},
+                .transform = node ? node->global_transform : Transform(),
             });
     }
 }

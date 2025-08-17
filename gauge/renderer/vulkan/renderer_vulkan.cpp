@@ -760,6 +760,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     pcs.sampler = linear ? 0 : 1;
 
     draw_objects.clear();
+    p_viewport.scene_tree->root->RefreshTransform();
     p_viewport.scene_tree->Draw();
     for (const DrawObject& draw_object : draw_objects) {
         pcs.model_matrix = draw_object.transform.get_matrix();
@@ -793,15 +794,26 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
 float angle = 0.0f;
 
 static void NodeTree(const Ref<Node>& node) {
-    if (ImGui::TreeNode(node->name.c_str())) {
-        ImGui::Text("Position: (%f, %f, %f)",
-                    node->local_transform.position.x,
-                    node->local_transform.position.y,
-                    node->local_transform.position.z);
-        ImGui::Checkbox("Visible", &node->visible);
+    bool open = ImGui::TreeNodeEx(node->name.c_str(), ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowItemOverlap);
+    ImGui::SameLine(ImGui::GetWindowWidth() - 30);
+    ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.0f);
+    ImGui::Checkbox(std::format("##{}_vis", node->name.c_str()).c_str(), &node->visible);
+    ImGui::PopStyleVar();
+    if (open) {
+        ImGui::Text("Position");
+        ImGui::InputFloat("x", &node->local_transform.position.x, 0.01f, 0.1f, "%.3f");
+        ImGui::InputFloat("y", &node->local_transform.position.y, 0.01f, 0.1f, "%.3f");
+        ImGui::InputFloat("z", &node->local_transform.position.z, 0.01f, 0.1f, "%.3f");
+
+        ImGui::InputFloat("Scale", &node->local_transform.scale, 0.01f, 0.1f, "%.3f");
+
         for (const Ref<Component>& component : node->components) {
-            if (ImGui::TreeNode("MeshInstance")) {
-                ImGui::Checkbox("Visible", &component->visible);
+            bool is_component_open = ImGui::TreeNode("MeshInstance");
+            ImGui::SameLine(ImGui::GetWindowWidth() - 30);
+            ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.0f);
+            ImGui::Checkbox(std::format("##{}_comp_vis", node->name.c_str()).c_str(), &component->visible);
+            ImGui::PopStyleVar();
+            if (is_component_open) {
                 ImGui::TreePop();
             }
         }
@@ -836,54 +848,9 @@ void RendererVulkan::Draw() {
         }
         ImGui::End();
 
-        /*
-                if (ImGui::BeginMainMenuBar()) {
-                    if (ImGui::BeginMenu("Project")) {
-                        if (ImGui::MenuItem("New projext...")) {
-                        }
-                        if (ImGui::MenuItem("Quit", "CTRL+Q")) {
-                            gApp->Quit();
-                        }
-                        ImGui::EndMenu();
-                    }
-                    ImGui::EndMainMenuBar();
-                }
-
-                ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode);
-
-                ImGuiWindowClass window_class;
-                window_class.DockNodeFlagsOverrideSet = ImGuiDockNodeFlags_NoWindowMenuButton;
-                ImGui::SetNextWindowClass(&window_class);
-                if (ImGui::Begin("Filesystem", nullptr, ImGuiWindowFlags_NoCollapse)) {
-                    float golor[] = {col.r, col.g, col.b};
-                    ImGui::ColorPicker3("Triangle color", golor);
-                    col.r = golor[0], col.g = golor[1], col.b = golor[2];
-                }
-                ImGui::End();
-
-                ImGui::SetNextWindowClass(&window_class);
-                if (!ImGui::Begin("Console")) {
-                }
-                ImGui::End();
-
-                ImGui::SetNextWindowClass(&window_class);
-                if (ImGui::Begin("Game", nullptr, ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_MenuBar)) {
-                    if (ImGui::BeginMenuBar()) {
-                        if (ImGui::BeginMenu("Viewport")) {
-                            bool wireframe = false;  // TODO
-                            ImGui::Checkbox("Wireframe", &wireframe);
-                            ImGui::EndMenu();
-                        }
-                        ImGui::EndMenuBar();
-                    }
-                }
-                auto position = ImGui::GetWindowPos();
-                auto size = ImGui::GetWindowSize();
-                viewport = {.position{.x = position.x, .y = position.y}, .width = size.x, .height = size.y};
-                ImGui::End();
-        */
         ImGui::Render();
     }
+
     FrameData current_frame = GetCurrentFrame();
     uint next_image_index = 0;
     {
