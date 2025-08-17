@@ -92,8 +92,10 @@ static void IterateNormals(const fastgltf::Asset& asset, const fastgltf::Primiti
 
 static void IterateTangents(const fastgltf::Asset& asset, const fastgltf::Primitive& fg_primitive, glTF::Primitive& primitive) {
     auto attribute = fg_primitive.findAttribute(Attribute::TANGENT);
-    if (attribute == fg_primitive.attributes.end())
+    if (attribute == fg_primitive.attributes.end()) {
+        std::println("NONE");
         return;
+    }
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
     fastgltf::iterateAccessorWithIndex<Vec4>(
         asset,
@@ -144,7 +146,6 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
         glTF::Texture& texture = textures[i];
         auto fg_image = p_asset.images[fg_texture.imageIndex.value()];
         std::string err;
-        bool texture_found = false;
         std::visit(fastgltf::visitor{
                        [&](fastgltf::sources::URI& file_path) {
                            std::println("path {}", file_path.uri.c_str());
@@ -166,7 +167,6 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
                                        texture.data.data = stbi_load_from_memory((stbi_uc*)array.bytes.data() + buffer_view.byteOffset, static_cast<int>(buffer_view.byteLength), &width, &height, &number_channels, 4);
                                        texture.data.width = (uint)width;
                                        texture.data.height = (uint)width;
-                                       texture_found = true;
                                        if (!texture.data.data) {
                                            err = "Could not load texture: Couldn't load data from memory";
                                            texture.data.data = nullptr;
@@ -182,9 +182,6 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
                    fg_image.data);
         if (!err.empty()) {
             return Error(err);
-        }
-        if (texture_found) {
-            texture.rid = gApp->renderer->CreateTexture(texture.data);
         }
     }
     return {};
@@ -208,16 +205,25 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
 
         if (fg_material.pbrData.baseColorTexture.has_value()) {
             material.texture_albedo_index = fg_material.pbrData.baseColorTexture->textureIndex;
-            gpu_material.texture_albedo = textures[material.texture_albedo_index.value()].rid;
+            glTF::Texture& texture = textures[material.texture_albedo_index.value()];
+            texture.data.use_srgb = true;
+            if (texture.rid == 0) {
+                texture.rid = gApp->renderer->CreateTexture(texture.data);
+            }
+            gpu_material.texture_albedo = texture.rid;
         }
         if (fg_material.normalTexture.has_value()) {
             material.texture_normal_index = fg_material.normalTexture->textureIndex;
+            glTF::Texture& texture = textures[material.texture_normal_index.value()];
+            texture.data.use_srgb = false;
+            if (texture.rid == 0) {
+                texture.rid = gApp->renderer->CreateTexture(texture.data);
+            }
             gpu_material.texture_normal = textures[material.texture_normal_index.value()].rid;
         }
         if (fg_material.pbrData.metallicRoughnessTexture.has_value()) {
             material.texture_metallic_roughness_index = fg_material.pbrData.metallicRoughnessTexture->textureIndex;
         }
-
         material.rid = gApp->renderer->CreateMaterial(gpu_material);
     }
     return {};
@@ -274,8 +280,6 @@ glTF::FromFile(const std::string& p_path) {
                   .and_then([&gltf, &asset]() {
                       return gltf.LoadMeshes(asset.get());
                   }));
-
-    // gApp->renderer;
     return gltf;
 }
 

@@ -507,7 +507,7 @@ Result<> RendererVulkan::InitializeGlobalResources() {
         .use_srgb = false,
     });
 
-    uint normal = glm::packUnorm4x8(Vec4(0.0f, 0.0f, 1.0f, 1.0f));
+    uint normal = glm::packUnorm4x8(Vec4(0.5f, 0.5f, 1.0f, 1.0f));
     resources.texture_normal = CreateTexture({
         .data = (unsigned char*)&normal,
         .width = 1,

@@ -13,7 +13,7 @@ struct Texture {
     uint number_channels = 4;
 
     bool mipmapped{};
-    bool use_srgb = true;
+    bool use_srgb = false;
 
     size_t GetSize() const;
     static Result<Texture> FromFile(const std::string& p_path);

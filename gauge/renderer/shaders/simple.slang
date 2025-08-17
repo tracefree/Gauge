@@ -70,10 +70,14 @@ FragmentOutput FragmentMain(
 {
     let material = materials[push_constants.material_id];
     let albedo_texture = textures[material.texture_albedo].Sample(samplers[push_constants.sampler], uv);
-    let albedo = material.albedo * albedo_texture;
-    let normal_texture = textures[material.texture_normal].Sample(samplers[push_constants.sampler], uv);
+    var albedo = material.albedo * albedo_texture;
+    let normal_texture = textures[material.texture_normal].Sample(samplers[push_constants.sampler], uv).xyz;
     let normal_ts = normal_texture.xyz * 2.0 - 1.0;
     let normal_ws = mul(normal_ts, tbn_ws);
+
+    if (push_constants.sampler == 1) {
+        albedo.rgb = normal_ws * 0.5 + 0.5;
+    }
 
     return FragmentOutput(albedo);
 }
