@@ -3,6 +3,7 @@
 
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 
+#include "gauge/renderer/vulkan/descriptor.hpp"
 #include "thirdparty/imgui/imgui.h"
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
@@ -107,11 +108,13 @@ Gauge::InitializeImGui(const RendererVulkan& p_renderer) {
         return Error("Could not initialize ImGui SDL3 for Vulkan");
     }
 
-    auto pool_result = p_renderer.CreateDescriptorPool(
+    auto pool_result = DescriptorPool::Create(
+        p_renderer.ctx,
         {
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
         },
-        VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1000);
+        VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        1000);
     CHECK_RET(pool_result);
     VkDescriptorPool imgui_pool = pool_result.value();
 

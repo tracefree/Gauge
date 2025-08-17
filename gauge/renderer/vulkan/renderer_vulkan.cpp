@@ -379,39 +379,6 @@ RendererVulkan::CreateSwapchain(bool recreate) {
     return {};
 }
 
-Result<VkDescriptorPool>
-RendererVulkan::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags, uint p_max_sets) const {
-    VkDescriptorPool pool{};
-    VkDescriptorPoolCreateInfo pool_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-        .maxSets = (uint)p_pool_sizes.size() * p_max_sets,
-        .poolSizeCount = (uint)p_pool_sizes.size(),
-        .pPoolSizes = p_pool_sizes.data(),
-    };
-    VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &pool),
-                 "Could not create descriptor pool");
-    return pool;
-}
-/*
-Result<VkDescriptorSet>
-RendererVulkan::CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const {
-    VkDescriptorSet descriptor_set{};
-
-    const VkDescriptorSetAllocateInfo allocate_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = p_pool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &p_layout};
-
-    VK_CHECK_RET(vkAllocateDescriptorSets(
-                     ctx.device,
-                     &allocate_info,
-                     &descriptor_set),
-                 "Could not create descriptor set");
-    return descriptor_set;
-}
-*/
 Result<VkSampler>
 RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
     VkSampler sampler{};
@@ -558,21 +525,24 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             .and_then([&](VkSampler p_nearest_filter) {
                 samplers.nearest = p_nearest_filter;
 
-                return CreateDescriptorPool({
-                                                {
-                                                    .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                                                    .descriptorCount = 2,
-                                                },
-                                                {
-                                                    .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                                                    .descriptorCount = MAX_DESCRIPTOR_SETS,
-                                                },
-                                                {
-                                                    .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                                    .descriptorCount = 1,
-                                                },
-                                            },
-                                            VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT, MAX_DESCRIPTOR_SETS);
+                return DescriptorPool::Create(
+                    ctx,
+                    {
+                        {
+                            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+                            .descriptorCount = 2,
+                        },
+                        {
+                            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                            .descriptorCount = MAX_DESCRIPTOR_SETS,
+                        },
+                        {
+                            .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                            .descriptorCount = 1,
+                        },
+                    },
+                    VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT,
+                    MAX_DESCRIPTOR_SETS);
             })
             .and_then([&](VkDescriptorPool p_pool) {
                 global_descriptor.pool = p_pool;

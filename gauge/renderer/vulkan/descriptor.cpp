@@ -4,6 +4,23 @@
 
 using namespace Gauge;
 
+// --- DescriptorPool ---
+
+Result<VkDescriptorPool>
+DescriptorPool::Create(const VulkanContext& ctx, const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags, uint p_max_sets) {
+    VkDescriptorPool pool{};
+    VkDescriptorPoolCreateInfo pool_info{
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
+        .maxSets = (uint)p_pool_sizes.size() * p_max_sets,
+        .poolSizeCount = (uint)p_pool_sizes.size(),
+        .pPoolSizes = p_pool_sizes.data(),
+    };
+    VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &pool),
+                 "Could not create descriptor pool");
+    return pool;
+}
+
 // --- DescriptorSet ---
 
 VkDescriptorSet DescriptorSet::GetHandle() {
@@ -24,7 +41,7 @@ DescriptorSet::DescriptorSet(VkDescriptorSet p_set, VkDescriptorSetLayout p_layo
     pool = p_pool;
 }
 
-Result<DescriptorSet> DescriptorSet::Create(const VulkanContext ctx, VkDescriptorSetLayout p_layout, VkDescriptorPool p_pool) {
+Result<DescriptorSet> DescriptorSet::Create(const VulkanContext& ctx, VkDescriptorSetLayout p_layout, VkDescriptorPool p_pool) {
     VkDescriptorSet set{};
     const VkDescriptorSetAllocateInfo allocate_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -40,7 +57,7 @@ Result<DescriptorSet> DescriptorSet::Create(const VulkanContext ctx, VkDescripto
 }
 
 void DescriptorSet::WriteImage(
-    const VulkanContext ctx,
+    const VulkanContext& ctx,
     uint p_bind_point,
     uint p_element,
     VkImageView p_view,
@@ -62,7 +79,7 @@ void DescriptorSet::WriteImage(
 }
 
 void DescriptorSet::WriteStorageBuffer(
-    const VulkanContext ctx,
+    const VulkanContext& ctx,
     uint p_bind_point,
     uint p_element,
     VkBuffer p_buffer,

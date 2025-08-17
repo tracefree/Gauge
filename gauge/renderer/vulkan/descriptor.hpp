@@ -9,6 +9,11 @@ namespace Gauge {
 
 struct VulkanContext;
 
+namespace DescriptorPool {
+
+Result<VkDescriptorPool> Create(const VulkanContext& ctx, const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags, uint p_max_sets);
+}
+
 struct DescriptorSet {
    public:
     VkDescriptorSet handle{};
@@ -22,10 +27,10 @@ struct DescriptorSet {
     VkDescriptorSetLayout GetLayout();
     VkDescriptorPool GetPool();
 
-    void WriteImage(const VulkanContext ctx, uint p_bind_point, uint p_element, VkImageView p_view, VkImageLayout p_layout);
-    void WriteStorageBuffer(const VulkanContext ctx, uint p_bind_point, uint p_element, VkBuffer p_buffer, VkDeviceSize p_range, VkDeviceSize p_offset = 0);
+    void WriteImage(const VulkanContext& ctx, uint p_bind_point, uint p_element, VkImageView p_view, VkImageLayout p_layout);
+    void WriteStorageBuffer(const VulkanContext& ctx, uint p_bind_point, uint p_element, VkBuffer p_buffer, VkDeviceSize p_range, VkDeviceSize p_offset = 0);
 
-    static Result<DescriptorSet> Create(const VulkanContext ctx, VkDescriptorSetLayout p_layout, VkDescriptorPool p_pool);
+    static Result<DescriptorSet> Create(const VulkanContext& ctx, VkDescriptorSetLayout p_layout, VkDescriptorPool p_pool);
 
     DescriptorSet(VkDescriptorSet p_set = VK_NULL_HANDLE, VkDescriptorSetLayout p_layout = VK_NULL_HANDLE, VkDescriptorPool p_pool = VK_NULL_HANDLE);
 };
