@@ -64,7 +64,13 @@ struct RendererVulkan : public Renderer {
 
     struct Viewport {
         ViewportSettings settings{};
+
+        GPUImage color{};
         GPUImage depth{};
+
+        GPUImage color_multisampled{};
+        GPUImage depth_multisampled{};
+
         std::shared_ptr<SceneTree> scene_tree{};
     };
 
@@ -155,8 +161,14 @@ struct RendererVulkan : public Renderer {
     Result<> CreateSwapchain(bool recreate = false);
     Result<> CreateFrameData();
     Result<> CreateImmadiateCommand();
-    Result<GPUImage> CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFlags p_usage, bool p_mipmapped = false, VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT, VkImageAspectFlagBits p_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT) const;
-    Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height) const;
+    Result<GPUImage> CreateImage(
+        VkExtent3D p_size,
+        VkFormat p_format,
+        VkImageUsageFlags p_usage,
+        bool p_mipmapped = false,
+        VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT,
+        VkImageAspectFlagBits p_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT) const;
+    Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height, VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT) const;
     Result<Viewport> CreateViewport(const ViewportSettings& p_settings) const;
     Result<GPUBuffer> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
 
@@ -167,6 +179,9 @@ struct RendererVulkan : public Renderer {
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
     void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index);
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
+
+    Result<> ViewportCreateImages(Viewport& p_viewport) const;
+    void ViewportDestroyImages(Viewport& p_viewport) const;
 
     Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
 

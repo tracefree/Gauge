@@ -8,6 +8,7 @@
 #include <cstring>
 #include <gauge/common.hpp>
 #include <gauge/core/app.hpp>
+#include <gauge/core/config.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/descriptor.hpp>
@@ -71,6 +72,21 @@ VkBool32 validation_layer_callback(
     return VK_FALSE;
 }
 #endif
+
+static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa) {
+    switch (p_msaa) {
+        case MSAA::OFF:
+            return VK_SAMPLE_COUNT_1_BIT;
+        case MSAA::x2:
+            return VK_SAMPLE_COUNT_2_BIT;
+        case MSAA::x4:
+            return VK_SAMPLE_COUNT_4_BIT;
+        case MSAA::x8:
+            return VK_SAMPLE_COUNT_8_BIT;
+        case MSAA::x16:
+            return VK_SAMPLE_COUNT_16_BIT;
+    }
+};
 
 static Result<VkSurfaceKHR>
 CreateSurface(vkb::Instance p_instance, SDL_Window* p_window) {
@@ -459,7 +475,8 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
         .AddPushConstantRange((VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
         .SetImageFormat(swapchain.image_format)
-        .build(ctx);
+        .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
+        .Build(ctx);
 }
 
 Result<> RendererVulkan::InitializeGlobalResources() {
@@ -634,9 +651,11 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     auto main_viewport_result = CreateViewport(ViewportSettings{
         .width = static_cast<float>(window_size.width),
         .height = static_cast<float>(window_size.height),
+        .msaa = gApp->project_settings.msaa_level,
         .fill_window = true,
         .use_swapchain = true,
         .use_depth = true,
+
     });
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
@@ -663,6 +682,13 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         .clearValue = {
             .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
         }};
+
+    if (p_viewport.settings.msaa != MSAA::OFF) {
+        color_attachement_info.imageView = p_viewport.color_multisampled.view;
+        color_attachement_info.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+        color_attachement_info.resolveImageView = swapchain.image_views[p_next_image_index];
+        color_attachement_info.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    }
 
     VkRenderingInfo rendering_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
@@ -692,6 +718,13 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
                 .depthStencil = {.depth = 0.0f},
             }};
         rendering_info.pDepthAttachment = &depth_attachement_info;
+
+        if (p_viewport.settings.msaa != MSAA::OFF) {
+            depth_attachement_info.imageView = p_viewport.depth_multisampled.view;
+            depth_attachement_info.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+            depth_attachement_info.resolveImageView = p_viewport.depth.view;
+            depth_attachement_info.resolveImageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+        }
     }
 
     vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
@@ -716,7 +749,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         const GPUMesh& mesh = resources.meshes[draw_object.primitive];
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material;
-        pcs.camera_index = 1 - linear;
+        pcs.camera_index = 0;
         vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
@@ -752,23 +785,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
             .view_projection = projection * view,
         };
     }
-    {
-        const auto& viewport = render_state.viewports[0];
-        Mat4 projection = glm::perspective(
-            glm::radians(70.0f),
-            (float)(viewport.settings.width / viewport.settings.height),
-            100.0f,
-            0.1f);
-        projection[1][1] *= -1.0f;
-
-        Mat4 view = glm::inverse(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 2.0f)));
-        global_uniforms.cameras[1] = GPUCamera{
-            .view = view,
-            .view_projection = projection * view,
-        };
-    }
     memcpy(GetCurrentFrame().uniform_buffer.allocation.info.pMappedData, &global_uniforms, sizeof(GPUGlobals));
-    GetCurrentFrame().descriptor_set.WriteUniformBuffer(ctx, 0, 0, GetCurrentFrame().uniform_buffer.handle, sizeof(GPUGlobals));
 
     VkDescriptorSet sets[] = {
         global_descriptor.set.handle,
@@ -949,11 +966,14 @@ void RendererVulkan::OnViewportResized(Viewport& p_viewport, uint p_width, uint 
     p_viewport.settings.width = p_width;
     p_viewport.settings.height = p_height;
     if (p_viewport.settings.use_depth) {
+        ViewportDestroyImages(p_viewport);
+        ViewportCreateImages(p_viewport);
+        /*
         DestroyImage(p_viewport.depth);
         CHECK(CreateDepthImage(p_width, p_height)
                   .transform([&](GPUImage p_depth) {
                       p_viewport.depth = p_depth;
-                  }));
+                  }));*/
     }
 }
 
@@ -1048,7 +1068,13 @@ RendererVulkan::UploadMeshToGPU(const glTF::Primitive& primitive) const {
 }
 
 Result<GPUImage>
-RendererVulkan::CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFlags p_usage, bool p_mipmapped, VkSampleCountFlagBits p_sample_count, VkImageAspectFlagBits p_aspect_flags) const {
+RendererVulkan::CreateImage(
+    VkExtent3D p_size,
+    VkFormat p_format,
+    VkImageUsageFlags p_usage,
+    bool p_mipmapped,
+    VkSampleCountFlagBits p_sample_count,
+    VkImageAspectFlagBits p_aspect_flags) const {
     GPUImage image{
         .format = p_format,
         .extent = p_size,
@@ -1071,7 +1097,6 @@ RendererVulkan::CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFl
     };
     VK_CHECK_RET(vmaCreateImage(ctx.allocator, &image_info, &image_allocation_info, &image.handle, &image.allocation.handle, &image.allocation.info),
                  "Could not create image");
-    // SetDebugName((uint64_t)image.handle, VK_OBJECT_TYPE_IMAGE, "Depth image");
 
     const VkImageViewCreateInfo view_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -1088,7 +1113,6 @@ RendererVulkan::CreateImage(VkExtent3D p_size, VkFormat p_format, VkImageUsageFl
 
     VK_CHECK(vkCreateImageView(ctx.device, &view_info, nullptr, &image.view),
              "Could not create image view");
-    // SetDebugName((uint64_t)image.view, VK_OBJECT_TYPE_IMAGE_VIEW, "Depth image view");
     return image;
 }
 
@@ -1171,12 +1195,13 @@ RendererVulkan::ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&&
 }
 
 Result<GPUImage>
-RendererVulkan::CreateDepthImage(const uint p_width, const uint p_height) const {
+RendererVulkan::CreateDepthImage(const uint p_width, const uint p_height, VkSampleCountFlagBits p_sample_count) const {
     return CreateImage(
                {p_width, p_height, 1},
                VK_FORMAT_D32_SFLOAT,
                VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-               false, VK_SAMPLE_COUNT_1_BIT,
+               false,
+               p_sample_count,
                VK_IMAGE_ASPECT_DEPTH_BIT)
         .transform([&](GPUImage depth) {
             ImmediateSubmit([&depth](CommandBufferVulkan cmd) {
@@ -1200,18 +1225,60 @@ Result<RendererVulkan::Viewport> RendererVulkan::CreateViewport(const ViewportSe
         .settings = p_settings,
     };
 
-    if (!p_settings.use_swapchain) {
-        // TODO: Create color attachment
-    }
+    return ViewportCreateImages(viewport)
+        .transform([&viewport]() {
+            return viewport;
+        });
+}
 
-    if (p_settings.use_depth) {
-        CHECK_RET(CreateDepthImage(p_settings.width, p_settings.height)
-                      .transform([&](GPUImage p_depth) {
-                          viewport.depth = p_depth;
-                      }));
+void RendererVulkan::ViewportDestroyImages(Viewport& p_viewport) const {
+    if (p_viewport.settings.msaa != MSAA::OFF) {
+        DestroyImage(p_viewport.color_multisampled);
+        if (p_viewport.settings.use_depth) {
+            DestroyImage(p_viewport.depth_multisampled);
+        }
     }
+    if (!p_viewport.settings.use_swapchain) {
+        // TODO
+    }
+    if (p_viewport.settings.use_depth) {
+        DestroyImage(p_viewport.depth);
+    }
+}
 
-    return viewport;
+Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
+    if (p_viewport.settings.msaa != MSAA::OFF) {
+        CHECK_RET(
+            CreateImage(
+                {.width = (uint)p_viewport.settings.width, .height = (uint)p_viewport.settings.height, .depth = 1},
+                swapchain.image_format,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                false, (VkSampleCountFlagBits)p_viewport.settings.msaa)
+                .transform([&](GPUImage p_color_multisampled) {
+                    p_viewport.color_multisampled = p_color_multisampled;
+                }));
+        if (p_viewport.settings.use_depth) {
+            CHECK_RET(
+                CreateDepthImage(
+                    p_viewport.settings.width,
+                    p_viewport.settings.height,
+                    SampleCountFromMSAA(p_viewport.settings.msaa))
+                    .transform([&](GPUImage p_depth_multisampled) {
+                        p_viewport.depth_multisampled = p_depth_multisampled;
+                    }));
+        }
+    }
+    if (!p_viewport.settings.use_swapchain) {
+        // TODO
+    }
+    if (p_viewport.settings.use_depth) {
+        CHECK_RET(
+            CreateDepthImage(p_viewport.settings.width, p_viewport.settings.height)
+                .transform([&](GPUImage p_depth) {
+                    p_viewport.depth = p_depth;
+                }));
+    }
+    return {};
 }
 
 RID RendererVulkan::CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) {

@@ -5,6 +5,7 @@
 
 #include <memory>
 #include <string>
+#include "gauge/core/config.hpp"
 
 namespace Gauge {
 
@@ -13,6 +14,7 @@ struct App {
     std::string name{"Gauge App"};
     std::unique_ptr<Renderer> renderer;
     std::chrono::steady_clock::time_point start_time;
+    ProjectSettings project_settings;
 
    protected:
     bool quit_requested{false};

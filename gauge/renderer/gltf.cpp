@@ -93,7 +93,6 @@ static void IterateNormals(const fastgltf::Asset& asset, const fastgltf::Primiti
 static void IterateTangents(const fastgltf::Asset& asset, const fastgltf::Primitive& fg_primitive, glTF::Primitive& primitive) {
     auto attribute = fg_primitive.findAttribute(Attribute::TANGENT);
     if (attribute == fg_primitive.attributes.end()) {
-        std::println("NONE");
         return;
     }
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];

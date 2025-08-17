@@ -39,8 +39,13 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetImageFormat(VkFormat p_form
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetSampleCount(VkSampleCountFlagBits p_sample_count) {
+    sample_count = p_sample_count;
+    return *this;
+}
+
 Result<Pipeline>
-GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
+GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
     Pipeline pipeline{};
 
     const VkPipelineShaderStageCreateInfo vertex_shader_stage_info{
@@ -92,7 +97,7 @@ GraphicsPipelineBuilder::build(const VulkanContext& ctx) const {
 
     const VkPipelineMultisampleStateCreateInfo msaa_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .rasterizationSamples = sample_count,
     };
 
     const VkPipelineColorBlendAttachmentState color_blend_attachment_state{

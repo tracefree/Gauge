@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vulkan/vulkan_core.h>
 #include <gauge/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 
@@ -22,7 +23,8 @@ struct GraphicsPipelineBuilder {
 
     ShaderStage vertex_stage{};
     ShaderStage fragment_stage{};
-    VkFormat image_format;
+    VkFormat image_format{};
+    VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT;
 
    public:
     GraphicsPipelineBuilder& AddPushConstantRange(VkShaderStageFlags p_shader_stage_flags, uint p_size);
@@ -30,8 +32,9 @@ struct GraphicsPipelineBuilder {
     GraphicsPipelineBuilder& SetVertexStage(VkShaderModule p_shader_module, const char* p_entry_point);
     GraphicsPipelineBuilder& SetFragmentStage(VkShaderModule p_shader_module, const char* p_entry_point);
     GraphicsPipelineBuilder& SetImageFormat(VkFormat p_format);
+    GraphicsPipelineBuilder& SetSampleCount(VkSampleCountFlagBits p_sample_count);
 
-    Result<Pipeline> build(const VulkanContext& ctx) const;
+    Result<Pipeline> Build(const VulkanContext& ctx) const;
 
     GraphicsPipelineBuilder(std::string p_name = "");
     ~GraphicsPipelineBuilder() {}

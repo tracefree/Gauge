@@ -1,11 +1,13 @@
 #pragma once
 
 #include <gauge/common.hpp>
+#include <gauge/core/config.hpp>
 #include <gauge/renderer/common.hpp>
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/texture.hpp"
 
 #include <SDL3/SDL_video.h>
+#include <vulkan/vulkan_core.h>
 
 namespace Gauge {
 
@@ -16,6 +18,8 @@ struct ViewportSettings {
     } position;
     float width{};
     float height{};
+
+    MSAA msaa = MSAA::x4;
 
     bool fill_window{};
     bool use_swapchain{};

@@ -18,8 +18,8 @@ struct Globals {
 }
 
 enum Sampler {
-    LINEAR,
-    NEAREST,
+    LINEAR = 0,
+    NEAREST = 1,
 }
 
 struct Push {
@@ -79,9 +79,9 @@ FragmentOutput FragmentMain(
 )
 {
     let material = materials[push_constants.material_id];
-    let albedo_texture = textures[material.texture_albedo].Sample(samplers[push_constants.sampler], uv);
+    let albedo_texture = textures[material.texture_albedo].Sample(samplers[(int)push_constants.sampler], uv);
     var albedo = material.albedo * albedo_texture;
-    let normal_texture = textures[material.texture_normal].Sample(samplers[push_constants.sampler], uv).xyz;
+    let normal_texture = textures[material.texture_normal].Sample(samplers[(int)push_constants.sampler], uv).xyz;
     let normal_ts = normal_texture.xyz * 2.0 - 1.0;
     let normal_ws = mul(normal_ts, tbn_ws);
 
@@ -89,7 +89,7 @@ FragmentOutput FragmentMain(
         albedo.rgb = normal_ws * 0.5 + 0.5;
     }
 
-    albedo.rgb = sin(globals.time) * albedo.rgb + (1.0 - sin(globals.time)) * (float3(1.0) - albedo.rgb);
+   // albedo.rgb = sin(globals.time) * albedo.rgb + (1.0 - sin(globals.time)) * (float3(1.0) - albedo.rgb);
 
     return FragmentOutput(albedo);
 }

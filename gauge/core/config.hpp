@@ -6,6 +6,7 @@
 #include <string>
 
 namespace Gauge {
+
 enum class MSAA {
     OFF = 0,
     x2 = 2,
@@ -17,9 +18,9 @@ enum class MSAA {
 struct ProjectSettings {
     std::string name;
     std::string description;
-    MSAA msaa_level = MSAA::OFF;
     Window::Resolution resolution =
         Window::Resolution{.width = 1920, .height = 1080};
+    MSAA msaa_level = MSAA::OFF;
     bool fullscreen = false;
 };
 

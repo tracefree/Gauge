@@ -23,6 +23,7 @@ Gauge::LoadProjectSettings(const std::string p_path) {
                     .width = config["resolution"]["width"].as<uint>(),
                     .height = config["resolution"]["height"].as<uint>(),
                 },
+            .msaa_level = (MSAA)config["msaa"].as<uint>(),
             .fullscreen = config["fullscreen"].as<bool>(),
         };
     } catch (YAML::Exception& e) {
