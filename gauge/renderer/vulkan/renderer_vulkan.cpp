@@ -9,6 +9,7 @@
 #include <gauge/core/app.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
+#include <gauge/renderer/vulkan/descriptor.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
 #include <gauge/renderer/vulkan/imgui.hpp>
 #include <gauge/renderer/vulkan/shader_module.hpp>
@@ -41,7 +42,6 @@
 #include "gauge/scene/node.hpp"
 #include "gauge/scene/scene_tree.hpp"
 #include "glm/ext/matrix_transform.hpp"
-#include "glm/fwd.hpp"
 #include "glm/matrix.hpp"
 #include "glm/packing.hpp"
 #include "thirdparty/imgui/imgui.h"
@@ -380,58 +380,18 @@ RendererVulkan::CreateSwapchain(bool recreate) {
 }
 
 Result<VkDescriptorPool>
-RendererVulkan::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags) const {
+RendererVulkan::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags, uint p_max_sets) const {
     VkDescriptorPool pool{};
     VkDescriptorPoolCreateInfo pool_info{
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
         .flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT,
-        .maxSets = (uint)p_pool_sizes.size() * MAX_DESCRIPTOR_SETS,
+        .maxSets = (uint)p_pool_sizes.size() * p_max_sets,
         .poolSizeCount = (uint)p_pool_sizes.size(),
         .pPoolSizes = p_pool_sizes.data(),
     };
     VK_CHECK_RET(vkCreateDescriptorPool(ctx.device, &pool_info, nullptr, &pool),
                  "Could not create descriptor pool");
     return pool;
-}
-
-Result<VkDescriptorSetLayout>
-RendererVulkan::CreateDescriptorSetLayout() const {
-    VkDescriptorSetLayout layout{};
-    VkSampler immputable_samplers[] = {samplers.linear, samplers.nearest};
-    std::vector<VkDescriptorSetLayoutBinding> bindings{
-        {
-            .binding = 0,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 2,
-            .stageFlags = VK_SHADER_STAGE_ALL,
-            .pImmutableSamplers = immputable_samplers,
-        },
-        {
-            .binding = 1,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = MAX_DESCRIPTOR_SETS,
-            .stageFlags = VK_SHADER_STAGE_ALL,
-        },
-        {
-            .binding = 2,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_ALL,
-        },
-    };
-
-    const VkDescriptorSetLayoutCreateInfo layout_info{
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT,
-        .bindingCount = (uint)bindings.size(),
-        .pBindings = bindings.data()};
-    VK_CHECK_RET(vkCreateDescriptorSetLayout(
-                     ctx.device,
-                     &layout_info,
-                     nullptr,
-                     &layout),
-                 "Could not create descriptor set layout");
-    return layout;
 }
 
 Result<VkDescriptorSet>
@@ -592,11 +552,10 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             .and_then([&]() {
                 return GetQueue(ctx.device);
             })
-            .transform([&](VkQueue p_queue) {
+            .and_then([&](VkQueue p_queue) {
                 ctx.graphics_queue = p_queue;
                 SetDebugName((uint64_t)ctx.graphics_queue, VK_OBJECT_TYPE_QUEUE, "Graphics queue");
-            })
-            .and_then([&]() {
+
                 return CreateFrameData();
             })
             .and_then([&]() {
@@ -607,12 +566,12 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             })
             .and_then([&](VkSampler p_linear_filter) {
                 samplers.linear = p_linear_filter;
+
                 return CreateSampler(VK_FILTER_NEAREST);
             })
-            .transform([&](VkSampler p_nearest_filter) {
+            .and_then([&](VkSampler p_nearest_filter) {
                 samplers.nearest = p_nearest_filter;
-            })
-            .and_then([&]() {
+
                 return CreateDescriptorPool({
                                                 {
                                                     .type = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -627,24 +586,26 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
                                                     .descriptorCount = 1,
                                                 },
                                             },
-                                            VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT);
+                                            VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT, MAX_DESCRIPTOR_SETS);
             })
-            .transform([&](VkDescriptorPool p_pool) {
+            .and_then([&](VkDescriptorPool p_pool) {
                 global_descriptor.pool = p_pool;
+
+                VkSampler immputable_samplers[] = {samplers.linear, samplers.nearest};
+                return DescriptorSetLayoutBuilder()
+                    .AddBinding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_ALL, immputable_samplers)
+                    .AddBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_DESCRIPTOR_SETS)
+                    .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1)
+                    .Build(ctx);
             })
-            .and_then([&]() {
-                return CreateDescriptorSetLayout();
-            })
-            .transform([&](VkDescriptorSetLayout p_layout) {
+            .and_then([&](VkDescriptorSetLayout p_layout) {
                 global_descriptor.layout = p_layout;
-            })
-            .and_then([&]() {
+
                 return CreateDescriptorSet(global_descriptor.pool, global_descriptor.layout);
             })
-            .transform([&](VkDescriptorSet p_set) {
+            .and_then([&](VkDescriptorSet p_set) {
                 global_descriptor.set = p_set;
-            })
-            .and_then([&]() {
+
                 return InitializeImGui(*this);
             }));
 
@@ -690,8 +651,6 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     initialized = true;
     return {};
 }
-
-static int tex = 0;
 
 void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) {
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
@@ -836,8 +795,7 @@ void RendererVulkan::Draw() {
             ImGui::SliderFloat("Camera x", &render_state.camera_position.x, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
-            ImGui::Checkbox("Linear", &linear);
-            ImGui::SliderInt("Texture", &tex, 0, 20);
+            ImGui::Checkbox("Show albedo", &linear);
         }
         ImGui::End();
 

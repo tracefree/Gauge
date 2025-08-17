@@ -111,7 +111,7 @@ Gauge::InitializeImGui(const RendererVulkan& p_renderer) {
         {
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
         },
-        VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+        VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT, 1000);
     CHECK_RET(pool_result);
     VkDescriptorPool imgui_pool = pool_result.value();
 

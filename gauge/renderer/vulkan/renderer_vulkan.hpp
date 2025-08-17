@@ -144,8 +144,7 @@ struct RendererVulkan : public Renderer {
 
     Result<VkCommandPool> CreateCommandPool() const;
     Result<VkCommandBuffer> CreateCommandBuffer(VkCommandPool p_cmd_pool) const;
-    Result<VkDescriptorPool> CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags) const;
-    Result<VkDescriptorSetLayout> CreateDescriptorSetLayout() const;
+    Result<VkDescriptorPool> CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags, uint p_max_sets) const;
     Result<VkDescriptorSet> CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const;
     Result<VkSampler> CreateSampler(VkFilter p_filter_mode) const;
     Result<Pipeline> CreateGraphicsPipeline(std::string p_name);
