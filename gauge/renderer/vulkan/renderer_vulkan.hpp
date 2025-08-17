@@ -23,7 +23,7 @@
 namespace Gauge {
 
 struct RendererVulkan : public Renderer {
-   private:
+   public:
     VulkanContext ctx{};
 
     struct PushConstants {
@@ -138,7 +138,7 @@ struct RendererVulkan : public Renderer {
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;
 
-   private:
+   public:
     FrameData const& GetCurrentFrame() const;
     FrameData& GetCurrentFrame();
 
@@ -160,7 +160,6 @@ struct RendererVulkan : public Renderer {
     void DestroyImage(GPUImage& p_image) const;
 
     Result<> InitializeGlobalResources();
-    Result<> InitializeImGui() const;
     void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index);
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
     void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index);
