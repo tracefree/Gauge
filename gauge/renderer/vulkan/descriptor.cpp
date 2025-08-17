@@ -78,6 +78,28 @@ void DescriptorSet::WriteImage(
     vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
 }
 
+void DescriptorSet::WriteUniformBuffer(
+    const VulkanContext& ctx,
+    uint p_bind_point,
+    uint p_element,
+    VkBuffer p_buffer,
+    VkDeviceSize p_range,
+    VkDeviceSize p_offset) {
+    VkDescriptorBufferInfo buffer_info{
+        .buffer = p_buffer,
+        .range = p_range,
+    };
+    VkWriteDescriptorSet write{
+        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        .dstSet = handle,
+        .dstBinding = p_bind_point,
+        .dstArrayElement = p_element,
+        .descriptorCount = 1,
+        .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        .pBufferInfo = &buffer_info};
+    vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+}
+
 void DescriptorSet::WriteStorageBuffer(
     const VulkanContext& ctx,
     uint p_bind_point,
@@ -93,7 +115,7 @@ void DescriptorSet::WriteStorageBuffer(
         .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         .dstSet = handle,
         .dstBinding = p_bind_point,
-        .dstArrayElement = 0,
+        .dstArrayElement = p_element,
         .descriptorCount = 1,
         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         .pBufferInfo = &buffer_info};

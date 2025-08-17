@@ -2,6 +2,7 @@
 
 #include "VkBootstrap.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstring>
@@ -25,6 +26,7 @@
 #include <print>
 #include <string>
 #include <tracy/Tracy.hpp>
+#include <vector>
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_video.h>
@@ -241,9 +243,28 @@ RendererVulkan::CreateCommandBuffer(
 
 Result<>
 RendererVulkan::CreateFrameData() {
+    auto pool_result = DescriptorPool::Create(
+        ctx,
+        {
+            {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = max_frames_in_flight},
+        },
+        VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT,
+        max_frames_in_flight);
+    CHECK_RET(pool_result);
+    per_frame_pool = pool_result.value();
+
+    auto layout_result =
+        DescriptorSetLayoutBuilder()
+            .AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
+            .SetFlags(VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT)
+            .Build(ctx);
+    CHECK_RET(layout_result);
+
     frames_in_flight.reserve(max_frames_in_flight);
     for (uint i = 0; i < max_frames_in_flight; i++) {
         FrameData frame{};
+
+        // Commands
         CHECK_RET(CreateCommandPool()
                       .and_then([this, &frame](VkCommandPool p_cmd_pool) {
                           frame.cmd_pool = p_cmd_pool;
@@ -253,6 +274,7 @@ RendererVulkan::CreateFrameData() {
                           frame.cmd = p_cmd;
                       }));
 
+        // Synchronization objects
         VkFenceCreateInfo fence_info{
             .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT,
@@ -266,6 +288,24 @@ RendererVulkan::CreateFrameData() {
         VK_CHECK_RET(vkCreateSemaphore(ctx.device, &semaphore_info, nullptr, &frame.swapchain_acquire_semaphore),
                      "Could not create acquire semaphore");
 
+        // Descriptor Set
+        auto set_result = DescriptorSet::Create(ctx, layout_result.value(), per_frame_pool);
+        CHECK_RET(set_result);
+        frame.descriptor_set = set_result.value();
+
+        // Uniform buffer
+        CHECK_RET(
+            CreateBuffer(
+                sizeof(GPUGlobals),
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VMA_MEMORY_USAGE_CPU_TO_GPU)
+                .transform([&](GPUBuffer p_buffer) {
+                    frame.uniform_buffer = p_buffer;
+                }));
+
+        frame.descriptor_set.WriteUniformBuffer(ctx, 0, 0, frame.uniform_buffer.handle, sizeof(GPUGlobals));
+
+        // Tracy
 #ifdef TRACY_ENABLE
         frame.tracy_context = TracyVkContext(ctx.physical_device, ctx.device, ctx.graphics_queue, frame.cmd);
         std::string tacy_context_name = std::format("Frame In-Flight Index {}", i);
@@ -273,11 +313,13 @@ RendererVulkan::CreateFrameData() {
         frames_in_flight.emplace_back(frame);
 #endif
 
+        // Debug
         SetDebugName((uint64_t)frame.cmd_pool, VK_OBJECT_TYPE_COMMAND_POOL, std::format("Primary command pool [{}]", i));
         SetDebugName((uint64_t)frame.cmd, VK_OBJECT_TYPE_COMMAND_BUFFER, std::format("Primary command buffer [{}]", i));
         SetDebugName((uint64_t)frame.queue_submit_fence, VK_OBJECT_TYPE_FENCE, std::format("Queue submit fence [{}]", i));
         SetDebugName((uint64_t)frame.swapchain_acquire_semaphore, VK_OBJECT_TYPE_SEMAPHORE, std::format("Swapchain acquire semaphore [{}]", i));
     }
+
     return {};
 }
 
@@ -414,6 +456,7 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .SetVertexStage(shader_module.handle, "VertexMain")
         .SetFragmentStage(shader_module.handle, "FragmentMain")
         .AddDescriptorSetLayout(global_descriptor.layout)
+        .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
         .AddPushConstantRange((VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
         .SetImageFormat(swapchain.image_format)
         .build(ctx);
@@ -661,17 +704,8 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
 
-    Mat4 projection = glm::perspective(
-        glm::radians(70.0f),
-        (float)(p_viewport.settings.width / p_viewport.settings.height),
-        100.0f,
-        0.1f);
-    projection[1][1] *= -1.0f;
-
     cmd->BindPipeline(graphics_pipeline);
     PushConstants& pcs = GetCurrentFrame().push_constants;
-
-    pcs.view_projection = projection * glm::inverse(glm::translate(Mat4(1.0f), render_state.camera_position));
     pcs.sampler = linear ? 0 : 1;
 
     draw_objects.clear();
@@ -682,6 +716,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         const GPUMesh& mesh = resources.meshes[draw_object.primitive];
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material;
+        pcs.camera_index = 1 - linear;
         vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
@@ -695,11 +730,56 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
 
     cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    vkCmdBindDescriptorSets(cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 1, &global_descriptor.set.handle, 0, nullptr);
+    // Update uniform buffer
+    // TODO: Move elsewhere
+    auto current_time = std::chrono::steady_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - gApp->start_time).count();
+    GPUGlobals global_uniforms{
+        .time = time,
+    };
+    for (uint i = 0; i < render_state.viewports.size(); ++i) {
+        const auto& viewport = render_state.viewports[i];
+        Mat4 projection = glm::perspective(
+            glm::radians(70.0f),
+            (float)(viewport.settings.width / viewport.settings.height),
+            100.0f,
+            0.1f);
+        projection[1][1] *= -1.0f;
 
+        Mat4 view = glm::inverse(glm::translate(Mat4(1.0f), render_state.camera_position));
+        global_uniforms.cameras[i] = GPUCamera{
+            .view = view,
+            .view_projection = projection * view,
+        };
+    }
+    {
+        const auto& viewport = render_state.viewports[0];
+        Mat4 projection = glm::perspective(
+            glm::radians(70.0f),
+            (float)(viewport.settings.width / viewport.settings.height),
+            100.0f,
+            0.1f);
+        projection[1][1] *= -1.0f;
+
+        Mat4 view = glm::inverse(glm::translate(Mat4(1.0f), Vec3(1.0f, 0.0f, 2.0f)));
+        global_uniforms.cameras[1] = GPUCamera{
+            .view = view,
+            .view_projection = projection * view,
+        };
+    }
+    memcpy(GetCurrentFrame().uniform_buffer.allocation.info.pMappedData, &global_uniforms, sizeof(GPUGlobals));
+    GetCurrentFrame().descriptor_set.WriteUniformBuffer(ctx, 0, 0, GetCurrentFrame().uniform_buffer.handle, sizeof(GPUGlobals));
+
+    VkDescriptorSet sets[] = {
+        global_descriptor.set.handle,
+        GetCurrentFrame().descriptor_set.handle,
+    };
+    vkCmdBindDescriptorSets(cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 2, sets, 0, nullptr);
+
+    // Render
     for (const auto& viewport : render_state.viewports) {
         RenderViewport(cmd, viewport, p_next_image_index);
-    };
+    }
 
     RenderImGui(cmd, p_next_image_index);
 

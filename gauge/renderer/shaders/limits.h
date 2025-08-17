@@ -1,0 +1,2 @@
+#define MAX_CAMERAS 16
+#define MAX_SCENES 16

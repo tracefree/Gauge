@@ -11,6 +11,7 @@
 #include <gauge/scene/scene_tree.hpp>
 
 #include <SDL3/SDL_video.h>
+#include <vulkan/vulkan_core.h>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -29,10 +30,11 @@ struct RendererVulkan : public Renderer {
 
     struct PushConstants {
         Mat4 model_matrix;
-        Mat4 view_projection;
         VkDeviceAddress vertex_buffer_address;
         uint sampler;
         uint material_index;
+        uint camera_index;
+        uint scene_index;
     };
 
     struct FrameData {
@@ -43,8 +45,8 @@ struct RendererVulkan : public Renderer {
         PushConstants push_constants{};
 
         // Updated every frame: Camera position, lights...
-        VkDescriptorPool viewport_descriptor_pool{};
-        std::vector<VkDescriptorSet> viewport_descriptor_sets{};
+        DescriptorSet descriptor_set{};
+        GPUBuffer uniform_buffer{};
 
 #ifdef TRACY_ENABLE
         tracy::VkCtx* tracy_context{};
@@ -71,6 +73,7 @@ struct RendererVulkan : public Renderer {
     std::vector<VkSemaphore>
         swapchain_release_semaphores;
 
+    VkDescriptorPool per_frame_pool{};
     std::vector<FrameData> frames_in_flight;
     uint64_t current_frame_index = 0;
 

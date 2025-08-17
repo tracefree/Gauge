@@ -15,6 +15,8 @@
 #include <string>
 #include <vector>
 
+#include <gauge/renderer/shaders/limits.h>
+
 namespace Gauge {
 
 struct VulkanContext {
@@ -40,6 +42,7 @@ struct GPUBuffer {
     VkBuffer handle{};
     VkDeviceAddress address{};
     Allocation allocation{};
+    void* mapped{};
 };
 
 struct GPUMesh {
@@ -55,6 +58,22 @@ struct GPUImage {
     VkExtent3D extent{};
     // VkDeviceMemory memory{};
     Allocation allocation{};
+};
+
+struct GPUCamera {
+    Mat4 view;
+    Mat4 view_projection;
+};
+
+struct GPUScene {
+    Vec3 light_position;
+    float light_attenuation;
+};
+
+struct GPUGlobals {
+    float time;
+    alignas(16) GPUCamera cameras[MAX_CAMERAS];
+    alignas(16) GPUScene scenes[MAX_SCENES];
 };
 
 struct Mesh {

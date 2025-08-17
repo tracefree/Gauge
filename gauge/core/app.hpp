@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <gauge/renderer/renderer.hpp>
 
 #include <memory>
@@ -11,12 +12,13 @@ struct App {
    public:
     std::string name{"Gauge App"};
     std::unique_ptr<Renderer> renderer;
-    void Initialize();
+    std::chrono::steady_clock::time_point start_time;
 
    protected:
     bool quit_requested{false};
 
    public:
+    void Initialize();
     void Quit();
 
     virtual int Run() = 0;

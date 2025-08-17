@@ -1,13 +1,20 @@
 #include "input_structures.slang"
+#include "limits.h"
+
+struct Camera {
+    float4x4 view;
+    float4x4 view_projection;
+}
 
 struct Scene {
-    float4x4 view_projection;
-    // Lights
+    float3 light_position;
+    float light_attenuation;
 }
 
 struct Globals {
     float time;
-    //Scene* scenes;
+    Camera cameras[MAX_CAMERAS];
+    Scene scenes[MAX_SCENES];
 }
 
 enum Sampler {
@@ -17,16 +24,19 @@ enum Sampler {
 
 struct Push {
     float4x4 model_matrix;
-    float4x4 view_projection;
     Vertex* vertices;
     Sampler sampler;
-    int material_id;
+    uint material_id;
+    uint camera_id;
+    uint scene_id;
 }
 
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
 StructuredBuffer<Material> materials;
-//ConstantBuffer<Globals> global;
+
+[[vk::binding(0, 1)]]
+ConstantBuffer<Globals> globals;
 
 [[vk::push_constant]]
 ConstantBuffer<Push> push_constants;
@@ -54,7 +64,7 @@ VertexOutput VertexMain(uint vertexID: SV_VertexID) {
     let world_position = mul(push_constants.model_matrix, float4(vertex.position, 1.0));
     
     return VertexOutput(
-        mul(push_constants.view_projection, world_position),
+        mul(globals.cameras[push_constants.camera_id].view_projection, world_position),
         tbn_ws,
     //    vertex.color,
         float2(vertex.uv_x, vertex.uv_y)
@@ -78,6 +88,8 @@ FragmentOutput FragmentMain(
     if (push_constants.sampler == 1) {
         albedo.rgb = normal_ws * 0.5 + 0.5;
     }
+
+    albedo.rgb = sin(globals.time) * albedo.rgb + (1.0 - sin(globals.time)) * (float3(1.0) - albedo.rgb);
 
     return FragmentOutput(albedo);
 }
