@@ -14,6 +14,9 @@ struct Node {
     std::vector<Ref<Node>> children;
     std::vector<Ref<Component>> components;
 
+    bool active = true;
+    bool visible = true;
+
     void Draw();
 };
 

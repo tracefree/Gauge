@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <vulkan/vulkan_core.h>
 
+#include "gauge/components/component.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
@@ -791,6 +792,26 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
 
 float angle = 0.0f;
 
+static void NodeTree(const Ref<Node>& node) {
+    if (ImGui::TreeNode(node->name.c_str())) {
+        ImGui::Text("Position: (%f, %f, %f)",
+                    node->local_transform.position.x,
+                    node->local_transform.position.y,
+                    node->local_transform.position.z);
+        ImGui::Checkbox("Visible", &node->visible);
+        for (const Ref<Component>& component : node->components) {
+            if (ImGui::TreeNode("MeshInstance")) {
+                ImGui::Checkbox("Visible", &component->visible);
+                ImGui::TreePop();
+            }
+        }
+        for (const Ref<Node>& child : node->children) {
+            NodeTree(child);
+        }
+        ImGui::TreePop();
+    }
+};
+
 void RendererVulkan::Draw() {
     ZoneScoped;
     {
@@ -808,14 +829,13 @@ void RendererVulkan::Draw() {
         }
         ImGui::End();
 
-        for (auto& model : render_state.models) {
-            if (ImGui::Begin(model.meshes[0].name.c_str())) {
-                ImGui::SliderFloat("Position x", &model.transform.position.x, -5.0f, 5.0f);
-                ImGui::SliderFloat("Rotation y", &angle, -M_PI, M_PI);
-                model.transform.rotation = Quaternion(Vec3(0.0f, angle, 0.0f));
+        if (ImGui::Begin("Scene Tree")) {
+            for (auto& node : render_state.viewports[0].scene_tree->root->children) {
+                NodeTree(node);
             }
-            ImGui::End();
         }
+        ImGui::End();
+
         /*
                 if (ImGui::BeginMainMenuBar()) {
                     if (ImGui::BeginMenu("Project")) {

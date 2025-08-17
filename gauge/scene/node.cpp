@@ -4,8 +4,13 @@
 using namespace Gauge;
 
 void Node::Draw() {
+    if (!visible) {
+        return;
+    }
     for (const Ref<Component>& component : components) {
-        component->Draw();
+        if (component->visible) {
+            component->Draw();
+        }
     }
     for (const Ref<Node>& child : children) {
         child->Draw();

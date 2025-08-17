@@ -1,5 +1,4 @@
 #include "mesh_instance.hpp"
-#include <print>
 #include "gauge/core/app.hpp"
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/renderer.hpp"
