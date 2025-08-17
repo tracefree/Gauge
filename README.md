@@ -16,7 +16,7 @@ Recommended:
 - Ninja
 - Ccache
 
-To build both the engine library run:
+To build the engine library run:
 
 ```
 git clone https://github.com/tracefree/Gauge.git
