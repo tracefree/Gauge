@@ -1,8 +1,11 @@
 # Gauge Engine
 
-This is an experiment in trying out a better way to structure a code base for a game engine and may or may not end up succeeding my current engine [Propser](https://github.com/tracefree/prosper). Specifically, I am switching to [VkBootstrap](https://github.com/charles-lunarg/vk-bootstrap) for initializing Vulkan and testing working with Vulkan's C API instead of using VulkanHpp.
+This is the successor / ongoing rewrite of my previous 3D engine [Propser](https://github.com/tracefree/prosper). Currently implemented features are:
 
-Prosper started by following [vkguide.dev](https://vkguide.dev/). This time I would like to take the time and apply what I learned and plan ahead a bit more, and be stricter about separating areas of responsibility, clean code, etc. Right now all it does is create an empty window and initialize Vulkan - in the future I may port all the features of Prosper over, or refactor prosper itself.
+- glTF model and texture loading
+- Scene tree with transform hierarchy
+- Using the "bindless" paradigm
+- Separate engine into core library and application
 
 ## Building
 
