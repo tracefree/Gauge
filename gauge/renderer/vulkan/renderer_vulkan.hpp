@@ -7,6 +7,7 @@
 #include <gauge/renderer/texture.hpp>
 #include <gauge/renderer/vulkan/command_buffer.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
+#include <gauge/renderer/vulkan/descriptor.hpp>
 #include <gauge/scene/scene_tree.hpp>
 
 #include <SDL3/SDL_video.h>
@@ -79,7 +80,7 @@ struct RendererVulkan : public Renderer {
     struct GlobalDescriptor {
         VkDescriptorPool pool{};
         VkDescriptorSetLayout layout{};
-        VkDescriptorSet set{};
+        DescriptorSet set{};
     } global_descriptor;
 
     VkSurfaceKHR surface{};

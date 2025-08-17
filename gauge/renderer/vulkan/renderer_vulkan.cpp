@@ -393,7 +393,7 @@ RendererVulkan::CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_
                  "Could not create descriptor pool");
     return pool;
 }
-
+/*
 Result<VkDescriptorSet>
 RendererVulkan::CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const {
     VkDescriptorSet descriptor_set{};
@@ -411,7 +411,7 @@ RendererVulkan::CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayo
                  "Could not create descriptor set");
     return descriptor_set;
 }
-
+*/
 Result<VkSampler>
 RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
     VkSampler sampler{};
@@ -498,21 +498,7 @@ Result<> RendererVulkan::InitializeGlobalResources() {
             VMA_MEMORY_USAGE_GPU_ONLY);
     CHECK_RET(buffer_result);
     resources.materials_buffer = buffer_result.value();
-
-    VkDescriptorBufferInfo buffer_info{
-        .buffer = resources.materials_buffer.handle,
-        .range = sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS,
-    };
-    VkWriteDescriptorSet write{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = global_descriptor.set,
-        .dstBinding = 2,
-        .dstArrayElement = 0,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        .pBufferInfo = &buffer_info};
-    vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
-
+    global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS);
     return {};
 }
 
@@ -601,9 +587,9 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             .and_then([&](VkDescriptorSetLayout p_layout) {
                 global_descriptor.layout = p_layout;
 
-                return CreateDescriptorSet(global_descriptor.pool, global_descriptor.layout);
+                return DescriptorSet::Create(ctx, global_descriptor.layout, global_descriptor.pool);
             })
-            .and_then([&](VkDescriptorSet p_set) {
+            .and_then([&](DescriptorSet p_set) {
                 global_descriptor.set = p_set;
 
                 return InitializeImGui(*this);
@@ -739,7 +725,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
 
     cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
-    vkCmdBindDescriptorSets(cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 1, &global_descriptor.set, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 1, &global_descriptor.set.handle, 0, nullptr);
 
     for (const auto& viewport : render_state.viewports) {
         RenderViewport(cmd, viewport, p_next_image_index);
@@ -1205,20 +1191,7 @@ RID RendererVulkan::CreateTexture(const Texture& p_texture) {
     if (!image_result) {
         return rid;
     }
-    VkDescriptorImageInfo image_info{
-        .imageView = image_result->view,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-    VkWriteDescriptorSet write{
-        .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        .dstSet = global_descriptor.set,
-        .dstBinding = 1,
-        .dstArrayElement = (uint)rid,
-        .descriptorCount = 1,
-        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        .pImageInfo = &image_info,
-    };
-    vkUpdateDescriptorSets(ctx.device, 1, &write, 0, nullptr);
+    global_descriptor.set.WriteImage(ctx, 1, (uint)rid, image_result->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     return rid;
 }
 
