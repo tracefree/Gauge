@@ -63,6 +63,7 @@ struct GPUImage {
 struct GPUCamera {
     Mat4 view;
     Mat4 view_projection;
+    Mat4 inverse_projection;
 };
 
 struct GPUScene {

@@ -40,8 +40,8 @@ void CommandBufferVulkan::TransitionImage(VkImage p_image, VkImageLayout p_curre
         aspect_mask = p_aspect_flags;
     }
 
-    VkAccessFlagBits2 src_access_mask{};
-    VkPipelineStageFlags2 src_stage_mask{};
+    VkAccessFlagBits2 src_access_mask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    VkPipelineStageFlags2 src_stage_mask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
     switch (p_current_layout) {
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
             src_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT;
@@ -52,11 +52,11 @@ void CommandBufferVulkan::TransitionImage(VkImage p_image, VkImageLayout p_curre
             break;
         default:
             src_stage_mask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
-            src_access_mask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+            src_access_mask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
     }
 
-    VkAccessFlagBits2 dst_access_mask{};
-    VkPipelineStageFlags2 dst_stage_mask{};
+    VkAccessFlagBits2 dst_access_mask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
+    VkPipelineStageFlags2 dst_stage_mask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
     switch (p_target_layout) {
         case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
             dst_access_mask = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT;
@@ -69,6 +69,9 @@ void CommandBufferVulkan::TransitionImage(VkImage p_image, VkImageLayout p_curre
             dst_stage_mask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
             dst_access_mask = VK_ACCESS_2_MEMORY_WRITE_BIT | VK_ACCESS_2_MEMORY_READ_BIT;
     }
+
+    // TODO: Where is this necessary?
+    src_stage_mask |= VK_PIPELINE_STAGE_2_BLIT_BIT;
 
     VkImageMemoryBarrier2 image_barrier{
         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
@@ -94,7 +97,7 @@ void CommandBufferVulkan::TransitionImage(VkImage p_image, VkImageLayout p_curre
     VkDependencyInfo dependency_info{
         .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
         .pNext = nullptr,
-        .dependencyFlags = 0,  // ?
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,  // ?
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &image_barrier,
     };

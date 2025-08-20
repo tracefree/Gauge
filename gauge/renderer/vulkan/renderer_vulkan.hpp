@@ -147,6 +147,7 @@ struct RendererVulkan : public Renderer {
 
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;
+    void OnShaderChanged() final override;
 
    public:
     FrameData const& GetCurrentFrame() const;

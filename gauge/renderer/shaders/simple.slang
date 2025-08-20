@@ -4,6 +4,7 @@
 struct Camera {
     float4x4 view;
     float4x4 view_projection;
+    float4x4 inverse_projection;
 }
 
 struct Scene {
@@ -43,6 +44,8 @@ ConstantBuffer<Push> push_constants;
 
 struct VertexOutput {
     float4 position_cs : SV_Position;
+    float3 position_ws;
+    float3 position_vs;
     float3x3 tbn_ws : TBN_WS;
     float2 uv : VertexUV;
 };
@@ -65,6 +68,8 @@ VertexOutput VertexMain(uint vertexID: SV_VertexID) {
     
     return VertexOutput(
         mul(globals.cameras[push_constants.camera_id].view_projection, world_position),
+        world_position.xyz,
+        mul(globals.cameras[push_constants.camera_id].view, world_position).xyz,
         tbn_ws,
     //    vertex.color,
         float2(vertex.uv_x, vertex.uv_y)
@@ -74,6 +79,8 @@ VertexOutput VertexMain(uint vertexID: SV_VertexID) {
 [shader("fragment")]
 FragmentOutput FragmentMain(
     float4 position_cs: SV_Position,
+    float3 position_ws,
+    float3 position_vs,
     float3x3 tbn_ws: TBN_WS,
     float2 uv: VertexUV,
 )
@@ -89,7 +96,15 @@ FragmentOutput FragmentMain(
         albedo.rgb = normal_ws * 0.5 + 0.5;
     }
 
-   // albedo.rgb = sin(globals.time) * albedo.rgb + (1.0 - sin(globals.time)) * (float3(1.0) - albedo.rgb);
+    Camera camera = globals.cameras[push_constants.camera_id];
+    float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
+    float3 light_position = float3(cos(globals.time), 1.5, sin(globals.time));
+    float3 light_direction_ws = normalize(light_position - position_ws);
+    float3 light_direction_vs = mul(camera.view, float4(light_direction_ws, 0.0)).xyz;
 
-    return FragmentOutput(albedo);
+    float ambient = 0.05;
+    float directional = max(dot(normal_vs, light_direction_vs), 0.0);
+    float3 color = albedo.rgb * (ambient + directional);
+
+    return FragmentOutput(float4(color, 1.0));
 }

@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <SDL3/SDL_error.h>
+#include <SDL3/SDL_system.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
 #include <sys/types.h>
@@ -390,6 +391,7 @@ RendererVulkan::CreateSwapchain(bool recreate) {
         swapchain_builder
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_KHR)
             .set_desired_extent(window_size.width, window_size.height)
+            .set_image_usage_flags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
             .set_desired_min_image_count(3)
             .build();
     if (!swapchain_ret) {
@@ -673,9 +675,17 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
 void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) {
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
 
+    const bool draw_to_swapchain = p_viewport.settings.use_swapchain && p_viewport.settings.render_scale == 1.0f;
+    const VkImageView target_view = draw_to_swapchain ? swapchain.image_views[p_next_image_index] : p_viewport.color.view;
+    const int scaled_width = (int)(p_viewport.settings.width * p_viewport.settings.render_scale);
+    const int scaled_height = (int)(p_viewport.settings.height * p_viewport.settings.render_scale);
+
+    if (!draw_to_swapchain) {
+        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
     VkRenderingAttachmentInfo color_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-        .imageView = swapchain.image_views[p_next_image_index],
+        .imageView = target_view,
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -686,7 +696,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     if (p_viewport.settings.msaa != MSAA::OFF) {
         color_attachement_info.imageView = p_viewport.color_multisampled.view;
         color_attachement_info.resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
-        color_attachement_info.resolveImageView = swapchain.image_views[p_next_image_index];
+        color_attachement_info.resolveImageView = target_view;
         color_attachement_info.resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     }
 
@@ -698,8 +708,8 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
                 .offset = {.x = 0, .y = 0},
                 .extent =
                     {
-                        .width = (uint)p_viewport.settings.width,
-                        .height = (uint)p_viewport.settings.height,
+                        .width = (uint)scaled_width,
+                        .height = (uint)scaled_height,
                     },
             },
         .layerCount = 1,
@@ -731,9 +741,11 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
 
     VkViewport vk_viewport{
         p_viewport.settings.position.x, p_viewport.settings.position.y,
-        p_viewport.settings.width, p_viewport.settings.height,
+        (float)scaled_width, (float)scaled_height,
         0.0f, 1.0f};
-    VkRect2D scissor{VkOffset2D{}, swapchain.extent};
+    VkExtent2D e = {p_viewport.color.extent.width, p_viewport.color.extent.height};
+    VkRect2D scissor{
+        VkOffset2D{}, p_viewport.settings.use_swapchain ? swapchain.extent : e};
     vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
 
@@ -755,6 +767,38 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
     }
     vkCmdEndRendering(cmd->GetHandle());
+
+    if (!draw_to_swapchain) {
+        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VkImageBlit image_blit = {
+            .srcSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+            .srcOffsets = {
+                {.x = 0, .y = 0, .z = 0},
+                {.x = (int)p_viewport.color.extent.width, .y = (int)p_viewport.color.extent.height, .z = 1},
+            },
+            .dstSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+            .dstOffsets = {
+                {.x = 0, .y = 0, .z = 0},
+                {.x = (int)(swapchain.extent.width), .y = (int)(swapchain.extent.height), .z = 1},
+            }};
+        vkCmdBlitImage(
+            cmd->GetHandle(),
+            p_viewport.color.handle,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            swapchain.images[p_next_image_index],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &image_blit,
+            VK_FILTER_LINEAR);
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
 }
 
 void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) {
@@ -783,6 +827,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
         global_uniforms.cameras[i] = GPUCamera{
             .view = view,
             .view_projection = projection * view,
+            .inverse_projection = glm::inverse(projection),
         };
     }
     memcpy(GetCurrentFrame().uniform_buffer.allocation.info.pMappedData, &global_uniforms, sizeof(GPUGlobals));
@@ -849,6 +894,9 @@ void RendererVulkan::Draw() {
             ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
             ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
             ImGui::Checkbox("Show albedo", &linear);
+            if (ImGui::SliderFloat("Render scale", &render_state.viewports[0].settings.render_scale, 0.1f, 1.0f)) {
+                OnViewportResized(render_state.viewports[0], render_state.viewports[0].settings.width, render_state.viewports[0].settings.height);
+            }
         }
         ImGui::End();
 
@@ -963,17 +1011,13 @@ void RendererVulkan::OnWindowResized(uint p_width, uint p_height) {
 }
 
 void RendererVulkan::OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const {
+    vkDeviceWaitIdle(ctx.device);
+
     p_viewport.settings.width = p_width;
     p_viewport.settings.height = p_height;
     if (p_viewport.settings.use_depth) {
         ViewportDestroyImages(p_viewport);
         ViewportCreateImages(p_viewport);
-        /*
-        DestroyImage(p_viewport.depth);
-        CHECK(CreateDepthImage(p_width, p_height)
-                  .transform([&](GPUImage p_depth) {
-                      p_viewport.depth = p_depth;
-                  }));*/
     }
 }
 
@@ -1218,6 +1262,10 @@ RendererVulkan::CreateDepthImage(const uint p_width, const uint p_height, VkSamp
 void RendererVulkan::DestroyImage(GPUImage& p_image) const {
     vkDestroyImageView(ctx.device, p_image.view, nullptr);
     vmaDestroyImage(ctx.allocator, p_image.handle, p_image.allocation.handle);
+    p_image.handle = VK_NULL_HANDLE;
+    p_image.view = VK_NULL_HANDLE;
+    p_image.format = VK_FORMAT_UNDEFINED;
+    p_image.extent = {};
 }
 
 Result<RendererVulkan::Viewport> RendererVulkan::CreateViewport(const ViewportSettings& p_settings) const {
@@ -1238,8 +1286,8 @@ void RendererVulkan::ViewportDestroyImages(Viewport& p_viewport) const {
             DestroyImage(p_viewport.depth_multisampled);
         }
     }
-    if (!p_viewport.settings.use_swapchain) {
-        // TODO
+    if (p_viewport.color.handle != VK_NULL_HANDLE) {
+        DestroyImage(p_viewport.color);
     }
     if (p_viewport.settings.use_depth) {
         DestroyImage(p_viewport.depth);
@@ -1247,10 +1295,13 @@ void RendererVulkan::ViewportDestroyImages(Viewport& p_viewport) const {
 }
 
 Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
+    const float render_scale = std::clamp(p_viewport.settings.render_scale, 0.1f, 1.0f);
+    const uint scaled_width = (uint)(p_viewport.settings.width * render_scale);
+    const uint scaled_height = (uint)(p_viewport.settings.height * render_scale);
     if (p_viewport.settings.msaa != MSAA::OFF) {
         CHECK_RET(
             CreateImage(
-                {.width = (uint)p_viewport.settings.width, .height = (uint)p_viewport.settings.height, .depth = 1},
+                {.width = scaled_width, .height = scaled_height, .depth = 1},
                 swapchain.image_format,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 false, (VkSampleCountFlagBits)p_viewport.settings.msaa)
@@ -1260,20 +1311,28 @@ Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
         if (p_viewport.settings.use_depth) {
             CHECK_RET(
                 CreateDepthImage(
-                    p_viewport.settings.width,
-                    p_viewport.settings.height,
+                    scaled_width,
+                    scaled_height,
                     SampleCountFromMSAA(p_viewport.settings.msaa))
                     .transform([&](GPUImage p_depth_multisampled) {
                         p_viewport.depth_multisampled = p_depth_multisampled;
                     }));
         }
     }
-    if (!p_viewport.settings.use_swapchain) {
-        // TODO
+
+    if (!p_viewport.settings.use_swapchain || p_viewport.settings.render_scale < 1.0f) {
+        CreateImage(
+            {.width = scaled_width, .height = scaled_height, .depth = 1},
+            swapchain.image_format,
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+            false)
+            .transform([&](GPUImage p_color) {
+                p_viewport.color = p_color;
+            });
     }
     if (p_viewport.settings.use_depth) {
         CHECK_RET(
-            CreateDepthImage(p_viewport.settings.width, p_viewport.settings.height)
+            CreateDepthImage(scaled_width, scaled_height)
                 .transform([&](GPUImage p_depth) {
                     p_viewport.depth = p_depth;
                 }));
@@ -1343,4 +1402,11 @@ RID RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
 
 void RendererVulkan::DestroyMaterial(RID p_rid) {
     // TODO
+}
+
+void RendererVulkan::OnShaderChanged() {
+    vkDeviceWaitIdle(ctx.device);
+    vkDestroyPipeline(ctx.device, graphics_pipeline.handle, nullptr);
+    vkDestroyPipelineLayout(ctx.device, graphics_pipeline.layout, nullptr);
+    graphics_pipeline = CreateGraphicsPipeline("Primary graphics pipeline").value();
 }

@@ -24,6 +24,7 @@ struct ViewportSettings {
     bool fill_window{};
     bool use_swapchain{};
     bool use_depth{};
+    float render_scale = 1.0f;
 };
 
 struct Renderer {
@@ -48,6 +49,7 @@ struct Renderer {
     virtual void Draw() = 0;
     virtual void OnWindowResized(uint p_width, uint p_height) {};
     virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
+    virtual void OnShaderChanged() {};
 
     virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;
     virtual void DestroyMesh(RID p_rid) = 0;
