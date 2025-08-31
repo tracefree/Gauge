@@ -14,9 +14,9 @@ struct Window {
     std::string title{"New Window"};
     Resolution resolution;
     bool fullscreen;
-
-   private:
     SDL_Window* sdl_window{nullptr};
+  
+   private:  
     bool visible = true;
 
    public:

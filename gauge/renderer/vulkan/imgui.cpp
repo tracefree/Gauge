@@ -2,6 +2,7 @@
 #include "imgui.hpp"
 
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
+#include <print>
 
 #include "gauge/renderer/vulkan/descriptor.hpp"
 #include "thirdparty/imgui/imgui.h"
@@ -140,6 +141,5 @@ Gauge::InitializeImGui(const RendererVulkan& p_renderer) {
 
     ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     SetupImGuiStyle();
-
     return {};
 }

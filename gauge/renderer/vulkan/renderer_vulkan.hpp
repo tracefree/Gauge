@@ -93,7 +93,6 @@ struct RendererVulkan : public Renderer {
     } global_descriptor;
 
     VkSurfaceKHR surface{};
-    SDL_Window* window = nullptr;
 
     struct WindowSize {
         uint width{};
@@ -104,6 +103,7 @@ struct RendererVulkan : public Renderer {
         std::vector<Viewport> viewports;
         std::vector<Model> models;
         Vec3 camera_position = Vec3(0.0f, 0.9f, 1.8f);
+        GPUImage qt{};
     } render_state{};
 
     struct ImmediateCommand {
@@ -131,10 +131,12 @@ struct RendererVulkan : public Renderer {
     } resources;
 
     bool linear = true;
+    bool offscreen = false;
 
    public:
-    Result<> Initialize(SDL_Window* p_sdl_window) final override;
+    Result<> Initialize(void (*p_create_surface)(VkInstance p_instance, VkSurfaceKHR* r_surface), bool p_offscreen = false) final override;
     void Draw() final override;
+    void DrawOffscreen() final override;
 
     virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
     virtual void DestroyMesh(RID p_rid) final override;
@@ -168,7 +170,8 @@ struct RendererVulkan : public Renderer {
         VkImageUsageFlags p_usage,
         bool p_mipmapped = false,
         VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT,
-        VkImageAspectFlagBits p_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT) const;
+        VkImageAspectFlagBits p_aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT,
+        bool p_exported = false) const;
     Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height, VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT) const;
     Result<Viewport> CreateViewport(const ViewportSettings& p_settings) const;
     Result<GPUBuffer> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;

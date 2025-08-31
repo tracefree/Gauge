@@ -19,7 +19,9 @@ include_directories(
 include_directories(SYSTEM thirdparty/volk)
 
 # SDL3
-find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
+#find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
+add_library(SDL3 SHARED IMPORTED)
+set_target_properties(SDL3 PROPERTIES IMPORTED_LOCATION /home/rie/Projects/Gauge/sandbox/lib/libSDL3.so)
 
 # Vulkan
 set(BUILD_SHARED_LIBS ON)
@@ -83,7 +85,7 @@ target_precompile_headers(gauge PUBLIC <vector> <print> <string> <unordered_map>
 target_include_directories(gauge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(gauge_renderer PUBLIC
-  SDL3::SDL3
+  SDL3
   Vulkan::Vulkan
   vk-bootstrap::vk-bootstrap
   volk::volk
@@ -96,7 +98,7 @@ target_link_libraries(gauge_renderer PUBLIC
 
 target_link_libraries(gauge PUBLIC
   gauge_renderer
-  SDL3::SDL3
+  SDL3
   yaml-cpp::yaml-cpp
   Tracy::TracyClient
   glm

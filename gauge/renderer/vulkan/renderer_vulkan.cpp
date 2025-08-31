@@ -61,6 +61,8 @@ using namespace Gauge;
 
 extern App* gApp;
 
+void CreateSurfaceFromInstance(VkInstance p_instance, VkSurfaceKHR* r_surface);
+
 #ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
 VkBool32 validation_layer_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT p_message_severity,
@@ -87,20 +89,11 @@ static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa) {
         case MSAA::x16:
             return VK_SAMPLE_COUNT_16_BIT;
     }
+    return VK_SAMPLE_COUNT_1_BIT;
 };
 
-static Result<VkSurfaceKHR>
-CreateSurface(vkb::Instance p_instance, SDL_Window* p_window) {
-    VkSurfaceKHR r_surface;
-    if (!SDL_Vulkan_CreateSurface(p_window, p_instance.instance, nullptr,
-                                  &r_surface)) [[unlikely]] {
-        return Error(SDL_GetError());
-    }
-    return r_surface;
-}
-
 static Result<vkb::Instance>
-CreateInstance() {
+CreateInstance(bool p_offscreen = false) {
     vkb::InstanceBuilder instance_builder;
     instance_builder = instance_builder
 #ifdef USE_VULKAN_DEBUG
@@ -122,6 +115,13 @@ CreateInstance() {
     char const* const* extensions =
         SDL_Vulkan_GetInstanceExtensions(&sdl_extension_count);
     instance_builder.enable_extensions(sdl_extension_count, extensions);
+
+    std::vector<const char*> echt = {VK_KHR_SURFACE_EXTENSION_NAME};
+    instance_builder.enable_extensions(echt.size(), echt.data());
+
+    if (p_offscreen) {
+        //   instance_builder.set_headless();
+    }
 
     auto instance_ret = instance_builder.build();
     if (!instance_ret) {
@@ -158,14 +158,19 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     };
 
     vkb::PhysicalDeviceSelector selector{p_instance};
-    auto physical_device_ret =
-        selector.set_surface(p_surface)
-            .set_minimum_version(1, 3)
-            .set_required_features(device_features)
-            .set_required_features_11(device_features_11)
-            .set_required_features_12(device_features_12)
-            .set_required_features_13(device_features_13)
-            .select();
+
+    selector
+        .set_minimum_version(1, 3)
+        .set_required_features(device_features)
+        .set_required_features_11(device_features_11)
+        .set_required_features_12(device_features_12)
+        .set_required_features_13(device_features_13);
+
+    if (p_surface != VK_NULL_HANDLE) {
+        selector.set_surface(p_surface);
+    }
+
+    auto physical_device_ret = selector.select();
     if (!physical_device_ret) {
         return Error(std::format("Could not create Vulkan physical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
                                  physical_device_ret.full_error().type.value(),
@@ -352,7 +357,7 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
 
     VkRenderingAttachmentInfo color_attachment{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO_KHR,
-        .imageView = swapchain.image_views[p_next_image_index],
+        .imageView = offscreen ? render_state.viewports[0].color.view : swapchain.image_views[p_next_image_index],
         .imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -382,6 +387,9 @@ void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_ind
 
 Result<>
 RendererVulkan::CreateSwapchain(bool recreate) {
+    if (offscreen) {
+        return {};
+    }
     vkb::SwapchainBuilder swapchain_builder{ctx.device};
     if (recreate) {
         swapchain_builder.set_old_swapchain(swapchain.vkb_swapchain);
@@ -476,7 +484,7 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
         .AddDescriptorSetLayout(global_descriptor.layout)
         .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
         .AddPushConstantRange((VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
-        .SetImageFormat(swapchain.image_format)
+        .SetImageFormat(offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format)
         .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
         .Build(ctx);
 }
@@ -532,21 +540,20 @@ Result<> RendererVulkan::InitializeGlobalResources() {
 }
 
 Result<>
-RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
-    window = p_sdl_window;
+RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSurfaceKHR* r_surface), bool p_offscreen) {
+    offscreen = p_offscreen;
     CHECK_RET(
-        CreateInstance()
-            .and_then([&](vkb::Instance p_instance) {
+        CreateInstance(offscreen)
+            .transform([&](vkb::Instance p_instance) {
                 ctx.instance = p_instance;
-                return CreateSurface(p_instance, window);
-            })
-            .and_then([&](VkSurfaceKHR p_surface) {
-                surface = p_surface;
-                int w, h{};
-                SDL_GetWindowSize(window, &w, &h);
-                window_size = {.width = (uint)w, .height = (uint)h};
-                return CreatePhysicalDevice(ctx.instance, surface);
-            })
+            }));
+
+    p_create_surface(ctx.instance, &surface);
+
+    window_size = {.width = 1920, .height = 1080};
+
+    CHECK_RET(
+        CreatePhysicalDevice(ctx.instance, surface)
             .and_then([&](vkb::PhysicalDevice p_physical_device) {
                 ctx.physical_device = p_physical_device;
                 return CreateDevice(p_physical_device);
@@ -565,6 +572,7 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
                 SetDebugName((uint64_t)surface, VK_OBJECT_TYPE_SURFACE_KHR, "Main window surface");
             })
             .and_then([&]() {
+                ctx.graphics_queue_family_index = ctx.device.get_queue_index(vkb::QueueType::graphics).value();
                 return GetQueue(ctx.device);
             })
             .and_then([&](VkQueue p_queue) {
@@ -623,7 +631,6 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
             })
             .and_then([&](DescriptorSet p_set) {
                 global_descriptor.set = p_set;
-
                 return InitializeImGui(*this);
             }));
 
@@ -632,14 +639,15 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     graphics_pipeline = graphics_pipeline_result.value();
 
     // Immediate command setup
-    CHECK_RET(CreateCommandPool()
-                  .and_then([&](VkCommandPool p_cmd_pool) {
-                      immediate_command.pool = p_cmd_pool;
-                      return CreateCommandBuffer(immediate_command.pool);
-                  })
-                  .transform([&](VkCommandBuffer p_cmd) {
-                      immediate_command.buffer = p_cmd;
-                  }));
+    CHECK_RET(
+        CreateCommandPool()
+            .and_then([&](VkCommandPool p_cmd_pool) {
+                immediate_command.pool = p_cmd_pool;
+                return CreateCommandBuffer(immediate_command.pool);
+            })
+            .transform([&](VkCommandBuffer p_cmd) {
+                immediate_command.buffer = p_cmd;
+            }));
     VkFenceCreateInfo fence_info{
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
@@ -650,15 +658,15 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     CHECK_RET(InitializeGlobalResources());
 
     // Render state
-    auto main_viewport_result = CreateViewport(ViewportSettings{
-        .width = static_cast<float>(window_size.width),
-        .height = static_cast<float>(window_size.height),
-        .msaa = gApp->project_settings.msaa_level,
-        .fill_window = true,
-        .use_swapchain = true,
-        .use_depth = true,
-
-    });
+    auto main_viewport_result =
+        CreateViewport(ViewportSettings{
+            .width = static_cast<float>(window_size.width),
+            .height = static_cast<float>(window_size.height),
+            .msaa = gApp->project_settings.msaa_level,
+            .fill_window = true,
+            .use_swapchain = false,
+            .use_depth = true,
+        });
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
 
@@ -667,6 +675,12 @@ RendererVulkan::Initialize(SDL_Window* p_sdl_window) {
     Ref<Node> character = gltf_model->CreateNode().value();
     render_state.viewports[0].scene_tree = std::make_shared<SceneTree>();
     render_state.viewports[0].scene_tree->root = character;
+
+    // CHECK_RET(
+    //     CreateImage({.width = window_size.width, .height = window_size.height, .depth = 1}, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+    //         .transform([&](GPUImage p_image) {
+    //             render_state.qt = p_image;
+    //         }));
 
     initialized = true;
     return {};
@@ -756,6 +770,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     draw_objects.clear();
     p_viewport.scene_tree->root->RefreshTransform();
     p_viewport.scene_tree->Draw();
+
     for (const DrawObject& draw_object : draw_objects) {
         pcs.model_matrix = draw_object.transform.get_matrix();
         const GPUMesh& mesh = resources.meshes[draw_object.primitive];
@@ -766,9 +781,12 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
     }
+
     vkCmdEndRendering(cmd->GetHandle());
 
-    if (!draw_to_swapchain) {
+    //  cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
+    if (!draw_to_swapchain && !offscreen) {
         cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
         cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
         VkImageBlit image_blit = {
@@ -805,7 +823,9 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
 
-    cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    if (!offscreen) {
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    }
 
     // Update uniform buffer
     // TODO: Move elsewhere
@@ -843,12 +863,12 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
         RenderViewport(cmd, viewport, p_next_image_index);
     }
 
-    RenderImGui(cmd, p_next_image_index);
+    // RenderImGui(cmd, p_next_image_index);
 
-    cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    if (!offscreen) {
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
 }
-
-float angle = 0.0f;
 
 static void NodeTree(const Ref<Node>& node) {
     bool open = ImGui::TreeNodeEx(node->name.c_str(), ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowItemOverlap);
@@ -883,7 +903,7 @@ static void NodeTree(const Ref<Node>& node) {
 
 void RendererVulkan::Draw() {
     ZoneScoped;
-    {
+    if (false) {
         ZoneScopedN("ImGui calls");
         ImGui_ImplVulkan_NewFrame();
         ImGui_ImplSDL3_NewFrame();
@@ -973,6 +993,33 @@ void RendererVulkan::Draw() {
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
         CHECK(CreateSwapchain(true));
     }
+
+    current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
+}
+
+void RendererVulkan::DrawOffscreen() {
+    FrameData current_frame = GetCurrentFrame();
+    VkCommandBuffer current_command_buffer = current_frame.cmd;
+    CommandBufferVulkan cmd{current_command_buffer};
+
+    CHECK(cmd.Begin());
+    RecordCommands(&cmd, 0);
+    TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
+    CHECK(cmd.End());
+    {
+        ZoneScopedN("vkQueueSubmit");
+        // Submit to graphics queue
+        const VkPipelineStageFlags wait_dst_stage_mask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+        const VkSubmitInfo submit_info{
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .pWaitDstStageMask = &wait_dst_stage_mask,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &current_command_buffer,
+        };
+        VK_CHECK(vkQueueSubmit(ctx.graphics_queue, 1, &submit_info, VK_NULL_HANDLE),
+                 "Could not submit command buffer to graphics queue");
+    }
+    FrameMark;
 
     current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
 }
@@ -1118,14 +1165,22 @@ RendererVulkan::CreateImage(
     VkImageUsageFlags p_usage,
     bool p_mipmapped,
     VkSampleCountFlagBits p_sample_count,
-    VkImageAspectFlagBits p_aspect_flags) const {
+    VkImageAspectFlagBits p_aspect_flags,
+    bool p_exported) const {
     GPUImage image{
         .format = p_format,
         .extent = p_size,
     };
 
+    const VkExternalMemoryImageCreateInfo external_memory_info{
+        .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
+        .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+    };
+
     const VkImageCreateInfo image_info{
         .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .pNext = p_exported ? &external_memory_info : nullptr,
+        .flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT,
         .imageType = VK_IMAGE_TYPE_2D,
         .format = image.format,
         .extent = image.extent,
@@ -1302,7 +1357,7 @@ Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
         CHECK_RET(
             CreateImage(
                 {.width = scaled_width, .height = scaled_height, .depth = 1},
-                swapchain.image_format,
+                offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format,
                 VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                 false, (VkSampleCountFlagBits)p_viewport.settings.msaa)
                 .transform([&](GPUImage p_color_multisampled) {
@@ -1321,14 +1376,18 @@ Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
     }
 
     if (!p_viewport.settings.use_swapchain || p_viewport.settings.render_scale < 1.0f) {
-        CreateImage(
-            {.width = scaled_width, .height = scaled_height, .depth = 1},
-            swapchain.image_format,
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-            false)
-            .transform([&](GPUImage p_color) {
-                p_viewport.color = p_color;
-            });
+        CHECK_RET(
+            CreateImage(
+                {.width = scaled_width, .height = scaled_height, .depth = 1},
+                offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                false,
+                VK_SAMPLE_COUNT_1_BIT,
+                VK_IMAGE_ASPECT_COLOR_BIT,
+                true)
+                .transform([&](GPUImage p_color) {
+                    p_viewport.color = p_color;
+                }));
     }
     if (p_viewport.settings.use_depth) {
         CHECK_RET(

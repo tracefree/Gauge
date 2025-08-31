@@ -45,8 +45,9 @@ struct Renderer {
     uint GetFramesInFlight() const;
     void SetFramesInFlight(uint p_max_frames_in_flight);
 
-    virtual Result<> Initialize(SDL_Window* p_sdl_window) = 0;
+    virtual Result<> Initialize(void (*p_create_surface)(VkInstance p_instance, VkSurfaceKHR* r_surface), bool p_offscreen = false) = 0;
     virtual void Draw() = 0;
+    virtual void DrawOffscreen() {};
     virtual void OnWindowResized(uint p_width, uint p_height) {};
     virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
     virtual void OnShaderChanged() {};

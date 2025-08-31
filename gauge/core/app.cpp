@@ -26,7 +26,7 @@ void App::Initialize() {
     const char* c_name = name.c_str();
     SDL_SetAppMetadata(c_name, "0.1", c_name);
     if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::println("SDL could not initialize! SDL error: %s\n",
+        std::println("SDL could not initialize! SDL error: {}\n",
                      SDL_GetError());
     }
 

@@ -25,6 +25,8 @@ struct VulkanContext {
     vkb::Device device{};
     VmaAllocator allocator{};
     VkQueue graphics_queue{};
+    int graphics_queue_family_index{};
+    int graphics_queue_index{};
 };
 
 struct Pipeline {
