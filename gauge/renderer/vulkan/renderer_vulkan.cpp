@@ -2,6 +2,7 @@
 
 #include "VkBootstrap.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -37,6 +38,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "gauge/components/component.hpp"
+#include "gauge/input/input.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
@@ -61,8 +63,6 @@ using namespace Gauge;
 
 extern App* gApp;
 
-void CreateSurfaceFromInstance(VkInstance p_instance, VkSurfaceKHR* r_surface);
-
 #ifdef CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK
 VkBool32 validation_layer_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT p_message_severity,
@@ -72,6 +72,7 @@ VkBool32 validation_layer_callback(
     const char* severity = vkb::to_string_message_severity(p_message_severity);
     const char* type = vkb::to_string_message_type(p_message_type);
     std::println("[{}] {}: {}\n", type, severity, p_callback_data->pMessage);
+    assert(false);
     return VK_FALSE;
 }
 #endif
@@ -160,11 +161,17 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     vkb::PhysicalDeviceSelector selector{p_instance};
 
     selector
-        .set_minimum_version(1, 3)
+        .set_minimum_version(1, 4)
         .set_required_features(device_features)
         .set_required_features_11(device_features_11)
         .set_required_features_12(device_features_12)
-        .set_required_features_13(device_features_13);
+        .set_required_features_13(device_features_13)
+        .add_required_extension(VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME)
+        .add_required_extension_features<VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR>(
+            VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR{
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
+                .unifiedImageLayouts = VK_TRUE,
+            });
 
     if (p_surface != VK_NULL_HANDLE) {
         selector.set_surface(p_surface);
@@ -695,7 +702,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     const int scaled_height = (int)(p_viewport.settings.height * p_viewport.settings.render_scale);
 
     if (!draw_to_swapchain) {
-        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     }
     VkRenderingAttachmentInfo color_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -772,7 +779,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     p_viewport.scene_tree->Draw();
 
     for (const DrawObject& draw_object : draw_objects) {
-        pcs.model_matrix = draw_object.transform.get_matrix();
+        pcs.model_matrix = draw_object.transform.GetMatrix();
         const GPUMesh& mesh = resources.meshes[draw_object.primitive];
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material;
@@ -784,11 +791,11 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
 
     vkCmdEndRendering(cmd->GetHandle());
 
-    //  cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
 
     if (!draw_to_swapchain && !offscreen) {
-        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
         VkImageBlit image_blit = {
             .srcSubresource = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -809,13 +816,13 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         vkCmdBlitImage(
             cmd->GetHandle(),
             p_viewport.color.handle,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
             swapchain.images[p_next_image_index],
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
             1,
             &image_blit,
             VK_FILTER_LINEAR);
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
     }
 }
 
@@ -824,7 +831,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
 
     if (!offscreen) {
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     }
 
     // Update uniform buffer
@@ -836,14 +843,20 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     };
     for (uint i = 0; i < render_state.viewports.size(); ++i) {
         const auto& viewport = render_state.viewports[i];
+
         Mat4 projection = glm::perspective(
-            glm::radians(70.0f),
+            glm::radians(viewport.field_of_view),
             (float)(viewport.settings.width / viewport.settings.height),
             100.0f,
             0.1f);
         projection[1][1] *= -1.0f;
 
-        Mat4 view = glm::inverse(glm::translate(Mat4(1.0f), render_state.camera_position));
+        Mat4 view = glm::inverse(
+            glm::translate(Mat4(1.0f), viewport.camera_position) *
+            glm::toMat4(
+                glm::angleAxis(viewport.camera_yaw, Vec3(0.0f, -1.0f, 0.0f)) *
+                glm::angleAxis(viewport.camera_pitch, Vec3(1.0f, 0.0f, 0.0f))));
+
         global_uniforms.cameras[i] = GPUCamera{
             .view = view,
             .view_projection = projection * view,
@@ -866,7 +879,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     // RenderImGui(cmd, p_next_image_index);
 
     if (!offscreen) {
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 }
 
@@ -910,9 +923,6 @@ void RendererVulkan::Draw() {
         ImGui::NewFrame();
 
         if (ImGui::Begin("Settings")) {
-            ImGui::SliderFloat("Camera x", &render_state.camera_position.x, -10.0f, 10.0f);
-            ImGui::SliderFloat("Camera y", &render_state.camera_position.y, -10.0f, 10.0f);
-            ImGui::SliderFloat("Camera z", &render_state.camera_position.z, -10.0f, 10.0f);
             ImGui::Checkbox("Show albedo", &linear);
             if (ImGui::SliderFloat("Render scale", &render_state.viewports[0].settings.render_scale, 0.1f, 1.0f)) {
                 OnViewportResized(render_state.viewports[0], render_state.viewports[0].settings.width, render_state.viewports[0].settings.height);
@@ -1081,14 +1091,15 @@ RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usag
         .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
         .usage = p_memory_usage,
     };
-    VK_CHECK_RET(vmaCreateBuffer(
-                     ctx.allocator,
-                     &buffer_info,
-                     &vma_alloc_info,
-                     &buffer.handle,
-                     &buffer.allocation.handle,
-                     &buffer.allocation.info),
-                 "Could not create buffer")
+    VK_CHECK_RET(
+        vmaCreateBuffer(
+            ctx.allocator,
+            &buffer_info,
+            &vma_alloc_info,
+            &buffer.handle,
+            &buffer.allocation.handle,
+            &buffer.allocation.info),
+        "Could not create buffer")
 
     return buffer;
 }
@@ -1238,7 +1249,7 @@ RendererVulkan::UploadTextureToGPU(const Texture& p_texture) const {
                 cmd.TransitionImage(
                     image.handle,
                     VK_IMAGE_LAYOUT_UNDEFINED,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+                    VK_IMAGE_LAYOUT_GENERAL);
                 const VkBufferImageCopy buffer_image_copy{
                     .imageSubresource = {
                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -1249,12 +1260,12 @@ RendererVulkan::UploadTextureToGPU(const Texture& p_texture) const {
                     cmd.GetHandle(),
                     staging_buffer.handle,
                     image.handle,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_IMAGE_LAYOUT_GENERAL,
                     1, &buffer_image_copy);
                 cmd.TransitionImage(
                     image.handle,
-                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+                    VK_IMAGE_LAYOUT_GENERAL,
+                    VK_IMAGE_LAYOUT_GENERAL);
             });
         })
         .and_then([&]() -> Result<GPUImage> {
@@ -1307,7 +1318,7 @@ RendererVulkan::CreateDepthImage(const uint p_width, const uint p_height, VkSamp
                 cmd.TransitionImage(
                     depth.handle,
                     VK_IMAGE_LAYOUT_UNDEFINED,
-                    VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+                    VK_IMAGE_LAYOUT_GENERAL,
                     VK_IMAGE_ASPECT_DEPTH_BIT);
             });
             return depth;
@@ -1468,4 +1479,24 @@ void RendererVulkan::OnShaderChanged() {
     vkDestroyPipeline(ctx.device, graphics_pipeline.handle, nullptr);
     vkDestroyPipelineLayout(ctx.device, graphics_pipeline.layout, nullptr);
     graphics_pipeline = CreateGraphicsPipeline("Primary graphics pipeline").value();
+}
+
+void RendererVulkan::ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) {
+    render_state.viewports[p_viewport_id].camera_position = p_position;
+}
+
+void RendererVulkan::ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset) {
+    render_state.viewports[p_viewport_id].camera_position += p_offset;
+}
+
+void RendererVulkan::ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) {
+    Viewport& viewport = render_state.viewports[p_viewport_id];
+    viewport.camera_pitch = std::clamp(viewport.camera_pitch + p_pitch, -M_PI_2f, M_PI_2f);
+    viewport.camera_yaw = viewport.camera_yaw + p_yaw;
+}
+
+Quaternion RendererVulkan::ViewportGetCameraRotation(uint p_viewport_id) {
+    const Viewport& viewport = render_state.viewports[p_viewport_id];
+    return glm::angleAxis(viewport.camera_yaw, Vec3(0.0f, -1.0f, 0.0f)) *
+           glm::angleAxis(viewport.camera_pitch, Vec3(1.0f, 0.0f, 0.0f));
 }

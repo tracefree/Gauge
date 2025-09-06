@@ -14,6 +14,7 @@ struct App {
     std::string name{"Gauge App"};
     std::unique_ptr<Renderer> renderer;
     std::chrono::steady_clock::time_point start_time;
+    float delta = 0.016;
     ProjectSettings project_settings;
 
    protected:

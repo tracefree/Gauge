@@ -9,7 +9,7 @@ struct Transform {
     glm::quat rotation{glm::identity<Quaternion>()};
     float scale{1.0f};
 
-    Mat4 get_matrix() const;
+    Mat4 GetMatrix() const;
     const Transform operator*(Transform const& rhs);
 
     Transform() {}

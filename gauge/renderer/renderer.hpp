@@ -3,6 +3,7 @@
 #include <gauge/common.hpp>
 #include <gauge/core/config.hpp>
 #include <gauge/renderer/common.hpp>
+#include "gauge/math/common.hpp"
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/texture.hpp"
 
@@ -48,6 +49,12 @@ struct Renderer {
     virtual Result<> Initialize(void (*p_create_surface)(VkInstance p_instance, VkSurfaceKHR* r_surface), bool p_offscreen = false) = 0;
     virtual void Draw() = 0;
     virtual void DrawOffscreen() {};
+
+    virtual void ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) = 0;
+    virtual void ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset) = 0;
+    virtual void ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) = 0;
+    virtual Quaternion ViewportGetCameraRotation(uint p_viewport_id) = 0;
+
     virtual void OnWindowResized(uint p_width, uint p_height) {};
     virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
     virtual void OnShaderChanged() {};

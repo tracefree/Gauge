@@ -105,9 +105,9 @@ Result<>
 Gauge::InitializeImGui(const RendererVulkan& p_renderer) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    if (!ImGui_ImplSDL3_InitForVulkan(p_renderer.window)) {
-        return Error("Could not initialize ImGui SDL3 for Vulkan");
-    }
+  //  if (!ImGui_ImplSDL3_InitForVulkan(p_renderer.window)) {
+  //      return Error("Could not initialize ImGui SDL3 for Vulkan");
+  //  }
 
     auto pool_result = DescriptorPool::Create(
         p_renderer.ctx,

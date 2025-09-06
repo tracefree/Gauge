@@ -14,7 +14,7 @@ Transform::Transform(Transform const& p_transform) {
     scale = p_transform.scale;
 }
 
-Mat4 Transform::get_matrix() const {
+Mat4 Transform::GetMatrix() const {
     return glm::translate(Mat4(1.0f), position) * glm::toMat4(rotation) * glm::scale(Mat4(1.0f), Vec3(scale));
 }
 

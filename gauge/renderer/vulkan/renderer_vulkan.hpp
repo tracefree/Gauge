@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "gauge/math/common.hpp"
+#include "gauge/math/transform.hpp"
 #include "gauge/renderer/gltf.hpp"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
@@ -65,6 +66,11 @@ struct RendererVulkan : public Renderer {
     struct Viewport {
         ViewportSettings settings{};
 
+        Vec3 camera_position{};
+        float camera_yaw{};
+        float camera_pitch{};
+        float field_of_view = 70.0f;
+
         GPUImage color{};
         GPUImage depth{};
 
@@ -102,7 +108,6 @@ struct RendererVulkan : public Renderer {
     struct RenderState {
         std::vector<Viewport> viewports;
         std::vector<Model> models;
-        Vec3 camera_position = Vec3(0.0f, 0.9f, 1.8f);
         GPUImage qt{};
     } render_state{};
 
@@ -186,6 +191,10 @@ struct RendererVulkan : public Renderer {
 
     Result<> ViewportCreateImages(Viewport& p_viewport) const;
     void ViewportDestroyImages(Viewport& p_viewport) const;
+    void ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) final override;
+    void ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset) final override;
+    void ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) final override;
+    virtual Quaternion ViewportGetCameraRotation(uint p_viewport_id) final override;
 
     Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
 
