@@ -282,7 +282,7 @@ glTF::FromFile(const std::string& p_path) {
     return gltf;
 }
 
-Result<Ref<Gauge::Node>> glTF::CreateNode() {
+Result<Ref<Gauge::Node>> glTF::CreateNode() const {
     std::vector<Ref<Gauge::Node>> instanced_nodes;
     instanced_nodes.resize(nodes.size());
     for (uint i = 0; i < nodes.size(); ++i) {

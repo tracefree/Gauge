@@ -38,7 +38,6 @@
 #include <vulkan/vulkan_core.h>
 
 #include "gauge/components/component.hpp"
-#include "gauge/input/input.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
@@ -641,7 +640,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                 return InitializeImGui(*this);
             }));
 
-    auto graphics_pipeline_result = CreateGraphicsPipeline("Primary graphics pipeline");
+    const auto graphics_pipeline_result = CreateGraphicsPipeline("Primary graphics pipeline");
     CHECK_RET(graphics_pipeline_result);
     graphics_pipeline = graphics_pipeline_result.value();
 
@@ -655,7 +654,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
             .transform([&](VkCommandBuffer p_cmd) {
                 immediate_command.buffer = p_cmd;
             }));
-    VkFenceCreateInfo fence_info{
+    const VkFenceCreateInfo fence_info{
         .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
@@ -665,7 +664,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     CHECK_RET(InitializeGlobalResources());
 
     // Render state
-    auto main_viewport_result =
+    const auto main_viewport_result =
         CreateViewport(ViewportSettings{
             .width = static_cast<float>(window_size.width),
             .height = static_cast<float>(window_size.height),
@@ -677,9 +676,9 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
 
-    auto gltf_model = glTF::FromFile("character2.glb");
+    const auto gltf_model = glTF::FromFile("character2.glb");
     CHECK_RET(gltf_model);
-    Ref<Node> character = gltf_model->CreateNode().value();
+    const Ref<Node> character = gltf_model->CreateNode().value();
     render_state.viewports[0].scene_tree = std::make_shared<SceneTree>();
     render_state.viewports[0].scene_tree->root = character;
 
@@ -693,8 +692,8 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     return {};
 }
 
-void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index) {
-    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Viewport");
+void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewport& p_viewport, uint p_next_image_index) {
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd.GetHandle(), "Viewport");
 
     const bool draw_to_swapchain = p_viewport.settings.use_swapchain && p_viewport.settings.render_scale == 1.0f;
     const VkImageView target_view = draw_to_swapchain ? swapchain.image_views[p_next_image_index] : p_viewport.color.view;
@@ -702,7 +701,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
     const int scaled_height = (int)(p_viewport.settings.height * p_viewport.settings.render_scale);
 
     if (!draw_to_swapchain) {
-        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        cmd.TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     }
     VkRenderingAttachmentInfo color_attachement_info{
         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -758,19 +757,19 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         }
     }
 
-    vkCmdBeginRendering(cmd->GetHandle(), &rendering_info);
+    vkCmdBeginRendering(cmd.GetHandle(), &rendering_info);
 
-    VkViewport vk_viewport{
+    const VkViewport vk_viewport{
         p_viewport.settings.position.x, p_viewport.settings.position.y,
         (float)scaled_width, (float)scaled_height,
         0.0f, 1.0f};
-    VkExtent2D e = {p_viewport.color.extent.width, p_viewport.color.extent.height};
-    VkRect2D scissor{
-        VkOffset2D{}, p_viewport.settings.use_swapchain ? swapchain.extent : e};
-    vkCmdSetViewport(cmd->GetHandle(), 0, 1, &vk_viewport);
-    vkCmdSetScissor(cmd->GetHandle(), 0, 1, &scissor);
+    const VkExtent2D extent = {p_viewport.color.extent.width, p_viewport.color.extent.height};
+    const VkRect2D scissor{
+        VkOffset2D{}, p_viewport.settings.use_swapchain ? swapchain.extent : extent};
+    vkCmdSetViewport(cmd.GetHandle(), 0, 1, &vk_viewport);
+    vkCmdSetScissor(cmd.GetHandle(), 0, 1, &scissor);
 
-    cmd->BindPipeline(graphics_pipeline);
+    cmd.BindPipeline(graphics_pipeline);
     PushConstants& pcs = GetCurrentFrame().push_constants;
     pcs.sampler = linear ? 0 : 1;
 
@@ -784,19 +783,19 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material;
         pcs.camera_index = 0;
-        vkCmdPushConstants(cmd->GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
-        vkCmdBindIndexBuffer(cmd->GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd->GetHandle(), mesh.index_count, 1, 0, 0, 0);
+        vkCmdPushConstants(cmd.GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
+        vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);
     }
 
-    vkCmdEndRendering(cmd->GetHandle());
+    vkCmdEndRendering(cmd.GetHandle());
 
-    cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+    cmd.TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
 
     if (!draw_to_swapchain && !offscreen) {
-        cmd->TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
-        VkImageBlit image_blit = {
+        cmd.TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+        cmd.TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+        const VkImageBlit image_blit = {
             .srcSubresource = {
                 .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
                 .layerCount = 1,
@@ -814,7 +813,7 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
                 {.x = (int)(swapchain.extent.width), .y = (int)(swapchain.extent.height), .z = 1},
             }};
         vkCmdBlitImage(
-            cmd->GetHandle(),
+            cmd.GetHandle(),
             p_viewport.color.handle,
             VK_IMAGE_LAYOUT_GENERAL,
             swapchain.images[p_next_image_index],
@@ -822,21 +821,21 @@ void RendererVulkan::RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_
             1,
             &image_blit,
             VK_FILTER_LINEAR);
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
+        cmd.TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
     }
 }
 
-void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index) {
+void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_image_index) {
     ZoneScoped;
-    TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "Draw");
+    TracyVkZone(GetCurrentFrame().tracy_context, cmd.GetHandle(), "Draw");
 
     if (!offscreen) {
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+        cmd.TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
     }
 
     // Update uniform buffer
     // TODO: Move elsewhere
-    auto current_time = std::chrono::steady_clock::now();
+    const auto current_time = std::chrono::steady_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - gApp->start_time).count();
     GPUGlobals global_uniforms{
         .time = time,
@@ -851,7 +850,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
             0.1f);
         projection[1][1] *= -1.0f;
 
-        Mat4 view = glm::inverse(
+        const Mat4 view = glm::inverse(
             glm::translate(Mat4(1.0f), viewport.camera_position) *
             glm::toMat4(
                 glm::angleAxis(viewport.camera_yaw, Vec3(0.0f, -1.0f, 0.0f)) *
@@ -865,11 +864,11 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     }
     memcpy(GetCurrentFrame().uniform_buffer.allocation.info.pMappedData, &global_uniforms, sizeof(GPUGlobals));
 
-    VkDescriptorSet sets[] = {
+    const VkDescriptorSet sets[] = {
         global_descriptor.set.handle,
         GetCurrentFrame().descriptor_set.handle,
     };
-    vkCmdBindDescriptorSets(cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 2, sets, 0, nullptr);
+    vkCmdBindDescriptorSets(cmd.GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 2, sets, 0, nullptr);
 
     // Render
     for (const auto& viewport : render_state.viewports) {
@@ -879,7 +878,7 @@ void RendererVulkan::RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_
     // RenderImGui(cmd, p_next_image_index);
 
     if (!offscreen) {
-        cmd->TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        cmd.TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 }
 
@@ -940,7 +939,7 @@ void RendererVulkan::Draw() {
         ImGui::Render();
     }
 
-    FrameData current_frame = GetCurrentFrame();
+    const FrameData& current_frame = GetCurrentFrame();
     uint next_image_index = 0;
     {
         ZoneScopedN("vkWaitForFences");
@@ -958,11 +957,11 @@ void RendererVulkan::Draw() {
     VK_CHECK(vkResetCommandPool(ctx.device, current_frame.cmd_pool, 0),
              "Could not reset command pool");
 
-    VkCommandBuffer current_command_buffer = current_frame.cmd;
+    const VkCommandBuffer current_command_buffer = current_frame.cmd;
     CommandBufferVulkan cmd{current_command_buffer};
 
     CHECK(cmd.Begin());
-    RecordCommands(&cmd, next_image_index);
+    RecordCommands(cmd, next_image_index);
     TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
     {
@@ -1013,7 +1012,7 @@ void RendererVulkan::DrawOffscreen() {
     CommandBufferVulkan cmd{current_command_buffer};
 
     CHECK(cmd.Begin());
-    RecordCommands(&cmd, 0);
+    RecordCommands(cmd, 0);
     TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
     {
@@ -1082,15 +1081,16 @@ Result<GPUBuffer>
 RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usage, VmaMemoryUsage p_memory_usage) const {
     GPUBuffer buffer{};
 
-    VkBufferCreateInfo buffer_info{
+    const VkBufferCreateInfo buffer_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
         .size = p_allocation_size,
         .usage = p_usage,
     };
-    VmaAllocationCreateInfo vma_alloc_info{
+    const VmaAllocationCreateInfo vma_alloc_info{
         .flags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT,
         .usage = p_memory_usage,
     };
+
     VK_CHECK_RET(
         vmaCreateBuffer(
             ctx.allocator,
@@ -1119,7 +1119,7 @@ RendererVulkan::UploadMeshToGPU(const std::vector<Vertex>& p_vertices, const std
         VMA_MEMORY_USAGE_GPU_ONLY);
     CHECK_RET(vertex_buffer_result);
     gpu_mesh.vertex_buffer = vertex_buffer_result.value();
-    VkBufferDeviceAddressInfo vertex_buffer_address_info{
+    const VkBufferDeviceAddressInfo vertex_buffer_address_info{
         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
         .buffer = gpu_mesh.vertex_buffer.handle,
     };
@@ -1445,8 +1445,10 @@ void RendererVulkan::DestroyTexture(RID p_rid) {
     // TODO
 }
 
-RID RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
-    resources.materials.push_back(p_material);
+Handle<GPUMaterial> RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
+    Handle<GPUMaterial> handle = resources.materials.Allocate(p_material);
+
+    resources.m_materials.push_back(p_material);
     // Staging
     const auto staging_buffer_result = CreateBuffer(
         sizeof(GPUMaterial),
@@ -1460,14 +1462,14 @@ RID RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
 
     ImmediateSubmit([&](CommandBufferVulkan cmd) {
         const VkBufferCopy buffer_copy{
-            .dstOffset = (resources.materials.size() - 1) * sizeof(GPUMaterial),
+            .dstOffset = (resources.m_materials.size() - 1) * sizeof(GPUMaterial),
             .size = sizeof(GPUMaterial),
         };
         vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, resources.materials_buffer.handle, 1, &buffer_copy);
     });
 
     vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
-    return (RID)(resources.materials.size() - 1);
+    return handle;
 }
 
 void RendererVulkan::DestroyMaterial(RID p_rid) {

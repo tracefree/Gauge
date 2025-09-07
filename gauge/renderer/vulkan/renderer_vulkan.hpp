@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/common.hpp>
+#include <gauge/core/pool.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/renderer.hpp>
@@ -19,7 +20,6 @@
 #include <vector>
 
 #include "gauge/math/common.hpp"
-#include "gauge/math/transform.hpp"
 #include "gauge/renderer/gltf.hpp"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
@@ -130,7 +130,9 @@ struct RendererVulkan : public Renderer {
 
         std::vector<GPUMesh> meshes;
         std::vector<GPUImage> textures;
-        std::vector<GPUMaterial> materials;
+        std::vector<GPUMaterial> m_materials;
+
+        Pool<GPUMaterial> materials{};
 
         GPUBuffer materials_buffer;
     } resources;
@@ -149,7 +151,7 @@ struct RendererVulkan : public Renderer {
     virtual RID CreateTexture(const Texture& p_texture) final override;
     virtual void DestroyTexture(RID p_rid) final override;
 
-    virtual RID CreateMaterial(const GPUMaterial& p_material) final override;
+    virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) final override;
     virtual void DestroyMaterial(RID p_rid) final override;
 
     void OnWindowResized(uint p_width, uint p_height) final override;
@@ -184,9 +186,9 @@ struct RendererVulkan : public Renderer {
     void DestroyImage(GPUImage& p_image) const;
 
     Result<> InitializeGlobalResources();
-    void RecordCommands(CommandBufferVulkan* cmd, uint p_next_image_index);
+    void RecordCommands(const CommandBufferVulkan& cmd, uint p_next_image_index);
     void RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const;
-    void RenderViewport(CommandBufferVulkan* cmd, const Viewport& p_viewport, uint p_next_image_index);
+    void RenderViewport(const CommandBufferVulkan& cmd, const Viewport& p_viewport, uint p_next_image_index);
     void SetDebugName(uint64_t p_handle, VkObjectType p_type, const std::string& p_name) const;
 
     Result<> ViewportCreateImages(Viewport& p_viewport) const;

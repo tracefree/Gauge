@@ -16,8 +16,8 @@ struct CommandBufferVulkan final : public CommandBuffer {
     Result<> End() final override;
 
     void TransitionImage(VkImage p_image, VkImageLayout p_current_layout, VkImageLayout p_target_layout, VkImageAspectFlags p_aspect_flags = VK_IMAGE_ASPECT_NONE) const;
-    VkCommandBuffer GetHandle();
-    void BindPipeline(const Pipeline& p_pipeline);
+    VkCommandBuffer GetHandle() const;
+    void BindPipeline(const Pipeline& p_pipeline) const;
 
     CommandBufferVulkan(VkCommandBuffer cmd);
 };

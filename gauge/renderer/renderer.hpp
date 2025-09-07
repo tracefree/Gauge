@@ -2,6 +2,7 @@
 
 #include <gauge/common.hpp>
 #include <gauge/core/config.hpp>
+#include <gauge/core/pool.hpp>
 #include <gauge/renderer/common.hpp>
 #include "gauge/math/common.hpp"
 #include "gauge/math/transform.hpp"
@@ -65,7 +66,7 @@ struct Renderer {
     virtual RID CreateTexture(const Texture& p_texture) = 0;
     virtual void DestroyTexture(RID p_rid) = 0;
 
-    virtual RID CreateMaterial(const GPUMaterial& p_material) = 0;
+    virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) = 0;
     virtual void DestroyMaterial(RID p_rid) = 0;
 
     Renderer() = default;

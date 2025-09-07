@@ -70,7 +70,7 @@ struct glTF {
 
    public:
     static Result<glTF> FromFile(const std::string& p_path);
-    Result<Ref<Gauge::Node>> CreateNode();
+    Result<Ref<Gauge::Node>> CreateNode() const;
 };
 
 }  // namespace Gauge

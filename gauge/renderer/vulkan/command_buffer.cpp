@@ -105,10 +105,10 @@ void CommandBufferVulkan::TransitionImage(VkImage p_image, VkImageLayout p_curre
     vkCmdPipelineBarrier2(cmd, &dependency_info);
 }
 
-VkCommandBuffer CommandBufferVulkan::GetHandle() {
+VkCommandBuffer CommandBufferVulkan::GetHandle() const {
     return cmd;
 }
 
-void CommandBufferVulkan::BindPipeline(const Pipeline& p_pipeline) {
+void CommandBufferVulkan::BindPipeline(const Pipeline& p_pipeline) const {
     vkCmdBindPipeline(cmd, p_pipeline.bind_point, p_pipeline.handle);
 }
