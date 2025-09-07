@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include "gauge/math/transform.hpp"
+#include "gauge/renderer/vulkan/common.hpp"
 
 namespace fastgltf {
 class Asset;
@@ -45,14 +46,13 @@ struct glTF {
     };
 
     struct Primitive {
-        RID rid;
+        Handle<GPUMesh> handle;
         std::vector<Vertex> vertices;
         std::vector<uint> indices;
         std::optional<uint> material_index;
     };
 
     struct Mesh {
-        RID rid;
         std::string name;
         std::vector<Primitive> primitives;
     };

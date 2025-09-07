@@ -14,7 +14,7 @@ struct Pool {
     std::queue<uint> free_list;
 
     Handle<T> Allocate(T p_data);
-    T& Get(Handle<T> p_handle);
+    T* Get(Handle<T> p_handle);
     void Free(Handle<T> p_handle);
 
     Pool(uint p_initial_size = 2048);
@@ -49,12 +49,12 @@ Handle<T> Pool<T>::Allocate(T p_data) {
 }
 
 template <typename T>
-T& Pool<T>::Get(Handle<T> p_handle) {
+T* Pool<T>::Get(Handle<T> p_handle) {
     if (p_handle.generation != generations[p_handle.index]) {
         return nullptr;
     }
 
-    return data[p_handle.index];
+    return &data[p_handle.index];
 }
 
 template <typename T>

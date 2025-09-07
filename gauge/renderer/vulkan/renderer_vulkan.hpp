@@ -128,7 +128,7 @@ struct RendererVulkan : public Renderer {
         RID texture_normal;
         RID texture_missing;
 
-        std::vector<GPUMesh> meshes;
+        Pool<GPUMesh> meshes;
         std::vector<GPUImage> textures;
 
         Pool<GPUMaterial> materials{};
@@ -144,8 +144,8 @@ struct RendererVulkan : public Renderer {
     void Draw() final override;
     void DrawOffscreen() final override;
 
-    virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
-    virtual void DestroyMesh(RID p_rid) final override;
+    virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
+    virtual void DestroyMesh(Handle<GPUMesh> p_handle) final override;
 
     virtual RID CreateTexture(const Texture& p_texture) final override;
     virtual void DestroyTexture(RID p_rid) final override;

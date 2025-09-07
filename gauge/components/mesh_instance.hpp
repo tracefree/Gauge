@@ -9,9 +9,11 @@
 
 namespace Gauge {
 
+struct GPUMesh;
+
 struct MeshInstance : public Component {
     struct Surface {
-        RID primitive;
+        Handle<GPUMesh> primitive;
         Handle<GPUMaterial> material;
     };
     std::vector<Surface> surfaces;

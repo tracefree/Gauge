@@ -246,7 +246,7 @@ Result<> glTF::LoadMeshes(const fastgltf::Asset& p_asset) {
             IterateTangents(p_asset, fg_primitive, primitive);
             IterateUVs(p_asset, fg_primitive, primitive);
 
-            primitive.rid = gApp->renderer->CreateMesh(primitive.vertices, primitive.indices);
+            primitive.handle = gApp->renderer->CreateMesh(primitive.vertices, primitive.indices);
             mesh.primitives.push_back(primitive);
         }
     }
@@ -294,7 +294,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
             Ref<MeshInstance> mesh_component = std::make_shared<MeshInstance>();
             for (const auto& primitive : mesh.primitives) {
                 mesh_component->surfaces.emplace_back(MeshInstance::Surface{
-                    .primitive = primitive.rid,
+                    .primitive = primitive.handle,
                     .material = materials[primitive.material_index.value_or(0)].handle,
                 });
             }

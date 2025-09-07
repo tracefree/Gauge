@@ -779,7 +779,7 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
 
     for (const DrawObject& draw_object : draw_objects) {
         pcs.model_matrix = draw_object.transform.GetMatrix();
-        const GPUMesh& mesh = resources.meshes[draw_object.primitive];
+        const GPUMesh& mesh = *resources.meshes.Get(draw_object.primitive);
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material.index;
         pcs.camera_index = 0;
@@ -1410,17 +1410,16 @@ Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
     return {};
 }
 
-RID RendererVulkan::CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) {
-    RID rid = (RID)0;
+Handle<GPUMesh> RendererVulkan::CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) {
+    Handle<GPUMesh> handle{};
     CHECK(UploadMeshToGPU(p_vertices, p_indices)
               .transform([&](GPUMesh p_mesh) {
-                  resources.meshes.push_back(p_mesh);
-                  rid = (RID)(resources.meshes.size() - 1);
+                  handle = resources.meshes.Allocate(p_mesh);
               }));
-    return rid;
+    return handle;
 }
 
-void RendererVulkan::DestroyMesh(RID p_rid) {
+void RendererVulkan::DestroyMesh(Handle<GPUMesh> p_handle) {
     // TODO
 }
 

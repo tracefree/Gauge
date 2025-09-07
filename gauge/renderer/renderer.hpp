@@ -33,7 +33,7 @@ struct ViewportSettings {
 struct Renderer {
    public:
     struct DrawObject {
-        RID primitive;
+        Handle<GPUMesh> primitive;
         Handle<GPUMaterial> material;
         Transform transform;
     };
@@ -61,8 +61,8 @@ struct Renderer {
     virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
     virtual void OnShaderChanged() {};
 
-    virtual RID CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;
-    virtual void DestroyMesh(RID p_rid) = 0;
+    virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;
+    virtual void DestroyMesh(Handle<GPUMesh> p_handle) = 0;
 
     virtual RID CreateTexture(const Texture& p_texture) = 0;
     virtual void DestroyTexture(RID p_rid) = 0;
