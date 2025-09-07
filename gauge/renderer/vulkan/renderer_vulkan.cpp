@@ -38,6 +38,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "gauge/components/component.hpp"
+#include "gauge/core/handle.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/common.hpp"
 #include "gauge/renderer/gltf.hpp"
@@ -1423,24 +1424,23 @@ void RendererVulkan::DestroyMesh(Handle<GPUMesh> p_handle) {
     // TODO
 }
 
-RID RendererVulkan::CreateTexture(const Texture& p_texture) {
-    RID rid = (RID)0;
+Handle<GPUImage> RendererVulkan::CreateTexture(const Texture& p_texture) {
+    Handle<GPUImage> handle{};
     Result<GPUImage> image_result =
         UploadTextureToGPU(p_texture)
             .transform([&](GPUImage p_image) {
-                resources.textures.push_back(p_image);
-                rid = (RID)(resources.textures.size() - 1);
+                handle = resources.textures.Allocate(p_image);
                 return p_image;
             });
     CHECK(image_result);
     if (!image_result) {
-        return rid;
+        return handle;
     }
-    global_descriptor.set.WriteImage(ctx, 1, (uint)rid, image_result->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    return rid;
+    global_descriptor.set.WriteImage(ctx, 1, (uint)handle.index, image_result->view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    return handle;
 }
 
-void RendererVulkan::DestroyTexture(RID p_rid) {
+void RendererVulkan::DestroyTexture(Handle<GPUImage> p_handle) {
     // TODO
 }
 

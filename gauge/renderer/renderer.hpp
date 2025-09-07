@@ -8,6 +8,7 @@
 #include "gauge/math/common.hpp"
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/texture.hpp"
+#include "gauge/renderer/vulkan/common.hpp"
 
 #include <SDL3/SDL_video.h>
 #include <vulkan/vulkan_core.h>
@@ -64,8 +65,8 @@ struct Renderer {
     virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;
     virtual void DestroyMesh(Handle<GPUMesh> p_handle) = 0;
 
-    virtual RID CreateTexture(const Texture& p_texture) = 0;
-    virtual void DestroyTexture(RID p_rid) = 0;
+    virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) = 0;
+    virtual void DestroyTexture(Handle<GPUImage> p_rid) = 0;
 
     virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) = 0;
     virtual void DestroyMaterial(RID p_rid) = 0;

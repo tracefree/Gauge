@@ -16,6 +16,7 @@
 #include "fastgltf/math.hpp"
 #include "fastgltf/util.hpp"
 #include "gauge/core/app.hpp"
+#include "gauge/core/handle.hpp"
 #include "gauge/math/common.hpp"
 #include "thirdparty/stb/stb_image.h"
 
@@ -201,24 +202,23 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
             .metallic = material.metallic,
             .roughness = material.roughness,
         };
-
         if (fg_material.pbrData.baseColorTexture.has_value()) {
             material.texture_albedo_index = fg_material.pbrData.baseColorTexture->textureIndex;
             glTF::Texture& texture = textures[material.texture_albedo_index.value()];
             texture.data.use_srgb = true;
-            if (texture.rid == 0) {
-                texture.rid = gApp->renderer->CreateTexture(texture.data);
+            if (texture.handle.index == 0) {
+                texture.handle = gApp->renderer->CreateTexture(texture.data);
             }
-            gpu_material.texture_albedo = texture.rid;
+            gpu_material.texture_albedo = texture.handle.index;
         }
         if (fg_material.normalTexture.has_value()) {
             material.texture_normal_index = fg_material.normalTexture->textureIndex;
             glTF::Texture& texture = textures[material.texture_normal_index.value()];
             texture.data.use_srgb = false;
-            if (texture.rid == 0) {
-                texture.rid = gApp->renderer->CreateTexture(texture.data);
+            if (texture.handle.index == 0) {
+                texture.handle = gApp->renderer->CreateTexture(texture.data);
             }
-            gpu_material.texture_normal = textures[material.texture_normal_index.value()].rid;
+            gpu_material.texture_normal = texture.handle.index;
         }
         if (fg_material.pbrData.metallicRoughnessTexture.has_value()) {
             material.texture_metallic_roughness_index = fg_material.pbrData.metallicRoughnessTexture->textureIndex;

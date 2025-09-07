@@ -19,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include "gauge/core/handle.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/renderer/gltf.hpp"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
@@ -123,17 +124,16 @@ struct RendererVulkan : public Renderer {
     } samplers;
 
     struct GlobalResources {
-        RID texture_white;
-        RID texture_black;
-        RID texture_normal;
-        RID texture_missing;
-
         Pool<GPUMesh> meshes;
-        std::vector<GPUImage> textures;
-
+        Pool<GPUImage> textures;
         Pool<GPUMaterial> materials{};
 
         GPUBuffer materials_buffer;
+
+        Handle<GPUImage> texture_white;
+        Handle<GPUImage> texture_black;
+        Handle<GPUImage> texture_normal;
+        Handle<GPUImage> texture_missing;
     } resources;
 
     bool linear = true;
@@ -147,11 +147,11 @@ struct RendererVulkan : public Renderer {
     virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
     virtual void DestroyMesh(Handle<GPUMesh> p_handle) final override;
 
-    virtual RID CreateTexture(const Texture& p_texture) final override;
-    virtual void DestroyTexture(RID p_rid) final override;
+    virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) final override;
+    virtual void DestroyTexture(Handle<GPUImage> p_handle) final override;
 
     virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) final override;
-    virtual void DestroyMaterial(RID p_rid) final override;
+    virtual void DestroyMaterial(RID p_handle) final override;
 
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;

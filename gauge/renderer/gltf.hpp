@@ -29,13 +29,13 @@ struct glTF {
     };
 
     struct Texture {
-        RID rid;
+        Handle<GPUImage> handle{};
         std::string name;
         Gauge::Texture data{};
     };
 
     struct Material {
-        Handle<GPUMaterial> handle;
+        Handle<GPUMaterial> handle{};
         std::string name;
         Vec4 albedo{1.0f};
         float roughness{};
@@ -46,7 +46,7 @@ struct glTF {
     };
 
     struct Primitive {
-        Handle<GPUMesh> handle;
+        Handle<GPUMesh> handle{};
         std::vector<Vertex> vertices;
         std::vector<uint> indices;
         std::optional<uint> material_index;
