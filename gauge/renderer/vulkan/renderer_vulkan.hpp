@@ -130,7 +130,6 @@ struct RendererVulkan : public Renderer {
 
         std::vector<GPUMesh> meshes;
         std::vector<GPUImage> textures;
-        std::vector<GPUMaterial> m_materials;
 
         Pool<GPUMaterial> materials{};
 

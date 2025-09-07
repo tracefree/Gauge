@@ -781,7 +781,7 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         pcs.model_matrix = draw_object.transform.GetMatrix();
         const GPUMesh& mesh = resources.meshes[draw_object.primitive];
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
-        pcs.material_index = draw_object.material;
+        pcs.material_index = draw_object.material.index;
         pcs.camera_index = 0;
         vkCmdPushConstants(cmd.GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
@@ -1448,7 +1448,6 @@ void RendererVulkan::DestroyTexture(RID p_rid) {
 Handle<GPUMaterial> RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
     Handle<GPUMaterial> handle = resources.materials.Allocate(p_material);
 
-    resources.m_materials.push_back(p_material);
     // Staging
     const auto staging_buffer_result = CreateBuffer(
         sizeof(GPUMaterial),
@@ -1462,7 +1461,7 @@ Handle<GPUMaterial> RendererVulkan::CreateMaterial(const GPUMaterial& p_material
 
     ImmediateSubmit([&](CommandBufferVulkan cmd) {
         const VkBufferCopy buffer_copy{
-            .dstOffset = (resources.m_materials.size() - 1) * sizeof(GPUMaterial),
+            .dstOffset = (handle.index) * sizeof(GPUMaterial),
             .size = sizeof(GPUMaterial),
         };
         vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, resources.materials_buffer.handle, 1, &buffer_copy);

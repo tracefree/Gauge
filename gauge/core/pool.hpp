@@ -1,14 +1,11 @@
 #pragma once
 
-#include <print>
+#include "handle.hpp"
+
 #include <queue>
 #include <vector>
 
-template <typename T>
-struct Handle {
-    uint index{};
-    uint generation{};
-};
+namespace Gauge {
 
 template <typename T>
 struct Pool {
@@ -27,7 +24,7 @@ template <typename T>
 Pool<T>::Pool(uint p_initial_size) {
     data.resize(p_initial_size);
     generations.resize(p_initial_size);
-    for (int i = p_initial_size - 1; i >= 0; --i) {
+    for (uint i = 0; i < p_initial_size - 1; ++i) {
         free_list.push(i);
     }
 }
@@ -42,7 +39,7 @@ Handle<T> Pool<T>::Allocate(T p_data) {
             free_list.push(i);
         }
     }
-    uint index = free_list.back();
+    uint index = free_list.front();
     data[index] = p_data;
     free_list.pop();
     return {
@@ -65,3 +62,5 @@ void Pool<T>::Free(Handle<T> p_handle) {
     generations[p_handle.index]++;
     free_list.push(p_handle.index);
 }
+
+}  // namespace Gauge

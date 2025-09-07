@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/common.hpp>
+#include <gauge/core/handle.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/texture.hpp>
@@ -33,7 +34,7 @@ struct glTF {
     };
 
     struct Material {
-        RID rid;
+        Handle<GPUMaterial> handle;
         std::string name;
         Vec4 albedo{1.0f};
         float roughness{};

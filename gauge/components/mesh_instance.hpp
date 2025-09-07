@@ -1,15 +1,18 @@
 #pragma once
 
 #include <gauge/common.hpp>
+#include <gauge/components/component.hpp>
+#include <gauge/core/handle.hpp>
+
 #include <vector>
-#include "gauge/components/component.hpp"
+#include "gauge/renderer/common.hpp"
 
 namespace Gauge {
 
 struct MeshInstance : public Component {
     struct Surface {
         RID primitive;
-        RID material;
+        Handle<GPUMaterial> material;
     };
     std::vector<Surface> surfaces;
 

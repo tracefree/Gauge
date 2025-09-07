@@ -223,7 +223,7 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
         if (fg_material.pbrData.metallicRoughnessTexture.has_value()) {
             material.texture_metallic_roughness_index = fg_material.pbrData.metallicRoughnessTexture->textureIndex;
         }
-        material.rid = gApp->renderer->CreateMaterial(gpu_material);
+        material.handle = gApp->renderer->CreateMaterial(gpu_material);
     }
     return {};
 }
@@ -295,7 +295,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
             for (const auto& primitive : mesh.primitives) {
                 mesh_component->surfaces.emplace_back(MeshInstance::Surface{
                     .primitive = primitive.rid,
-                    .material = materials[primitive.material_index.value_or(0)].rid,
+                    .material = materials[primitive.material_index.value_or(0)].handle,
                 });
             }
             instanced_nodes[i]->components.push_back(mesh_component);

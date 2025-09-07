@@ -4,6 +4,7 @@
 #include <gauge/core/config.hpp>
 #include <gauge/core/pool.hpp>
 #include <gauge/renderer/common.hpp>
+#include "gauge/core/handle.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/texture.hpp"
@@ -33,7 +34,7 @@ struct Renderer {
    public:
     struct DrawObject {
         RID primitive;
-        RID material;
+        Handle<GPUMaterial> material;
         Transform transform;
     };
 
