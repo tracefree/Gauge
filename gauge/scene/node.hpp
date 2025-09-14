@@ -19,7 +19,7 @@ struct Node {
     bool active = true;
     bool visible = true;
 
-    void AddChild(Ref<Node>& p_node);
+    void AddChild(const Ref<Node>& p_node);
     void Draw();
     void RefreshTransform();
     void RefreshTransform(Transform p_parent_transform);

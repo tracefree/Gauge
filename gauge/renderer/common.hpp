@@ -25,8 +25,8 @@ struct GPUMaterial {
     Vec4 albedo = Vec4(1.0f);
     float metallic = 0.0f;
     float roughness = 0.0f;
-    uint32_t texture_albedo = 0;
-    uint32_t texture_normal = 2;
+    uint texture_albedo = 0;
+    uint texture_normal = 2;
 };
 
 }  // namespace Gauge

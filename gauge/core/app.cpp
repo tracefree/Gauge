@@ -1,6 +1,8 @@
 #include "app.hpp"
 
+#include <SDL3/SDL_init.h>
 #include <SDL3/SDL_messagebox.h>
+#include <cassert>
 #include <chrono>
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 
@@ -25,9 +27,10 @@ void App::Initialize() {
 
     const char* c_name = name.c_str();
     SDL_SetAppMetadata(c_name, "0.1", c_name);
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         std::println("SDL could not initialize! SDL error: {}\n",
                      SDL_GetError());
+        assert(false);
     }
 
     renderer = std::make_unique<RendererVulkan>();

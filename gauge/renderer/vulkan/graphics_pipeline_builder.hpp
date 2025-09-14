@@ -25,6 +25,8 @@ struct GraphicsPipelineBuilder {
     ShaderStage fragment_stage{};
     VkFormat image_format{};
     VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT;
+    VkCullModeFlagBits cull_mode = VK_CULL_MODE_BACK_BIT;
+    bool transparency_enabled = false;
 
    public:
     GraphicsPipelineBuilder& AddPushConstantRange(VkShaderStageFlags p_shader_stage_flags, uint p_size);
@@ -33,6 +35,8 @@ struct GraphicsPipelineBuilder {
     GraphicsPipelineBuilder& SetFragmentStage(VkShaderModule p_shader_module, const char* p_entry_point);
     GraphicsPipelineBuilder& SetImageFormat(VkFormat p_format);
     GraphicsPipelineBuilder& SetSampleCount(VkSampleCountFlagBits p_sample_count);
+    GraphicsPipelineBuilder& SetCullMode(VkCullModeFlagBits p_cull_mode);
+    GraphicsPipelineBuilder& SetTransparency(bool p_enabled);
 
     Result<Pipeline> Build(const VulkanContext& ctx) const;
 

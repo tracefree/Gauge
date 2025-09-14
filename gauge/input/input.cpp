@@ -2,7 +2,9 @@
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_scancode.h>
 #include <chrono>
+#include <memory>
 #include <print>
+#include <vector>
 #include "gauge/math/common.hpp"
 
 using namespace Gauge;
@@ -36,7 +38,16 @@ void Input::HandleSDLEvent(const SDL_Event& p_event) {
         case SDL_EVENT_MOUSE_MOTION: {
             mouse_motion.x += p_event.motion.xrel;
             mouse_motion.y += p_event.motion.yrel;
+            break;
         }
+        case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+            mouse_button_states[(MouseButton)p_event.button.button].pressed = true;
+            mouse_button_states[(MouseButton)p_event.button.button].timestamp = std::chrono::steady_clock::now();
+        } break;
+        case SDL_EVENT_MOUSE_BUTTON_UP: {
+            mouse_button_states[(MouseButton)p_event.button.button].pressed = false;
+            mouse_button_states[(MouseButton)p_event.button.button].timestamp = std::chrono::steady_clock::now();
+        } break;
     }
 }
 
@@ -60,21 +71,61 @@ void Input::ResetFrame() {
     mouse_motion = Vec2();
 }
 
+void Input::ResetKeys() {
+    for (auto& key_state : key_states) {
+        key_state.second.pressed = false;
+        key_state.second.timestamp = std::chrono::steady_clock::now();
+    }
+}
+
 void Input::Initialize() {
     std::println("Initializing input system...");
     singleton = new Input{};
     ActionSet freecam_set{};
 
-    freecam_set.actions_vec2["horizontal"] = Action<Vec2>{
-        .bindings = {std::make_shared<KeyBinding<Vec2>>(
-            SDL_SCANCODE_D,
-            SDL_SCANCODE_A,
-            SDL_SCANCODE_W,
-            SDL_SCANCODE_S)}};
+    Ref<MouseButtonBinding> right_mouse_button_binding = std::make_shared<MouseButtonBinding>(MouseButton::RIGHT);
+    Ref<MouseButtonBinding> middle_mouse_button_binding = std::make_shared<MouseButtonBinding>(MouseButton::MIDDLE);
+    Ref<KeyBinding<bool>> shift_binding = std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_LSHIFT);
+    Ref<KeyBinding<Vec2>> wasd_binding = std::make_shared<KeyBinding<Vec2>>(
+        SDL_SCANCODE_D,
+        SDL_SCANCODE_A,
+        SDL_SCANCODE_W,
+        SDL_SCANCODE_S);
 
-    freecam_set.actions_bool["up"] = Action<bool>{.bindings = {std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_E)}};
-    freecam_set.actions_bool["down"] = Action<bool>{.bindings = {std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_Q)}};
-    freecam_set.actions_bool["boost"] = Action<bool>{.bindings = {std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_LSHIFT)}};
+    freecam_set.actions_vec2["horizontal"] = Action<Vec2>{
+        .bindings = {std::make_shared<CombinationBinding<Vec2>>(
+            (std::vector<Ref<Input::Binding<bool>>>){right_mouse_button_binding},
+            wasd_binding)}};
+
+    freecam_set.actions_bool["up"] = Action<bool>{
+        .bindings = {std::make_shared<CombinationBinding<bool>>(
+            (std::vector<Ref<Input::Binding<bool>>>){right_mouse_button_binding},
+            std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_E))}};
+    freecam_set.actions_bool["down"] = Action<bool>{
+        .bindings = {std::make_shared<CombinationBinding<bool>>(
+            (std::vector<Ref<Input::Binding<bool>>>){right_mouse_button_binding},
+            std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_Q))}};
+    freecam_set.actions_bool["boost"] = Action<bool>{.bindings = {shift_binding}};
+
+    Ref<MouseMotionBinding> mouse_motion_binding = std::make_shared<MouseMotionBinding>();
+
+    freecam_set.actions_bool["activate_look"] = Action<bool>{.bindings = {right_mouse_button_binding}};
+
+    Ref<CombinationBinding<Vec2>> look_mouse_binding = std::make_shared<CombinationBinding<Vec2>>(
+        (std::vector<Ref<Input::Binding<bool>>>){right_mouse_button_binding},
+        mouse_motion_binding);
+
+    freecam_set.actions_vec2["look"] = Action<Vec2>{.bindings = {look_mouse_binding}};
+
+    Ref<CombinationBinding<Vec2>> orbit_mouse_binding = std::make_shared<CombinationBinding<Vec2>>(
+        (std::vector<Ref<Input::Binding<bool>>>){middle_mouse_button_binding},
+        mouse_motion_binding);
+    freecam_set.actions_vec2["orbit"] = Action<Vec2>{.bindings = {orbit_mouse_binding}};
+
+    Ref<CombinationBinding<Vec2>> tangential_binding = std::make_shared<CombinationBinding<Vec2>>(
+        (std::vector<Ref<Input::Binding<bool>>>){middle_mouse_button_binding, shift_binding},
+        mouse_motion_binding);
+    freecam_set.actions_vec2["tangential"] = Action<Vec2>{.bindings = {tangential_binding}};
 
     singleton->active_action_sets["freecam"] = freecam_set;
 }

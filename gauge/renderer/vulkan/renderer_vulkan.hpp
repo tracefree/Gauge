@@ -26,6 +26,8 @@
 
 namespace Gauge {
 
+using RenderCallback = bool (*)(const VulkanContext& ctx, const CommandBufferVulkan& cmd);
+
 struct RendererVulkan : public Renderer {
    public:
     VulkanContext ctx{};
@@ -109,7 +111,8 @@ struct RendererVulkan : public Renderer {
     struct RenderState {
         std::vector<Viewport> viewports;
         std::vector<Model> models;
-        GPUImage qt{};
+        std::vector<RenderCallback> render_callbacks;
+        std::vector<Mat4> camera_view_projections;
     } render_state{};
 
     struct ImmediateCommand {
@@ -135,6 +138,8 @@ struct RendererVulkan : public Renderer {
         Handle<GPUImage> texture_normal;
         Handle<GPUImage> texture_missing;
     } resources;
+
+    VmaPool external_pool{};
 
     bool linear = true;
     bool offscreen = false;
@@ -203,5 +208,7 @@ struct RendererVulkan : public Renderer {
     Result<GPUMesh> UploadMeshToGPU(const CPUMesh& mesh) const;
     Result<GPUMesh> UploadMeshToGPU(const glTF::Primitive& primitive) const;
     Result<GPUImage> UploadTextureToGPU(const Texture& p_texture) const;
+
+    static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa);
 };
 }  // namespace Gauge

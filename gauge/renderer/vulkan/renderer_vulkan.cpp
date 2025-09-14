@@ -55,6 +55,8 @@
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
 #include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
 
+#include <gauge/renderer/shaders/limits.h>
+
 #define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
 #define USE_VULKAN_DEBUG 1
@@ -77,7 +79,7 @@ VkBool32 validation_layer_callback(
 }
 #endif
 
-static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa) {
+VkSampleCountFlagBits RendererVulkan::SampleCountFromMSAA(MSAA p_msaa) {
     switch (p_msaa) {
         case MSAA::OFF:
             return VK_SAMPLE_COUNT_1_BIT;
@@ -162,6 +164,7 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
 
     selector
         .set_minimum_version(1, 4)
+        .add_required_extension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME)
         .set_required_features(device_features)
         .set_required_features_11(device_features_11)
         .set_required_features_12(device_features_12)
@@ -479,7 +482,6 @@ RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
 
 Result<Pipeline>
 RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
-    std::string ga = "simple.spv";
     auto shader_module_result = ShaderModule::FromFile(ctx, "simple.spv");
     CHECK_RET(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
@@ -543,6 +545,9 @@ Result<> RendererVulkan::InitializeGlobalResources() {
     CHECK_RET(buffer_result);
     resources.materials_buffer = buffer_result.value();
     global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS);
+
+    render_state.camera_view_projections.resize(MAX_CAMERAS);
+
     return {};
 }
 
@@ -664,6 +669,37 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
 
     CHECK_RET(InitializeGlobalResources());
 
+    // VMA Pool
+    {
+        const VkImageCreateInfo dummy_image_info{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+            .imageType = VK_IMAGE_TYPE_2D,
+            .format = VK_FORMAT_R8G8B8A8_SRGB,
+            .extent = VkExtent3D{.width = 1920, .height = 1080, .depth = 1},
+            .mipLevels = 1,
+            .arrayLayers = 1,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .tiling = VK_IMAGE_TILING_OPTIMAL,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        };
+        const VmaAllocationCreateInfo dummy_allocation_info{
+            .usage = VMA_MEMORY_USAGE_AUTO,
+        };
+        uint memory_type_index{};
+        vmaFindMemoryTypeIndexForImageInfo(ctx.allocator, &dummy_image_info, &dummy_allocation_info, &memory_type_index);
+
+        VkExportMemoryAllocateInfo export_memory{
+            .sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO,
+            .handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+        };
+        const VmaPoolCreateInfo pool_info{
+            .memoryTypeIndex = memory_type_index,
+            .pMemoryAllocateNext = &export_memory,
+        };
+        VK_CHECK_RET(vmaCreatePool(ctx.allocator, &pool_info, &external_pool),
+                     "Could not create VMA pool for exportable images");
+    }
+
     // Render state
     const auto main_viewport_result =
         CreateViewport(ViewportSettings{
@@ -676,18 +712,8 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
         });
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
-
-    const auto gltf_model = glTF::FromFile("character2.glb");
-    CHECK_RET(gltf_model);
-    const Ref<Node> character = gltf_model->CreateNode().value();
     render_state.viewports[0].scene_tree = std::make_shared<SceneTree>();
-    render_state.viewports[0].scene_tree->root = character;
-
-    // CHECK_RET(
-    //     CreateImage({.width = window_size.width, .height = window_size.height, .depth = 1}, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-    //         .transform([&](GPUImage p_image) {
-    //             render_state.qt = p_image;
-    //         }));
+    render_state.viewports[0].scene_tree->root = std::make_shared<Node>();
 
     initialized = true;
     return {};
@@ -711,7 +737,7 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
         .clearValue = {
-            .color = {{0.0f, 0.0f, 0.0f, 0.0f}},
+            .color = {{0.01f, 0.01f, 0.01f, 0.0f}},
         }};
 
     if (p_viewport.settings.msaa != MSAA::OFF) {
@@ -789,6 +815,10 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);
     }
 
+    for (auto callback : render_state.render_callbacks) {
+        callback(ctx, cmd);
+    }
+
     vkCmdEndRendering(cmd.GetHandle());
 
     cmd.TransitionImage(p_viewport.color.handle, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
@@ -857,9 +887,11 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
                 glm::angleAxis(viewport.camera_yaw, Vec3(0.0f, -1.0f, 0.0f)) *
                 glm::angleAxis(viewport.camera_pitch, Vec3(1.0f, 0.0f, 0.0f))));
 
+        const Mat4 view_projection = projection * view;
+        render_state.camera_view_projections[i] = view_projection;
         global_uniforms.cameras[i] = GPUCamera{
             .view = view,
-            .view_projection = projection * view,
+            .view_projection = view_projection,
             .inverse_projection = glm::inverse(projection),
         };
     }
@@ -1205,6 +1237,7 @@ RendererVulkan::CreateImage(
     const VmaAllocationCreateInfo image_allocation_info{
         .usage = VMA_MEMORY_USAGE_GPU_ONLY,
         .requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .pool = p_exported ? external_pool : nullptr,
     };
     VK_CHECK_RET(vmaCreateImage(ctx.allocator, &image_info, &image_allocation_info, &image.handle, &image.allocation.handle, &image.allocation.info),
                  "Could not create image");
@@ -1224,6 +1257,18 @@ RendererVulkan::CreateImage(
 
     VK_CHECK(vkCreateImageView(ctx.device, &view_info, nullptr, &image.view),
              "Could not create image view");
+
+    if (p_exported) {
+        const VkMemoryGetFdInfoKHR handle_info{
+            .sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+            .memory = image.allocation.info.deviceMemory,
+            .handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+        };
+        VK_CHECK_RET(
+            vkGetMemoryFdKHR(ctx.device, &handle_info, &image.file_descriptor),
+            "Could not get memory file descriptor");
+    }
+
     return image;
 }
 
@@ -1396,7 +1441,7 @@ Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
                 false,
                 VK_SAMPLE_COUNT_1_BIT,
                 VK_IMAGE_ASPECT_COLOR_BIT,
-                true)
+                false)
                 .transform([&](GPUImage p_color) {
                     p_viewport.color = p_color;
                 }));

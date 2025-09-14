@@ -1,4 +1,5 @@
 #include "graphics_pipeline_builder.hpp"
+#include <vulkan/vulkan_core.h>
 
 #include "gauge/renderer/vulkan/common.hpp"
 
@@ -6,7 +7,7 @@ using namespace Gauge;
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::AddPushConstantRange(VkShaderStageFlags p_shader_stage_flags, uint p_size) {
     push_constant_ranges.emplace_back(VkPushConstantRange{
-        .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_VERTEX_BIT,
+        .stageFlags = p_shader_stage_flags,
         .offset = 0,
         .size = p_size,
     });
@@ -41,6 +42,16 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetImageFormat(VkFormat p_form
 
 GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetSampleCount(VkSampleCountFlagBits p_sample_count) {
     sample_count = p_sample_count;
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetCullMode(VkCullModeFlagBits p_cull_mode) {
+    cull_mode = p_cull_mode;
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetTransparency(bool p_enabled) {
+    transparency_enabled = p_enabled;
     return *this;
 }
 
@@ -90,7 +101,7 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
     const VkPipelineRasterizationStateCreateInfo rasterization_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .cullMode = cull_mode,
         .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
         .lineWidth = 1.0f,
     };
@@ -100,8 +111,19 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
         .rasterizationSamples = sample_count,
     };
 
-    const VkPipelineColorBlendAttachmentState color_blend_attachment_state{
+    const VkPipelineColorBlendAttachmentState color_blend_attachment_state_alpha_disabled{
         .blendEnable = VK_FALSE,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    };
+
+    const VkPipelineColorBlendAttachmentState color_blend_attachment_state_alpha_enabled{
+        .blendEnable = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
         .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
     };
 
@@ -117,7 +139,7 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
         .logicOpEnable = VK_FALSE,
         .logicOp = VK_LOGIC_OP_COPY,
         .attachmentCount = 1,
-        .pAttachments = &color_blend_attachment_state,
+        .pAttachments = transparency_enabled ? &color_blend_attachment_state_alpha_enabled : &color_blend_attachment_state_alpha_disabled,
     };
 
     const VkPipelineLayoutCreateInfo pipeline_layout_info{

@@ -19,9 +19,9 @@ include_directories(
 include_directories(SYSTEM thirdparty/volk)
 
 # SDL3
-#find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
-add_library(SDL3 SHARED IMPORTED)
-set_target_properties(SDL3 PROPERTIES IMPORTED_LOCATION /home/rie/Projects/Gauge/sandbox/lib/libSDL3.so)
+find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
+#add_library(SDL3 SHARED IMPORTED)
+#set_target_properties(SDL3 PROPERTIES IMPORTED_LOCATION /home/rie/Projects/Gauge/sandbox/lib/libSDL3.so)
 
 # Vulkan
 set(BUILD_SHARED_LIBS ON)

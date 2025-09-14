@@ -40,6 +40,7 @@ struct Renderer {
     };
 
     std::vector<DrawObject> draw_objects;
+    // std::vector<
 
    protected:
     bool initialized = false;

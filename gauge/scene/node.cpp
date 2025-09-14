@@ -4,7 +4,7 @@
 
 using namespace Gauge;
 
-void Node::AddChild(Ref<Node>& p_node) {
+void Node::AddChild(const Ref<Node>& p_node) {
     // TODO: check if node already has parent
     // TODO: Don't create new Ref here
     children.push_back(p_node);

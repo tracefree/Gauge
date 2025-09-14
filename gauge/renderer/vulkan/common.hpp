@@ -94,6 +94,7 @@ struct Model {
 #define VK_CHECK(result, message)                 \
     if (result != VK_SUCCESS) [[unlikely]] {      \
         std::println("Gauge Error: {}", message); \
+        assert(false);                            \
     }
 
 #define VK_CHECK_RET(result, return_value)                                                          \
