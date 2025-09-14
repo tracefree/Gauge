@@ -68,6 +68,8 @@ add_library(gauge STATIC
   gauge/math/common.cpp
   gauge/scene/node.cpp
   gauge/scene/scene_tree.cpp
+  gauge/components/component.cpp
+  gauge/components/camera.cpp
   gauge/components/mesh_instance.cpp
 )
 

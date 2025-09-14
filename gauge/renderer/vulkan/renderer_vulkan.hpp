@@ -112,6 +112,8 @@ struct RendererVulkan : public Renderer {
         std::vector<Viewport> viewports;
         std::vector<Model> models;
         std::vector<RenderCallback> render_callbacks;
+        std::vector<Mat4> camera_views;
+        std::vector<Mat4> camera_projections;
         std::vector<Mat4> camera_view_projections;
     } render_state{};
 
@@ -197,6 +199,8 @@ struct RendererVulkan : public Renderer {
 
     Result<> ViewportCreateImages(Viewport& p_viewport) const;
     void ViewportDestroyImages(Viewport& p_viewport) const;
+
+    void ViewportSetCameraView(uint p_viewport_id, const Mat4& p_view) final override;
     void ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) final override;
     void ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset) final override;
     void ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) final override;

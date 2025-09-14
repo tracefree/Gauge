@@ -5,6 +5,8 @@
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/renderer.hpp"
 
+#include <yaml-cpp/yaml.h>
+
 using namespace Gauge;
 
 extern App* gApp;
@@ -18,4 +20,7 @@ void MeshInstance::Draw() {
                 .transform = node ? node->global_transform : Transform(),
             });
     }
+}
+
+COMPONENT_FACTORY_IMPL(MeshInstance, mesh_instance) {
 }

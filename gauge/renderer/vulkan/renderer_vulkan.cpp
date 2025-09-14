@@ -546,6 +546,8 @@ Result<> RendererVulkan::InitializeGlobalResources() {
     resources.materials_buffer = buffer_result.value();
     global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS);
 
+    render_state.camera_views.resize(MAX_CAMERAS);
+    render_state.camera_projections.resize(MAX_CAMERAS);
     render_state.camera_view_projections.resize(MAX_CAMERAS);
 
     return {};
@@ -881,17 +883,12 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
             0.1f);
         projection[1][1] *= -1.0f;
 
-        const Mat4 view = glm::inverse(
-            glm::translate(Mat4(1.0f), viewport.camera_position) *
-            glm::toMat4(
-                glm::angleAxis(viewport.camera_yaw, Vec3(0.0f, -1.0f, 0.0f)) *
-                glm::angleAxis(viewport.camera_pitch, Vec3(1.0f, 0.0f, 0.0f))));
+        render_state.camera_projections[i] = projection;
+        render_state.camera_view_projections[i] = projection * render_state.camera_views[i];
 
-        const Mat4 view_projection = projection * view;
-        render_state.camera_view_projections[i] = view_projection;
         global_uniforms.cameras[i] = GPUCamera{
-            .view = view,
-            .view_projection = view_projection,
+            .view = render_state.camera_views[i],
+            .view_projection = render_state.camera_view_projections[i],
             .inverse_projection = glm::inverse(projection),
         };
     }
@@ -1524,6 +1521,10 @@ void RendererVulkan::OnShaderChanged() {
     vkDestroyPipeline(ctx.device, graphics_pipeline.handle, nullptr);
     vkDestroyPipelineLayout(ctx.device, graphics_pipeline.layout, nullptr);
     graphics_pipeline = CreateGraphicsPipeline("Primary graphics pipeline").value();
+}
+
+void RendererVulkan::ViewportSetCameraView(uint p_viewport_id, const Mat4& p_view) {
+    render_state.camera_views[p_viewport_id] = p_view;
 }
 
 void RendererVulkan::ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) {

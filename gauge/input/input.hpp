@@ -39,12 +39,16 @@ struct Input {
     struct ActionSet {
         std::unordered_map<std::string, Action<bool>> actions_bool;
         std::unordered_map<std::string, Action<Vec2>> actions_vec2;
+        std::unordered_map<std::string, Action<float>> actions_float;
 
         template <typename T>
         std::unordered_map<std::string, Action<T>>& GetActions();
     };
 
-    Vec2 mouse_motion{};
+    struct Mouse {
+        Vec2 motion{};
+        float wheel{};
+    } mouse;
 
     struct KeyState {
         bool pressed{};
@@ -155,7 +159,14 @@ struct MouseButtonBinding : public Input::Binding<bool> {
 
 struct MouseMotionBinding : public Input::Binding<Vec2> {
     Vec2 GetValue() final override {
-        return Input::Get()->mouse_motion;
+        return Input::Get()->mouse.motion;
+    }
+};
+
+// --- MouseWheelBinding
+struct MouseWheelBinding : public Input::Binding<float> {
+    float GetValue() final override {
+        return Input::Get()->mouse.wheel;
     }
 };
 

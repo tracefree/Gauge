@@ -18,11 +18,4 @@ struct Transform {
     ~Transform() {}
 };
 
-namespace Math {
-template <typename T>
-T interpolate(T a, T b, float duration, float delta) {
-    return a + (b - a) * (1.0f - std::exp(-delta / duration));
-}
-}  // namespace Math
-
 }  // namespace Gauge

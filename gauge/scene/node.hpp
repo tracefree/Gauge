@@ -1,5 +1,6 @@
 #pragma once
 
+#include <SDL3/SDL_events.h>
 #include <gauge/common.hpp>
 #include <gauge/components/component.hpp>
 #include <gauge/math/transform.hpp>
@@ -13,16 +14,64 @@ struct Node {
     Transform global_transform;
 
     std::vector<Ref<Node>> children;
-    std::vector<Ref<Component>> components;
     std::weak_ptr<Node> parent;
+
+    std::unordered_map<const std::type_info*, Ref<Component>> component_table;
+    std::vector<Ref<Component>> components;
 
     bool active = true;
     bool visible = true;
 
-    void AddChild(const Ref<Node>& p_node);
-    void Draw();
+    Vec3 GetPosition() const;
+    void SetPosition(Vec3 p_position);
+    void SetPosition(float x, float y, float z);
+
+    void Move(Vec3 p_offset);
+    void Move(float x, float y, float z);
+
+    float GetScale() const;
+    void SetScale(float p_scale);
+    void ScaleBy(float p_scale);
+
+    Quaternion GetRotation() const;
+    void SetRotation(Quaternion p_rotation);
+    void Rotate(Vec3 p_axis, float p_angle);
+
+    Transform GetGlobalTransform() const;
     void RefreshTransform();
     void RefreshTransform(Transform p_parent_transform);
+
+    void AddChild(const Ref<Node>& p_node);
+    void Draw() const;
+    void Update(float delta);
+    void ProcessInput(SDL_Event& event);
+    void Cleanup();
+
+    template <IsComponent C>
+    void AddComponent(Ref<C> p_component) {
+        p_component->SetNode(this);
+        components.push_back(p_component);
+        component_table[&typeid(C)] = p_component;
+    }
+
+    template <IsComponent C, typename... ConstructorArguments>
+    Ref<C> AddComponent(ConstructorArguments... p_constructor_arguments) {
+        auto component = std::make_shared<C>(p_constructor_arguments...);
+        AddComponent(component);
+        return component;
+    }
+
+    template <IsComponent C>
+    Ref<C> GetComponent() {
+        return std::static_pointer_cast<C>(component_table[&typeid(C)]);
+    }
+
+    static Ref<Node> Create(const std::string& p_name = "[Node]") {
+        return std::make_shared<Node>(p_name);
+    }
+
+    Node() {}
+    Node(std::string p_name) : name(p_name) {};
 };
 
 }  // namespace Gauge

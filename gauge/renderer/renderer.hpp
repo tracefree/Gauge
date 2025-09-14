@@ -54,6 +54,7 @@ struct Renderer {
     virtual void Draw() = 0;
     virtual void DrawOffscreen() {};
 
+    virtual void ViewportSetCameraView(uint p_viewport_id, const Mat4& p_view) = 0;
     virtual void ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) = 0;
     virtual void ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset) = 0;
     virtual void ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) = 0;

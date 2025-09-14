@@ -298,8 +298,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
                     .material = materials[primitive.material_index.value_or(0)].handle,
                 });
             }
-            instanced_nodes[i]->components.push_back(mesh_component);
-            mesh_component->node = instanced_nodes[i];
+            instanced_nodes[i]->AddComponent(mesh_component);
         }
     }
 

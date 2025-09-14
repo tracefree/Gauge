@@ -21,8 +21,7 @@ struct MeshInstance : public Component {
    public:
     virtual void Draw() override;
 
-    MeshInstance() {}
-    ~MeshInstance() {}
+    COMPONENT_FACTORY_HEADER(MeshInstance)
 };
 
 }  // namespace Gauge
