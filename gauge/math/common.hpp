@@ -22,6 +22,8 @@ using Quaternion = glm::quat;
 
 namespace Math {
 
+#define HALF_PI 1.57079632679489661923f
+
 float Wrap(float x, float max);
 float Wrap(float x, float min, float max);
 

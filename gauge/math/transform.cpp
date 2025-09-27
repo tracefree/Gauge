@@ -2,6 +2,8 @@
 
 using namespace Gauge;
 
+const Transform Transform::IDENTITY = Transform();
+
 Transform::Transform(Vec3 p_position, glm::quat p_rotation, float p_scale) {
     position = p_position;
     rotation = p_rotation;
@@ -18,7 +20,7 @@ Mat4 Transform::GetMatrix() const {
     return glm::translate(Mat4(1.0f), position) * glm::toMat4(rotation) * glm::scale(Mat4(1.0f), Vec3(scale));
 }
 
-const Transform Transform::operator*(Transform const& rhs) {
+const Transform Transform::operator*(Transform const& rhs) const {
     return Transform{
         position + rotation * (scale * rhs.position),
         rotation * rhs.rotation,

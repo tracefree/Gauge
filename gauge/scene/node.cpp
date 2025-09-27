@@ -60,11 +60,14 @@ Transform Node::GetGlobalTransform() const {
     return global_transform;
 }
 
+std::vector<Ref<Component>> const& Node::GetComponents() const {
+    return components;
+}
+
 void Node::AddChild(const Ref<Node>& p_node) {
     // TODO: check if node already has parent
-    // TODO: Don't create new Ref here
     children.push_back(p_node);
-    p_node->parent = std::make_shared<Node>(*this);
+    p_node->parent = self;
 }
 
 void Node::Update(float delta) {
@@ -92,13 +95,11 @@ void Node::Draw() const {
 }
 
 void Node::RefreshTransform() {
-    RefreshTransform(parent.lock() == nullptr ? Transform() : parent.lock()->global_transform);
+    RefreshTransform(parent.lock() == nullptr ? Transform::IDENTITY : parent.lock()->global_transform);
 }
 
-void Node::RefreshTransform(Transform p_parent_transform) {
-    // TODO: Why can't p_parent_transform be const?
+void Node::RefreshTransform(Transform const& p_parent_transform) {
     global_transform = p_parent_transform * local_transform;
-
     for (auto child : children) {
         child->RefreshTransform(global_transform);
     }

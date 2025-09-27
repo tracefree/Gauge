@@ -1,12 +1,10 @@
 #include "camera.hpp"
-#include <SDL3/SDL_mouse.h>
 
-#include <algorithm>
-#include <cmath>
 #include <gauge/core/app.hpp>
 #include <gauge/input/input.hpp>
 #include <gauge/scene/node.hpp>
-#include <print>
+
+#include <SDL3/SDL_mouse.h>
 
 using namespace Gauge;
 
@@ -93,7 +91,7 @@ void Camera::ReleaseMouse() {
 
 void Camera::Rotate(float p_yaw, float p_pitch) {
     yaw += p_yaw;
-    pitch = std::clamp(pitch + p_pitch, -M_PI_2f, M_PI_2f);
+    pitch = std::clamp(pitch + p_pitch, -HALF_PI, HALF_PI);
 }
 
 Quaternion Camera::GetRotation() const {

@@ -925,7 +925,7 @@ static void NodeTree(const Ref<Node>& node) {
 
         ImGui::InputFloat("Scale", &node->local_transform.scale, 0.01f, 0.1f, "%.3f");
 
-        for (const Ref<Component>& component : node->components) {
+        for (auto const& component : node->GetComponents()) {
             bool is_component_open = ImGui::TreeNode("MeshInstance");
             ImGui::SameLine(ImGui::GetWindowWidth() - 30);
             ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.0f);

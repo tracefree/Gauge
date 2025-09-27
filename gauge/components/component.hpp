@@ -9,7 +9,7 @@ struct Node;
 
 namespace Gauge {
 
-struct Node;
+class Node;
 
 // --- Factory macros ---
 // To be included in every component's header.

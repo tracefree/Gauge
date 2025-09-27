@@ -8,20 +8,25 @@
 
 namespace Gauge {
 
-struct Node {
+class Node {
+   public:
     std::string name;
     Transform local_transform;
     Transform global_transform;
 
     std::vector<Ref<Node>> children;
     std::weak_ptr<Node> parent;
+    std::weak_ptr<Node> self;
 
+   protected:
     std::unordered_map<const std::type_info*, Ref<Component>> component_table;
     std::vector<Ref<Component>> components;
 
+   public:
     bool active = true;
     bool visible = true;
 
+   public:
     Vec3 GetPosition() const;
     void SetPosition(Vec3 p_position);
     void SetPosition(float x, float y, float z);
@@ -39,7 +44,9 @@ struct Node {
 
     Transform GetGlobalTransform() const;
     void RefreshTransform();
-    void RefreshTransform(Transform p_parent_transform);
+    void RefreshTransform(Transform const& p_parent_transform);
+
+    std::vector<Ref<Component>> const& GetComponents() const;
 
     void AddChild(const Ref<Node>& p_node);
     void Draw() const;
@@ -67,7 +74,9 @@ struct Node {
     }
 
     static Ref<Node> Create(const std::string& p_name = "[Node]") {
-        return std::make_shared<Node>(p_name);
+        Ref<Node> node = std::make_shared<Node>(p_name);
+        node->self = node;
+        return node;
     }
 
     Node() {}
