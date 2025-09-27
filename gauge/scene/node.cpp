@@ -1,6 +1,6 @@
 #include "node.hpp"
-#include <memory>
-#include "gauge/components/component.hpp"
+
+#include <gauge/components/component.hpp>
 
 using namespace Gauge;
 
@@ -56,6 +56,10 @@ void Node::Rotate(Vec3 p_axis, float p_angle) {
     RefreshTransform();
 }
 
+Transform Node::GetTransform() const {
+    return local_transform;
+}
+
 Transform Node::GetGlobalTransform() const {
     return global_transform;
 }
@@ -64,8 +68,12 @@ std::vector<Ref<Component>> const& Node::GetComponents() const {
     return components;
 }
 
+bool Node::HasParent() const {
+    return parent.lock() != nullptr;
+}
+
 void Node::AddChild(const Ref<Node>& p_node) {
-    // TODO: check if node already has parent
+    assert(!p_node->HasParent());
     children.push_back(p_node);
     p_node->parent = self;
 }
@@ -84,7 +92,7 @@ void Node::Update(float delta) {
 void Node::Draw() const {
     if (!visible)
         return;
-    for (const Ref<Component>& component : components) {
+    for (const auto& component : components) {
         if (component->visible) {
             component->Draw();
         }
@@ -95,7 +103,11 @@ void Node::Draw() const {
 }
 
 void Node::RefreshTransform() {
-    RefreshTransform(parent.lock() == nullptr ? Transform::IDENTITY : parent.lock()->global_transform);
+    if (HasParent()) {
+        RefreshTransform(parent.lock()->GetGlobalTransform());
+    } else {
+        RefreshTransform(Transform::IDENTITY);
+    }
 }
 
 void Node::RefreshTransform(Transform const& p_parent_transform) {

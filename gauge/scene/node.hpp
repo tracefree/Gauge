@@ -42,12 +42,14 @@ class Node {
     void SetRotation(Quaternion p_rotation);
     void Rotate(Vec3 p_axis, float p_angle);
 
+    Transform GetTransform() const;
     Transform GetGlobalTransform() const;
     void RefreshTransform();
     void RefreshTransform(Transform const& p_parent_transform);
 
     std::vector<Ref<Component>> const& GetComponents() const;
 
+    bool HasParent() const;
     void AddChild(const Ref<Node>& p_node);
     void Draw() const;
     void Update(float delta);
