@@ -1,14 +1,16 @@
 #pragma once
 
+#include <gauge/common.hpp>
+#include <gauge/math/common.hpp>
+
 #include <SDL3/SDL_events.h>
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_scancode.h>
+
 #include <chrono>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "gauge/common.hpp"
-#include "gauge/math/common.hpp"
 
 namespace Gauge {
 
@@ -18,31 +20,45 @@ enum class MouseButton {
     MIDDLE = SDL_BUTTON_MIDDLE,
 };
 
-struct Input {
+class Input {
+   protected:
     static Input* singleton;
 
+   public:
     template <typename T>
-    struct Binding {
+    class Binding {
+       public:
         virtual T GetValue() = 0;
     };
 
     template <typename T>
-    struct Action {
+    class Action {
+       public:
         std::string name;
-
         std::vector<Ref<Binding<T>>> bindings;
         T value;
 
+       public:
         T GetValue() { return value; }
     };
 
-    struct ActionSet {
+    class ActionSet {
+       protected:
         std::unordered_map<std::string, Action<bool>> actions_bool;
         std::unordered_map<std::string, Action<Vec2>> actions_vec2;
         std::unordered_map<std::string, Action<float>> actions_float;
 
+       public:
         template <typename T>
         std::unordered_map<std::string, Action<T>>& GetActions();
+
+        template <typename T>
+        Action<T> GetAction(const std::string& p_name) {
+            return GetActions<T>()[p_name];
+        }
+
+        template <typename T>
+        void AddAction(const std::string& p_name, Action<T> p_action);
     };
 
     struct Mouse {
@@ -78,7 +94,7 @@ struct Input {
         const auto set_name = p_action_id.substr(0, delimiter_position);
         const auto action_name = p_action_id.substr(delimiter_position + 1, p_action_id.length());
 
-        return active_action_sets[set_name].GetActions<T>()[action_name].GetValue();
+        return active_action_sets[set_name].GetAction<T>(action_name).GetValue();
     }
 
     static void Initialize();
@@ -95,10 +111,11 @@ struct Input {
 // --- KeyBinding ---
 
 template <typename T>
-struct KeyBinding;
+class KeyBinding;
 
 template <>
-struct KeyBinding<bool> : public Input::Binding<bool> {
+class KeyBinding<bool> : public Input::Binding<bool> {
+   public:
     SDL_Scancode scancode{};
 
     bool GetValue() final override {
@@ -109,8 +126,29 @@ struct KeyBinding<bool> : public Input::Binding<bool> {
 };
 
 template <>
-struct KeyBinding<Vec2> : public Input::Binding<Vec2> {
-    struct Scancodes {
+class KeyBinding<float> : public Input::Binding<float> {
+   public:
+    struct {
+        SDL_Scancode positive{};
+        SDL_Scancode negative{};
+    } scancodes;
+
+    float GetValue() final override {
+        float p = (float)Input::Get()->GetKeyState(scancodes.positive).pressed;
+        float n = (float)Input::Get()->GetKeyState(scancodes.negative).pressed;
+        return p - n;
+    }
+
+    KeyBinding(SDL_Scancode p_scancode_positive,
+               SDL_Scancode p_scancode_negative)
+        : scancodes(p_scancode_positive,
+                    p_scancode_negative) {}
+};
+
+template <>
+class KeyBinding<Vec2> : public Input::Binding<Vec2> {
+   public:
+    struct {
         SDL_Scancode positive_x{};
         SDL_Scancode negative_x{};
         SDL_Scancode positive_y{};
@@ -144,7 +182,8 @@ struct KeyBinding<Vec2> : public Input::Binding<Vec2> {
 
 // --- MouseButtonBinding ---
 
-struct MouseButtonBinding : public Input::Binding<bool> {
+class MouseButtonBinding : public Input::Binding<bool> {
+   public:
     MouseButton mouse_button;
 
     bool GetValue() final override {
@@ -157,14 +196,16 @@ struct MouseButtonBinding : public Input::Binding<bool> {
 
 // --- MouseMotionBinding ---
 
-struct MouseMotionBinding : public Input::Binding<Vec2> {
+class MouseMotionBinding : public Input::Binding<Vec2> {
+   public:
     Vec2 GetValue() final override {
         return Input::Get()->mouse.motion;
     }
 };
 
 // --- MouseWheelBinding
-struct MouseWheelBinding : public Input::Binding<float> {
+class MouseWheelBinding : public Input::Binding<float> {
+   public:
     float GetValue() final override {
         return Input::Get()->mouse.wheel;
     }
@@ -173,7 +214,8 @@ struct MouseWheelBinding : public Input::Binding<float> {
 // --- CombinationBinding ---
 
 template <typename T>
-struct CombinationBinding : public Input::Binding<T> {
+class CombinationBinding : public Input::Binding<T> {
+   public:
     std::vector<Ref<Input::Binding<bool>>> activation_bindings;
     Ref<Input::Binding<T>> target_binding;
     bool require_all_activation_bindings = true;

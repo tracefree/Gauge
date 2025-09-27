@@ -6,6 +6,7 @@
 #include <gauge/core/app.hpp>
 #include <gauge/input/input.hpp>
 #include <gauge/scene/node.hpp>
+#include <print>
 
 using namespace Gauge;
 
@@ -26,18 +27,15 @@ void Camera::Update(float delta) {
 
     // 1st person movement
     const Vec2 horizontal_movement = Input::Get()->GetActionValue<Vec2>("freecam/horizontal");
-    const float vertical_movement = ((float)(Input::Get()->GetActionValue<bool>("freecam/up")) -
-                                     (float)(Input::Get()->GetActionValue<bool>("freecam/down")));
-    if (glm::length(horizontal_movement + vertical_movement) > 0.0f) {
+    const float vertical_movement = Input::Get()->GetActionValue<float>("freecam/vertical");
+    if (glm::length(horizontal_movement) > 0.0f || vertical_movement != 0.0f) {
         Vec3 movement = GetRotation() *
                         Vec3(horizontal_movement.x,
                              0.0,
                              -horizontal_movement.y);
         movement.y += vertical_movement;
-        if (glm::length(movement) >= 0.0f) {
-            const float speed = delta * 2.0f * (Input::Get()->GetActionValue<bool>("freecam/boost") ? 4.0f : 1.0);
-            node->Move(speed * movement);
-        }
+        const float speed = delta * 2.0f * (Input::Get()->GetActionValue<bool>("freecam/boost") ? 4.0f : 1.5f);
+        node->Move(speed * movement);
     }
 
     // 1st person rotation

@@ -96,14 +96,17 @@ FragmentOutput FragmentMain(
 
     Camera camera = globals.cameras[push_constants.camera_id];
     float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
-    float3 light_position = float3(cos(globals.time), 1.5, sin(globals.time));
-    float3 light_direction_ws = normalize(light_position - position_ws);
+    float3 light_position = float3(1.5 * cos(globals.time), 1.5, 1.5 * sin(globals.time));
+    float3 light_vector = light_position - position_ws;
+    float light_distance = length(light_vector);
+    float3 light_direction_ws = light_vector / light_distance;
+    
     float3 light_direction_vs = mul(camera.view, float4(light_direction_ws, 0.0)).xyz;
 
     float ambient = 0.05;
-    float directional = max(dot(normal_vs, light_direction_vs), 0.0);
+    float point = max(dot(normal_vs, light_direction_vs), 0.0) * (1 / light_distance);
     
-    float3 color = albedo.rgb * (ambient + directional);
+    float3 color = albedo.rgb * (ambient + point);
 
     return FragmentOutput(float4(color, 1.0));
 }

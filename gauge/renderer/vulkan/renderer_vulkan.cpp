@@ -47,7 +47,6 @@
 #include "gauge/renderer/vulkan/command_buffer.hpp"
 #include "gauge/scene/node.hpp"
 #include "gauge/scene/scene_tree.hpp"
-#include "glm/ext/matrix_transform.hpp"
 #include "glm/matrix.hpp"
 #include "glm/packing.hpp"
 #include "thirdparty/imgui/imgui.h"

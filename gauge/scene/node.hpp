@@ -44,7 +44,7 @@ struct Node {
     void AddChild(const Ref<Node>& p_node);
     void Draw() const;
     void Update(float delta);
-    void ProcessInput(SDL_Event& event);
+    void ProcessInput(const SDL_Event& event);
     void Cleanup();
 
     template <IsComponent C>
@@ -54,8 +54,8 @@ struct Node {
         component_table[&typeid(C)] = p_component;
     }
 
-    template <IsComponent C, typename... ConstructorArguments>
-    Ref<C> AddComponent(ConstructorArguments... p_constructor_arguments) {
+    template <IsComponent C, typename... Args>
+    Ref<C> AddComponent(Args... p_constructor_arguments) {
         auto component = std::make_shared<C>(p_constructor_arguments...);
         AddComponent(component);
         return component;
