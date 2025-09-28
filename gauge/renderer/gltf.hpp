@@ -3,15 +3,16 @@
 #include <gauge/common.hpp>
 #include <gauge/core/handle.hpp>
 #include <gauge/math/common.hpp>
+#include <gauge/math/transform.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/texture.hpp>
+#include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/scene/node.hpp>
 
 #include <sys/types.h>
+#include <filesystem>
 #include <optional>
 #include <string>
-#include "gauge/math/transform.hpp"
-#include "gauge/renderer/vulkan/common.hpp"
 
 namespace fastgltf {
 class Asset;
@@ -31,7 +32,7 @@ struct glTF {
     struct Texture {
         Handle<GPUImage> handle{};
         std::string name;
-        Gauge::Texture data{};
+        Gauge::Texture* data{};
     };
 
     struct Material {
@@ -65,13 +66,20 @@ struct glTF {
 
    private:
     Result<> LoadNodes(const fastgltf::Asset& p_asset);
-    Result<> LoadTextures(const fastgltf::Asset& p_asset);
+    Result<> LoadTextures(const fastgltf::Asset& p_asset, const std::filesystem::path& p_path = std::filesystem::path());
     Result<> LoadMaterials(const fastgltf::Asset& p_asset);
     Result<> LoadMeshes(const fastgltf::Asset& p_asset);
 
    public:
     static Result<glTF> FromFile(const std::string& p_path);
     Result<Ref<Gauge::Node>> CreateNode() const;
+
+    // --- Resource interface ---
+    static glTF Load(const std::string& p_id) {
+        return FromFile(p_id).value();
+    }
+    void Unload() {
+    }
 };
 
 }  // namespace Gauge

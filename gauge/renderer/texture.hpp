@@ -19,6 +19,12 @@ struct Texture {
     static Result<Texture> FromFile(const std::string& p_path);
 
     ~Texture();
+
+    // --- Resource interface ---
+    static Texture Load(const std::string& p_id) {
+        return FromFile(p_id).value();
+    }
+    void Unload();
 };
 
 }  // namespace Gauge

@@ -1,17 +1,32 @@
 #include "component.hpp"
 
+#include <gauge/scene/yaml.hpp>
+
+#include <print>
+
 using namespace Gauge;
 
-std::unordered_map<std::string, Component::CreateFunction> Component::create_functions{};
+// Avoid static initialization order problem with the Construct On First Use Idiom
+// https://isocpp.org/wiki/faq/ctors#static-init-order
+std::unordered_map<std::string, Component::CreateFunction>& Component::GetCreateFunctions() {
+    static std::unordered_map<std::string, Component::CreateFunction> create_functions;
+    return create_functions;
+}
 
 bool Component::RegisterType(const std::string& p_name, Component::CreateFunction p_create_function) {
-    /* FIXME
-    Component::create_functions = {{"gna", CreateFunction{}}};
-    if (Component::create_functions.contains(p_name)) {
+    std::println("Registering component: {}", p_name);
+    if (Component::GetCreateFunctions().contains(p_name)) {
         return false;
     }
 
-    Component::create_functions[p_name] = p_create_function;
-    */
+    Component::GetCreateFunctions()[p_name] = p_create_function;
     return true;
+}
+
+void Component::Create(const std::string& p_name, YAML::Node p_data, Ref<Node> r_node) {
+    if (!Component::GetCreateFunctions().contains(p_name)) {
+        std::println("Can not load component");
+        return;
+    }
+    Component::GetCreateFunctions()[p_name](p_data, r_node);
 }

@@ -31,6 +31,8 @@ struct Camera : public Component {
 
     Mat4 GetTransformMatrix() const;
     Mat4 GetViewMatrix() const;
+
+    COMPONENT_FACTORY_HEADER(Camera);
 };
 
 }  // namespace Gauge

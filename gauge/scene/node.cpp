@@ -97,7 +97,7 @@ void Node::Draw() const {
             component->Draw();
         }
     }
-    for (const Ref<Node>& child : children) {
+    for (const auto& child : children) {
         child->Draw();
     }
 }

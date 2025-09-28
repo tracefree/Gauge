@@ -81,8 +81,7 @@ class Node {
         return node;
     }
 
-    Node() {}
-    Node(std::string p_name) : name(p_name) {};
+    Node(const std::string& p_name = "[Node]") : name(p_name) {};
 };
 
 }  // namespace Gauge

@@ -481,7 +481,7 @@ RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
 
 Result<Pipeline>
 RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
-    auto shader_module_result = ShaderModule::FromFile(ctx, "simple.spv");
+    auto shader_module_result = ShaderModule::FromFile(ctx, "shaders/simple.spv");
     CHECK_RET(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
 
@@ -714,7 +714,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     CHECK_RET(main_viewport_result)
     render_state.viewports.emplace_back(main_viewport_result.value());
     render_state.viewports[0].scene_tree = std::make_shared<SceneTree>();
-    render_state.viewports[0].scene_tree->root = std::make_shared<Node>();
+    render_state.viewports[0].scene_tree->root = Node::Create("Root");
 
     initialized = true;
     return {};
@@ -1542,6 +1542,6 @@ void RendererVulkan::ViewportRotateCamera(uint p_viewport_id, float p_yaw, float
 
 Quaternion RendererVulkan::ViewportGetCameraRotation(uint p_viewport_id) {
     const Viewport& viewport = render_state.viewports[p_viewport_id];
-    return glm::angleAxis(viewport.camera_yaw, Vec3(0.0f, -1.0f, 0.0f)) *
-           glm::angleAxis(viewport.camera_pitch, Vec3(1.0f, 0.0f, 0.0f));
+    return glm::angleAxis(viewport.camera_yaw, Vec3::DOWN) *
+           glm::angleAxis(viewport.camera_pitch, Vec3::RIGHT);
 }

@@ -1,24 +1,27 @@
 #include "gltf.hpp"
 
-#include <cstdio>
 #include <gauge/common.hpp>
 #include <gauge/components/mesh_instance.hpp>
+#include <gauge/core/app.hpp>
+#include <gauge/core/handle.hpp>
+#include <gauge/core/resource_manager.hpp>
+#include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
 
 #include <fastgltf/core.hpp>
 #include <fastgltf/glm_element_traits.hpp>
 #include <fastgltf/tools.hpp>
 #include <fastgltf/types.hpp>
-#include <filesystem>
+
+#include "fastgltf/math.hpp"
+#include "fastgltf/util.hpp"
+#include "thirdparty/stb/stb_image.h"
+
+#include <assert.h>
+#include <cstdio>
 #include <memory>
 #include <print>
 #include <variant>
-#include "fastgltf/math.hpp"
-#include "fastgltf/util.hpp"
-#include "gauge/core/app.hpp"
-#include "gauge/core/handle.hpp"
-#include "gauge/math/common.hpp"
-#include "thirdparty/stb/stb_image.h"
 
 using namespace Gauge;
 
@@ -70,7 +73,7 @@ static void IteratePositions(const fastgltf::Asset& asset, const fastgltf::Primi
     assert(attriubte != fg_primitive.attributes.end());
     const fastgltf::Accessor& accessor = asset.accessors[attriubte->accessorIndex];
     primitive.vertices.resize(accessor.count);
-    fastgltf::iterateAccessorWithIndex<Vec3>(
+    fastgltf::iterateAccessorWithIndex<glm::vec3>(
         asset,
         accessor,
         [&](Vec3 position, size_t index) {
@@ -83,7 +86,7 @@ static void IterateNormals(const fastgltf::Asset& asset, const fastgltf::Primiti
     if (attribute == fg_primitive.attributes.end())
         return;
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
-    fastgltf::iterateAccessorWithIndex<Vec3>(
+    fastgltf::iterateAccessorWithIndex<glm::vec3>(
         asset,
         accessor,
         [&](Vec3 normal, size_t index) {
@@ -110,7 +113,7 @@ static void IterateUVs(const fastgltf::Asset& asset, const fastgltf::Primitive& 
     if (attribute == fg_primitive.attributes.end())
         return;
     const fastgltf::Accessor& accessor = asset.accessors[attribute->accessorIndex];
-    fastgltf::iterateAccessorWithIndex<Vec2>(
+    fastgltf::iterateAccessorWithIndex<glm::vec2>(
         asset,
         accessor,
         [&](Vec2 uv, size_t index) {
@@ -139,7 +142,7 @@ Result<> glTF::LoadNodes(const fastgltf::Asset& p_asset) {
     return {};
 }
 
-Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
+Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset, const std::filesystem::path& p_path) {
     textures.resize(p_asset.textures.size());
     for (uint i = 0; i < p_asset.textures.size(); ++i) {
         const fastgltf::Texture& fg_texture = p_asset.textures[i];
@@ -147,12 +150,22 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
         auto fg_image = p_asset.images[fg_texture.imageIndex.value()];
         std::string err;
         std::visit(fastgltf::visitor{
-                       [&](fastgltf::sources::URI& file_path) {
-                           std::println("path {}", file_path.uri.c_str());
-                           // TODO: Implement
+                       [&](fastgltf::sources::URI& file_name) {
+                           auto file_path = p_path / file_name.uri.fspath();
+                           texture.data = ResourceManager::Load<Gauge::Texture>(file_path);
+                           /*   int width,
+                                  height, number_channels;
+                              texture.data.data = stbi_load(file_path.c_str(), &width, &height, &number_channels, 4);
+                              texture.data.width = (uint)width;
+                              texture.data.height = (uint)width;
+                              if (!texture.data.data) {
+                                  err = "Could not load texture: Couldn't load data from memory";
+                                  texture.data.data = nullptr;
+                              } */
                        },
                        [&](const fastgltf::sources::Array& array) {
                            std::println("Array!");
+                           assert(false);
                        },
                        [&](fastgltf::sources::BufferView& view) {
                            auto& buffer_view = p_asset.bufferViews[view.bufferViewIndex];
@@ -164,12 +177,12 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
                                    },
                                    [&](const fastgltf::sources::Array& array) {
                                        int width, height, number_channels;
-                                       texture.data.data = stbi_load_from_memory((stbi_uc*)array.bytes.data() + buffer_view.byteOffset, static_cast<int>(buffer_view.byteLength), &width, &height, &number_channels, 4);
-                                       texture.data.width = (uint)width;
-                                       texture.data.height = (uint)width;
-                                       if (!texture.data.data) {
+                                       texture.data->data = stbi_load_from_memory((stbi_uc*)array.bytes.data() + buffer_view.byteOffset, static_cast<int>(buffer_view.byteLength), &width, &height, &number_channels, 4);
+                                       texture.data->width = (uint)width;
+                                       texture.data->height = (uint)width;
+                                       if (!texture.data->data) {
                                            err = "Could not load texture: Couldn't load data from memory";
-                                           texture.data.data = nullptr;
+                                           texture.data->data = nullptr;
                                        }
                                    },
                                },
@@ -177,6 +190,7 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset) {
                        },
                        [&](auto& argument) {
                            err = "Could not load texture: data source not implemented";
+                           assert(false);
                        },
                    },
                    fg_image.data);
@@ -205,18 +219,18 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
         if (fg_material.pbrData.baseColorTexture.has_value()) {
             material.texture_albedo_index = fg_material.pbrData.baseColorTexture->textureIndex;
             glTF::Texture& texture = textures[material.texture_albedo_index.value()];
-            texture.data.use_srgb = true;
+            texture.data->use_srgb = true;
             if (texture.handle.index == 0) {
-                texture.handle = gApp->renderer->CreateTexture(texture.data);
+                texture.handle = gApp->renderer->CreateTexture(*texture.data);
             }
             gpu_material.texture_albedo = texture.handle.index;
         }
         if (fg_material.normalTexture.has_value()) {
             material.texture_normal_index = fg_material.normalTexture->textureIndex;
             glTF::Texture& texture = textures[material.texture_normal_index.value()];
-            texture.data.use_srgb = false;
+            texture.data->use_srgb = false;
             if (texture.handle.index == 0) {
-                texture.handle = gApp->renderer->CreateTexture(texture.data);
+                texture.handle = gApp->renderer->CreateTexture(*texture.data);
             }
             gpu_material.texture_normal = texture.handle.index;
         }
@@ -258,20 +272,21 @@ glTF::FromFile(const std::string& p_path) {
     glTF gltf{};
 
     std::filesystem::path path(p_path);
+    gltf.name = path.stem();
     fastgltf::Parser parser;
     auto data = fastgltf::GltfDataBuffer::FromPath(path);
     if (data.error() != fastgltf::Error::None) {
         return Error(std::format("Could not load glTF file. fastgltf error: {}", fastgltf::getErrorMessage(data.error())));
     }
 
-    auto asset = parser.loadGltf(data.get(), path.parent_path(), fastgltf::Options::None);
+    auto asset = parser.loadGltf(data.get(), path.parent_path(), fastgltf::Options::LoadExternalBuffers);
     if (asset.error() != fastgltf::Error::None) {
         return Error(std::format("Could not parse glTF file. fastgltf error: {}", fastgltf::getErrorMessage(asset.error())));
     }
 
     CHECK_RET(gltf.LoadNodes(asset.get())
-                  .and_then([&gltf, &asset]() {
-                      return gltf.LoadTextures(asset.get());
+                  .and_then([&gltf, &asset, &path]() {
+                      return gltf.LoadTextures(asset.get(), path.parent_path());
                   })
                   .and_then([&gltf, &asset]() {
                       return gltf.LoadMaterials(asset.get());
@@ -311,7 +326,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
         }
     }
 
-    Ref<Gauge::Node> root_node = std::make_shared<Gauge::Node>();
+    auto root_node = Gauge::Node::Create(name);
     root_node->name = name;
     for (uint i = 0; i < nodes.size(); ++i) {
         if (!has_parent[i]) {

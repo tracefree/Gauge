@@ -4,7 +4,7 @@
 #include <string>
 
 namespace YAML {
-struct Node;
+class Node;
 }
 
 namespace Gauge {
@@ -18,7 +18,7 @@ class Node;
     class(YAML::Node p_data);                                     \
     static void Instantiate(YAML::Node p_data, Ref<Node> p_node); \
                                                                   \
-   private:                                                       \
+   public:                                                        \
     static bool registered;
 
 // To be included in every component's implementation file, followed by
@@ -35,7 +35,7 @@ class Node;
 struct Component {
     using CreateFunction = void (*)(YAML::Node, std::shared_ptr<Node>);
 
-    static std::unordered_map<std::string, CreateFunction> create_functions;
+    // static std::unordered_map<std::string, CreateFunction> create_functions;
 
     std::string name;
     bool active = true;
@@ -52,6 +52,10 @@ struct Component {
     }
 
     static bool RegisterType(const std::string& p_name, CreateFunction);
+    static void Create(const std::string& p_name, YAML::Node p_data, Ref<Node> r_node);
+
+   protected:
+    static std::unordered_map<std::string, Component::CreateFunction>& GetCreateFunctions();
 };
 
 template <typename C>

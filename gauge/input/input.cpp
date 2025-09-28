@@ -84,7 +84,7 @@ void Input::ProcessActions() {
         for (auto& action : set.second.GetActions<Vec2>()) {
             action.second.value = Vec2();
             for (auto& binding : action.second.bindings) {
-                action.second.value += binding->GetValue();
+                action.second.value += (Vec2)binding->GetValue();
             }
         }
         for (auto& action : set.second.GetActions<float>()) {

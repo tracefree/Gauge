@@ -61,16 +61,17 @@ add_library(gauge STATIC
   gauge/core/app.cpp
   gauge/core/config.cpp
   gauge/core/filesystem.cpp
-  # gauge/core/pool.cpp
   gauge/input/input.cpp
   gauge/ui/window.cpp
   gauge/math/transform.cpp
   gauge/math/common.cpp
   gauge/scene/node.cpp
+  gauge/scene/scene.cpp
   gauge/scene/scene_tree.cpp
   gauge/components/component.cpp
   gauge/components/camera.cpp
   gauge/components/mesh_instance.cpp
+  gauge/components/model.cpp
 )
 
 set_source_files_properties(

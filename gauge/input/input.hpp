@@ -164,9 +164,7 @@ class KeyBinding<Vec2> : public Input::Binding<Vec2> {
             return Vec2();
         }
         return glm::normalize(
-            Vec2(
-                px - nx,
-                py - ny));
+            Vec2(px - nx, py - ny));
     }
 
     KeyBinding() {}
