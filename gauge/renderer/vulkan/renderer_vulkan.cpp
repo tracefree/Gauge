@@ -1511,7 +1511,7 @@ Handle<GPUMaterial> RendererVulkan::CreateMaterial(const GPUMaterial& p_material
     return handle;
 }
 
-void RendererVulkan::DestroyMaterial(RID p_rid) {
+void RendererVulkan::DestroyMaterial(Handle<GPUMaterial> p_handle) {
     // TODO
 }
 

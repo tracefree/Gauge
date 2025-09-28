@@ -1,6 +1,7 @@
 #include "scene.hpp"
 
 #include <gauge/core/resource_manager.hpp>
+#include <gauge/core/string_id.hpp>
 #include <gauge/scene/node.hpp>
 #include <gauge/scene/yaml.hpp>
 
@@ -54,7 +55,7 @@ Ref<Node> Scene::FromData(YAML::Node p_data) {
 }
 
 // --- Resource interface ---
-Scene Scene::Load(const std::string& p_id) {
+Scene Scene::Load(StringID p_id) {
     return Scene(std::make_shared<YAML::Node>(YAML::LoadFile(p_id)));
 }
 

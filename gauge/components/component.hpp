@@ -1,7 +1,7 @@
 #pragma once
 
 #include <gauge/common.hpp>
-#include <string>
+#include <gauge/core/string_id.hpp>
 
 namespace YAML {
 class Node;
@@ -35,9 +35,7 @@ class Node;
 struct Component {
     using CreateFunction = void (*)(YAML::Node, std::shared_ptr<Node>);
 
-    // static std::unordered_map<std::string, CreateFunction> create_functions;
-
-    std::string name;
+    StringID name;
     bool active = true;
     bool visible = true;
     Node* node;
@@ -51,11 +49,11 @@ struct Component {
         node = p_node;
     }
 
-    static bool RegisterType(const std::string& p_name, CreateFunction);
-    static void Create(const std::string& p_name, YAML::Node p_data, Ref<Node> r_node);
+    static bool RegisterType(StringID p_name, CreateFunction);
+    static void Create(StringID p_name, YAML::Node p_data, Ref<Node> r_node);
 
    protected:
-    static std::unordered_map<std::string, Component::CreateFunction>& GetCreateFunctions();
+    static StringID::Map<Component::CreateFunction>& GetCreateFunctions();
 };
 
 template <typename C>

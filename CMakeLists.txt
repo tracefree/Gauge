@@ -61,6 +61,7 @@ add_library(gauge STATIC
   gauge/core/app.cpp
   gauge/core/config.cpp
   gauge/core/filesystem.cpp
+  gauge/core/string_id.cpp
   gauge/input/input.cpp
   gauge/ui/window.cpp
   gauge/math/transform.cpp

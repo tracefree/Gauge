@@ -158,7 +158,7 @@ struct RendererVulkan : public Renderer {
     virtual void DestroyTexture(Handle<GPUImage> p_handle) final override;
 
     virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) final override;
-    virtual void DestroyMaterial(RID p_handle) final override;
+    virtual void DestroyMaterial(Handle<GPUMaterial> p_handle) final override;
 
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;

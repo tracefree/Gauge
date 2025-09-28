@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/common.hpp>
+#include <gauge/core/string_id.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 
 #include <cstddef>
@@ -21,7 +22,7 @@ struct Texture {
     ~Texture();
 
     // --- Resource interface ---
-    static Texture Load(const std::string& p_id) {
+    static Texture Load(StringID p_id) {
         return FromFile(p_id).value();
     }
     void Unload();

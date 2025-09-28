@@ -151,7 +151,7 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset, const std::filesyste
         std::string err;
         std::visit(fastgltf::visitor{
                        [&](fastgltf::sources::URI& file_name) {
-                           auto file_path = p_path / file_name.uri.fspath();
+                           auto file_path = StringID(p_path / file_name.uri.fspath());
                            texture.data = ResourceManager::Load<Gauge::Texture>(file_path);
                            /*   int width,
                                   height, number_channels;

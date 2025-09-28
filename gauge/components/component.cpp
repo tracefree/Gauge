@@ -8,12 +8,12 @@ using namespace Gauge;
 
 // Avoid static initialization order problem with the Construct On First Use Idiom
 // https://isocpp.org/wiki/faq/ctors#static-init-order
-std::unordered_map<std::string, Component::CreateFunction>& Component::GetCreateFunctions() {
-    static std::unordered_map<std::string, Component::CreateFunction> create_functions;
+StringID::Map<Component::CreateFunction>& Component::GetCreateFunctions() {
+    static StringID::Map<Component::CreateFunction> create_functions;
     return create_functions;
 }
 
-bool Component::RegisterType(const std::string& p_name, Component::CreateFunction p_create_function) {
+bool Component::RegisterType(StringID p_name, Component::CreateFunction p_create_function) {
     std::println("Registering component: {}", p_name);
     if (Component::GetCreateFunctions().contains(p_name)) {
         return false;
@@ -23,9 +23,9 @@ bool Component::RegisterType(const std::string& p_name, Component::CreateFunctio
     return true;
 }
 
-void Component::Create(const std::string& p_name, YAML::Node p_data, Ref<Node> r_node) {
+void Component::Create(StringID p_name, YAML::Node p_data, Ref<Node> r_node) {
     if (!Component::GetCreateFunctions().contains(p_name)) {
-        std::println("Can not load component");
+        std::println("Can not load component {}", p_name);
         return;
     }
     Component::GetCreateFunctions()[p_name](p_data, r_node);

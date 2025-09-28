@@ -9,6 +9,7 @@ class Node;
 namespace Gauge {
 
 class Node;
+class StringID;
 
 class Scene {
    private:
@@ -21,7 +22,7 @@ class Scene {
     Scene(Ref<YAML::Node> p_state = nullptr) : state(p_state) {}
 
     // --- Resource interface ---
-    static Scene Load(const std::string& p_id);
+    static Scene Load(StringID p_id);
     void Unload();
 };
 

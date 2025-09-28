@@ -14,9 +14,6 @@ using Error = std::unexpected<E>;
 template <typename T>
 using Ref = std::shared_ptr<T>;
 
-// Resource ID
-typedef uint32_t RID;
-
 #define CHECK(result)                              \
     if (!result) [[unlikely]] {                    \
         std::println("Error: {}", result.error()); \

@@ -1,17 +1,16 @@
 #pragma once
 
-#include <atomic>
 #include <gauge/common.hpp>
 #include <gauge/core/pool.hpp>
+#include <gauge/core/string_id.hpp>
 
 #include <print>
-#include <string>
 #include <unordered_map>
 
 namespace Gauge {
 
 template <typename R, typename... Ts>
-concept IsResource = requires(R resource, std::string p_id, Ts... p_arguments) {
+concept IsResource = requires(R resource, StringID p_id, Ts... p_arguments) {
     resource = R::Load(p_id, p_arguments...);
     resource.Unload();
 };
@@ -42,11 +41,11 @@ class ResourceManager {
     };
 
     template <IsResource R>
-    inline static std::unordered_map<std::string, ResourceInfo<R>> resources;
+    inline static StringID::Map<ResourceInfo<R>> resources;
 
    public:
     template <IsResource R, typename... Ts>
-    static R* Load(const std::string& p_id, Ts... p_arguments) {
+    static R* Load(StringID p_id, Ts... p_arguments) {
         if (resources<R>.contains(p_id)) {
             std::println("Resource {} is already loaded", p_id);
             ResourceManager::Reference<R>(p_id);
@@ -65,7 +64,7 @@ class ResourceManager {
     }
 
     template <IsResource R>
-    static void Reference(const std::string& p_id) {
+    static void Reference(StringID p_id) {
         if (!resources<R>.contains(p_id)) {
             std::println("Can not reference {}, resource is not loaded", p_id);
             return;
@@ -76,7 +75,7 @@ class ResourceManager {
     }
 
     template <IsResource R>
-    static void Unreference(const std::string& p_id) {
+    static void Unreference(StringID p_id) {
         if (!resources<R>.contains(p_id)) {
             std::println("Can not dereference {}, resource is not loaded", p_id);
             return;

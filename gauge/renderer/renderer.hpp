@@ -68,10 +68,10 @@ struct Renderer {
     virtual void DestroyMesh(Handle<GPUMesh> p_handle) = 0;
 
     virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) = 0;
-    virtual void DestroyTexture(Handle<GPUImage> p_rid) = 0;
+    virtual void DestroyTexture(Handle<GPUImage> p_handle) = 0;
 
     virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) = 0;
-    virtual void DestroyMaterial(RID p_rid) = 0;
+    virtual void DestroyMaterial(Handle<GPUMaterial> p_handle) = 0;
 
     Renderer() = default;
     virtual ~Renderer() = default;

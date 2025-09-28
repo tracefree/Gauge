@@ -75,7 +75,7 @@ struct glTF {
     Result<Ref<Gauge::Node>> CreateNode() const;
 
     // --- Resource interface ---
-    static glTF Load(const std::string& p_id) {
+    static glTF Load(StringID p_id) {
         return FromFile(p_id).value();
     }
     void Unload() {

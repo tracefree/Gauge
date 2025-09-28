@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cmath>
-#include <cstdlib>
 #include <glm/common.hpp>
 #include <glm/mat3x3.hpp>
 #include <glm/mat4x4.hpp>
@@ -49,6 +47,7 @@ class Vec2 : public glm::vec2 {
 };
 
 class Vec3 : public glm::vec3 {
+   public:
     static const Vec3 ZERO;
     static const Vec3 ONE;
     static const Vec3 RIGHT;
@@ -94,6 +93,7 @@ using Quaternion = glm::quat;
 
 namespace Math {
 
+#define PI 3.14159265358979323846f
 #define HALF_PI 1.57079632679489661923f
 
 float Wrap(float x, float max);
