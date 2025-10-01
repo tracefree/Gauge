@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/math/common.hpp>
+#include <gauge/renderer/aabb.hpp>
 
 namespace Gauge {
 
@@ -13,6 +14,7 @@ struct Transform {
 
     Mat4 GetMatrix() const;
     const Transform operator*(Transform const& rhs) const;
+    const AABB operator*(AABB const& rhs) const;
 
     Transform() {}
     Transform(Transform const& p_transform);

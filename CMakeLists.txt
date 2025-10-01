@@ -40,6 +40,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
 add_library(gauge_renderer STATIC
+  gauge/renderer/aabb.cpp
   gauge/renderer/gltf.cpp
   gauge/renderer/renderer.cpp
   gauge/renderer/stb_image_usage.cpp
@@ -69,6 +70,7 @@ add_library(gauge STATIC
   gauge/scene/node.cpp
   gauge/scene/scene.cpp
   gauge/scene/scene_tree.cpp
+  gauge/components/aabb_gizmo.cpp
   gauge/components/component.cpp
   gauge/components/camera.cpp
   gauge/components/mesh_instance.cpp

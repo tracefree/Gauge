@@ -10,8 +10,8 @@ namespace Gauge {
 template <typename T>
 struct Pool {
     std::vector<T> data;
-    std::vector<uint> generations;
-    std::queue<uint> free_list;
+    std::vector<uint16_t> generations;
+    std::queue<uint16_t> free_list;
 
     Handle<T> Allocate(T p_data);
     T* Get(Handle<T> p_handle);
@@ -39,7 +39,7 @@ Handle<T> Pool<T>::Allocate(T p_data) {
             free_list.push(i);
         }
     }
-    uint index = free_list.front();
+    uint16_t index = free_list.front();
     data[index] = p_data;
     free_list.pop();
     return {

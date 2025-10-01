@@ -78,6 +78,10 @@ void Node::AddChild(const Ref<Node>& p_node) {
     p_node->parent = self;
 }
 
+void Node::RemoveChildren() {
+    children.clear();
+}
+
 void Node::Update(float delta) {
     if (!active)
         return;

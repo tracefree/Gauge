@@ -7,6 +7,7 @@
 #include "gauge/core/handle.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/math/transform.hpp"
+#include "gauge/renderer/aabb.hpp"
 #include "gauge/renderer/texture.hpp"
 #include "gauge/renderer/vulkan/common.hpp"
 
@@ -39,8 +40,13 @@ struct Renderer {
         Transform transform;
     };
 
+    struct DrawAABB {
+        AABB aabb;
+        Transform transform;
+    };
+
     std::vector<DrawObject> draw_objects;
-    // std::vector<
+    std::vector<DrawAABB> draw_aabbs;
 
    protected:
     bool initialized = false;

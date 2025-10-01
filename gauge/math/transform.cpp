@@ -27,3 +27,9 @@ const Transform Transform::operator*(Transform const& rhs) const {
         scale * rhs.scale,
     };
 }
+
+const AABB Transform::operator*(AABB const& rhs) const {
+    AABB aabb = rhs;
+    aabb.position += position;
+    return aabb;
+}

@@ -12,6 +12,10 @@ using namespace Gauge;
 extern App* gApp;
 extern Window* gWindow;
 
+void Camera::Initialize() {
+    window = gWindow;
+}
+
 void Camera::Update(float delta) {
     // Zoom
     const float zoom = 0.1f * Input::Get()->GetActionValue<float>("freecam/zoom");
@@ -113,5 +117,4 @@ Mat4 Camera::GetViewMatrix() const {
 }
 
 COMPONENT_FACTORY_IMPL(Camera, camera) {
-    window = gWindow;
 }

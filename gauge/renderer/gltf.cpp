@@ -1,6 +1,7 @@
 #include "gltf.hpp"
 
 #include <gauge/common.hpp>
+#include <gauge/components/aabb_gizmo.hpp>
 #include <gauge/components/mesh_instance.hpp>
 #include <gauge/core/app.hpp>
 #include <gauge/core/handle.hpp>
@@ -73,11 +74,13 @@ static void IteratePositions(const fastgltf::Asset& asset, const fastgltf::Primi
     assert(attriubte != fg_primitive.attributes.end());
     const fastgltf::Accessor& accessor = asset.accessors[attriubte->accessorIndex];
     primitive.vertices.resize(accessor.count);
+
     fastgltf::iterateAccessorWithIndex<glm::vec3>(
         asset,
         accessor,
         [&](Vec3 position, size_t index) {
             primitive.vertices[index].position = position;
+            primitive.aabb.Grow(position);
         });
 }
 
@@ -153,15 +156,6 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset, const std::filesyste
                        [&](fastgltf::sources::URI& file_name) {
                            auto file_path = StringID(p_path / file_name.uri.fspath());
                            texture.data = ResourceManager::Load<Gauge::Texture>(file_path);
-                           /*   int width,
-                                  height, number_channels;
-                              texture.data.data = stbi_load(file_path.c_str(), &width, &height, &number_channels, 4);
-                              texture.data.width = (uint)width;
-                              texture.data.height = (uint)width;
-                              if (!texture.data.data) {
-                                  err = "Could not load texture: Couldn't load data from memory";
-                                  texture.data.data = nullptr;
-                              } */
                        },
                        [&](const fastgltf::sources::Array& array) {
                            std::println("Array!");
@@ -262,6 +256,7 @@ Result<> glTF::LoadMeshes(const fastgltf::Asset& p_asset) {
 
             primitive.handle = gApp->renderer->CreateMesh(primitive.vertices, primitive.indices);
             mesh.primitives.push_back(primitive);
+            mesh.aabb.Grow(primitive.aabb);
         }
     }
     return {};
@@ -304,6 +299,7 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
         instanced_nodes[i] = std::make_shared<Gauge::Node>();
         instanced_nodes[i]->name = nodes[i].name;
         instanced_nodes[i]->local_transform = nodes[i].transform;
+        AABB aabb;
         if (nodes[i].mesh.has_value()) {
             const glTF::Mesh& mesh = meshes[nodes[i].mesh.value()];
             Ref<MeshInstance> mesh_component = std::make_shared<MeshInstance>();
@@ -314,15 +310,19 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
                 });
             }
             instanced_nodes[i]->AddComponent(mesh_component);
+            instanced_nodes[i]->aabb = mesh.aabb;
         }
     }
 
     std::vector<bool> has_parent;
+    std::vector<bool> has_children;
     has_parent.resize(nodes.size());
+    has_children.resize(nodes.size());
     for (uint i = 0; i < nodes.size(); ++i) {
         for (uint child_index : nodes[i].children) {
             instanced_nodes[i]->AddChild(instanced_nodes[child_index]);
             has_parent[child_index] = true;
+            has_children[i] = true;
         }
     }
 
@@ -333,6 +333,25 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
             root_node->AddChild(instanced_nodes[i]);
         }
     }
+
+    for (uint i = 0; i < nodes.size(); ++i) {
+        if (has_children[i]) {
+            continue;
+        }
+        Ref<Gauge::Node> node = instanced_nodes[i];
+        while (node->parent.lock() != nullptr) {
+            Ref<Gauge::Node> child = node;
+            node = node->parent.lock();
+            if (child->aabb.IsValid()) {
+                node->aabb.Grow(child->local_transform * child->aabb);
+            }
+        }
+    }
+
+    for (auto node : instanced_nodes) {
+        node->AddComponent<AABBGizmo>(node->aabb)->visible = false;
+    }
+    root_node->AddComponent<AABBGizmo>(root_node->aabb)->visible = false;
 
     return root_node;
 }

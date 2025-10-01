@@ -27,6 +27,8 @@ struct GraphicsPipelineBuilder {
     VkSampleCountFlagBits sample_count = VK_SAMPLE_COUNT_1_BIT;
     VkCullModeFlagBits cull_mode = VK_CULL_MODE_BACK_BIT;
     bool transparency_enabled = false;
+    bool line_topology_enabled = false;
+    bool depth_test_enabled = true;
 
    public:
     GraphicsPipelineBuilder& AddPushConstantRange(VkShaderStageFlags p_shader_stage_flags, uint p_size);
@@ -37,6 +39,8 @@ struct GraphicsPipelineBuilder {
     GraphicsPipelineBuilder& SetSampleCount(VkSampleCountFlagBits p_sample_count);
     GraphicsPipelineBuilder& SetCullMode(VkCullModeFlagBits p_cull_mode);
     GraphicsPipelineBuilder& SetTransparency(bool p_enabled);
+    GraphicsPipelineBuilder& SetLineTopology(bool p_enabled);
+    GraphicsPipelineBuilder& EnableDepthTest(bool p_enabled = true);
 
     Result<Pipeline> Build(const VulkanContext& ctx) const;
 

@@ -4,6 +4,7 @@
 #include <gauge/core/handle.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/math/transform.hpp>
+#include <gauge/renderer/aabb.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/texture.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
@@ -51,11 +52,13 @@ struct glTF {
         std::vector<Vertex> vertices;
         std::vector<uint> indices;
         std::optional<uint> material_index;
+        AABB aabb{};
     };
 
     struct Mesh {
         std::string name;
         std::vector<Primitive> primitives;
+        AABB aabb{};
     };
 
     std::string name;

@@ -6,8 +6,8 @@ namespace Gauge {
 
 template <typename T>
 struct Handle {
-    uint index{};
-    uint generation{};
+    uint16_t index{};
+    uint16_t generation{};
 
     inline operator uint() const {
         return index;

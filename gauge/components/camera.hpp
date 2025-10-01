@@ -22,6 +22,7 @@ struct Camera : public Component {
 
     Window* window;
 
+    virtual void Initialize() final override;
     virtual void Update(float delta) final override;
 
     void GrabMouse();

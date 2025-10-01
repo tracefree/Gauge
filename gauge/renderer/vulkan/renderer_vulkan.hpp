@@ -32,6 +32,11 @@ struct RendererVulkan : public Renderer {
    public:
     VulkanContext ctx{};
 
+    struct MousePosition {
+        uint16_t x;
+        uint16_t y;
+    };
+
     struct PushConstants {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
@@ -39,6 +44,14 @@ struct RendererVulkan : public Renderer {
         uint material_index;
         uint camera_index;
         uint scene_index;
+        MousePosition mouse_position;
+    };
+
+    struct PCS_AABB {
+        Vec3 position;
+        uint camera_id;
+        Vec3 extent;
+        float _padding1;
     };
 
     struct FrameData {
@@ -47,6 +60,7 @@ struct RendererVulkan : public Renderer {
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
         PushConstants push_constants{};
+        PCS_AABB pcs_aabb{};
 
         // Updated every frame: Camera position, lights...
         DescriptorSet descriptor_set{};
@@ -93,6 +107,7 @@ struct RendererVulkan : public Renderer {
     uint64_t current_frame_index = 0;
 
     Pipeline graphics_pipeline{};
+    Pipeline aabb_pipeline{};
 
     // Updated when loading assets: Textures, samplers, materials...
     struct GlobalDescriptor {
@@ -174,6 +189,7 @@ struct RendererVulkan : public Renderer {
     Result<VkDescriptorSet> CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const;
     Result<VkSampler> CreateSampler(VkFilter p_filter_mode) const;
     Result<Pipeline> CreateGraphicsPipeline(std::string p_name);
+    Result<Pipeline> CreateAABBPipeline(std::string p_name);
     Result<> CreateSwapchain(bool recreate = false);
     Result<> CreateFrameData();
     Result<> CreateImmadiateCommand();

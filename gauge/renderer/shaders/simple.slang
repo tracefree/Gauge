@@ -30,6 +30,7 @@ struct Push {
     uint material_id;
     uint camera_id;
     uint scene_id;
+    uint16_t2 mouse_position;
 }
 
 ConstantBuffer<SamplerState[]> samplers;
@@ -71,7 +72,6 @@ VertexOutput VertexMain(uint vertexID: SV_VertexID) {
         world_position.xyz,
         mul(globals.cameras[push_constants.camera_id].view, world_position).xyz,
         tbn_ws,
-    //    vertex.color,
         float2(vertex.uv_x, vertex.uv_y)
     );
 }
@@ -83,6 +83,7 @@ FragmentOutput FragmentMain(
     float3 position_vs,
     float3x3 tbn_ws: TBN_WS,
     float2 uv: VertexUV,
+
 )
 {
     let material = materials[push_constants.material_id];
@@ -107,6 +108,10 @@ FragmentOutput FragmentMain(
     float point = max(dot(normal_vs, light_direction_vs), 0.0) * (1 / light_distance);
     
     float3 color = albedo.rgb * (ambient + point);
+
+    if (push_constants.mouse_position.x > position_cs.x && push_constants.mouse_position.y > position_cs.y) {
+        color = float3(1.0, 0.0, 0.0);
+    }
 
     return FragmentOutput(float4(color, 1.0));
 }

@@ -5,7 +5,6 @@
 #include <gauge/core/string_id.hpp>
 
 #include <print>
-#include <unordered_map>
 
 namespace Gauge {
 

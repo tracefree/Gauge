@@ -110,3 +110,21 @@ T Interpolate(T a, T b, float duration, float delta) {
 }  // namespace Math
 
 }  // namespace Gauge
+
+template <>
+struct std::formatter<Gauge::Vec3> {
+    // We'll store our formatting options here
+    // For now, let's keep it simple
+    std::string_view format_spec;
+
+    // The 'parse' function
+    constexpr auto parse(std::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+
+    // The 'format' function
+    auto format(const Gauge::Vec3& p, std::format_context& ctx) const {
+        // Write the formatted string to the output iterator
+        return std::format_to(ctx.out(), "[{}, {}, {}]", p.x, p.y, p.z);
+    }
+};

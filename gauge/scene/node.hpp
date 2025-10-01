@@ -4,6 +4,7 @@
 #include <gauge/common.hpp>
 #include <gauge/components/component.hpp>
 #include <gauge/math/transform.hpp>
+#include <gauge/renderer/aabb.hpp>
 #include <memory>
 
 namespace Gauge {
@@ -13,6 +14,7 @@ class Node {
     std::string name;
     Transform local_transform;
     Transform global_transform;
+    AABB aabb;
 
     std::vector<Ref<Node>> children;
     std::weak_ptr<Node> parent;
@@ -51,6 +53,7 @@ class Node {
 
     bool HasParent() const;
     void AddChild(const Ref<Node>& p_node);
+    void RemoveChildren();
     void Draw() const;
     void Update(float delta);
     void ProcessInput(const SDL_Event& event);
@@ -73,6 +76,11 @@ class Node {
     template <IsComponent C>
     Ref<C> GetComponent() {
         return std::static_pointer_cast<C>(component_table[&typeid(C)]);
+    }
+
+    template <IsComponent C>
+    bool HasComponent() {
+        return component_table.contains(&typeid(C));
     }
 
     static Ref<Node> Create(const std::string& p_name = "[Node]") {

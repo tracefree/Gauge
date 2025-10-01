@@ -55,6 +55,16 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetTransparency(bool p_enabled
     return *this;
 }
 
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::SetLineTopology(bool p_enabled) {
+    line_topology_enabled = p_enabled;
+    return *this;
+}
+
+GraphicsPipelineBuilder& GraphicsPipelineBuilder::EnableDepthTest(bool p_enabled) {
+    depth_test_enabled = p_enabled;
+    return *this;
+}
+
 Result<Pipeline>
 GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
     Pipeline pipeline{};
@@ -89,7 +99,7 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
 
     const VkPipelineInputAssemblyStateCreateInfo input_assembly_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .topology = line_topology_enabled ? VK_PRIMITIVE_TOPOLOGY_LINE_LIST : VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
     };
 
     const VkPipelineViewportStateCreateInfo viewport_state_info{
@@ -129,9 +139,9 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
 
     const VkPipelineDepthStencilStateCreateInfo depth_state_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_TRUE,
-        .depthWriteEnable = VK_TRUE,
-        .depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL,
+        .depthTestEnable = depth_test_enabled ? VK_TRUE : VK_FALSE,
+        .depthWriteEnable = depth_test_enabled ? VK_TRUE : VK_FALSE,
+        .depthCompareOp = depth_test_enabled ? VK_COMPARE_OP_GREATER_OR_EQUAL : VK_COMPARE_OP_ALWAYS,
     };
 
     const VkPipelineColorBlendStateCreateInfo color_blend_info{

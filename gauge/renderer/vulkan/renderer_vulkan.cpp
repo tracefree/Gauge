@@ -31,6 +31,7 @@
 #include <vector>
 
 #include <SDL3/SDL_error.h>
+#include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_system.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
@@ -139,9 +140,11 @@ static Result<vkb::PhysicalDevice>
 CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     VkPhysicalDeviceFeatures device_features{
         .samplerAnisotropy = VK_TRUE,
+        .shaderInt16 = VK_TRUE,
     };
     VkPhysicalDeviceVulkan11Features device_features_11{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .storagePushConstant16 = VK_TRUE,
         .shaderDrawParameters = VK_TRUE,
     };
     VkPhysicalDeviceVulkan12Features device_features_12{
@@ -163,8 +166,8 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
 
     selector
         .set_minimum_version(1, 4)
-        .add_required_extension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME)
         .set_required_features(device_features)
+        .add_required_extension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME)
         .set_required_features_11(device_features_11)
         .set_required_features_12(device_features_12)
         .set_required_features_13(device_features_13)
@@ -485,15 +488,35 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     CHECK_RET(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
 
-    GraphicsPipelineBuilder builder("simple");
+    GraphicsPipelineBuilder builder(p_name);
     return builder
         .SetVertexStage(shader_module.handle, "VertexMain")
         .SetFragmentStage(shader_module.handle, "FragmentMain")
         .AddDescriptorSetLayout(global_descriptor.layout)
         .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
-        .AddPushConstantRange((VkShaderStageFlagBits)(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
+        .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PushConstants))
         .SetImageFormat(offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format)
         .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
+        .Build(ctx);
+}
+
+Result<Pipeline>
+RendererVulkan::CreateAABBPipeline(std::string p_name) {
+    auto shader_module_result = ShaderModule::FromFile(ctx, "shaders/aabb.spv");
+    CHECK_RET(shader_module_result);
+    ShaderModule shader_module = shader_module_result.value();
+
+    GraphicsPipelineBuilder builder(p_name);
+    return builder
+        .SetVertexStage(shader_module.handle, "VertexMain")
+        .SetFragmentStage(shader_module.handle, "FragmentMain")
+        .AddDescriptorSetLayout(global_descriptor.layout)
+        .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
+        .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PCS_AABB))
+        .SetImageFormat(offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format)
+        .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
+        .SetLineTopology(true)
+        .EnableDepthTest(false)
         .Build(ctx);
 }
 
@@ -651,6 +674,10 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     CHECK_RET(graphics_pipeline_result);
     graphics_pipeline = graphics_pipeline_result.value();
 
+    const auto aabb_pipeline_result = CreateAABBPipeline("AABB pipeline");
+    CHECK_RET(aabb_pipeline_result);
+    aabb_pipeline = aabb_pipeline_result.value();
+
     // Immediate command setup
     CHECK_RET(
         CreateCommandPool()
@@ -799,21 +826,50 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
 
     cmd.BindPipeline(graphics_pipeline);
     PushConstants& pcs = GetCurrentFrame().push_constants;
+    PCS_AABB& pcs_aabb = GetCurrentFrame().pcs_aabb;
     pcs.sampler = linear ? 0 : 1;
 
     draw_objects.clear();
+    draw_aabbs.clear();
     p_viewport.scene_tree->root->RefreshTransform();
     p_viewport.scene_tree->Draw();
+
+    pcs.camera_index = 0;
+    pcs_aabb.camera_id = 0;
+
+    float mx, my;
+    SDL_GetMouseState(&mx, &my);
+    pcs.mouse_position = {.x = uint16_t(mx), .y = uint16_t(my)};
 
     for (const DrawObject& draw_object : draw_objects) {
         pcs.model_matrix = draw_object.transform.GetMatrix();
         const GPUMesh& mesh = *resources.meshes.Get(draw_object.primitive);
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material.index;
-        pcs.camera_index = 0;
         vkCmdPushConstants(cmd.GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);
+    }
+
+    const VkDescriptorSet sets[] = {
+        global_descriptor.set.handle,
+        GetCurrentFrame().descriptor_set.handle,
+    };
+    vkCmdBindDescriptorSets(
+        cmd.GetHandle(),
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        aabb_pipeline.layout,
+        0,
+        2,
+        sets,
+        0,
+        nullptr);
+    cmd.BindPipeline(aabb_pipeline);
+    for (const DrawAABB& draw_aabb : draw_aabbs) {
+        pcs_aabb.position = draw_aabb.transform.position + draw_aabb.aabb.position;
+        pcs_aabb.extent = draw_aabb.aabb.extent;
+        vkCmdPushConstants(cmd.GetHandle(), aabb_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PCS_AABB), &pcs_aabb);
+        vkCmdDraw(cmd.GetHandle(), 24, 1, 0, 0);
     }
 
     for (auto callback : render_state.render_callbacks) {
@@ -897,7 +953,15 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
         global_descriptor.set.handle,
         GetCurrentFrame().descriptor_set.handle,
     };
-    vkCmdBindDescriptorSets(cmd.GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline.layout, 0, 2, sets, 0, nullptr);
+    vkCmdBindDescriptorSets(
+        cmd.GetHandle(),
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        graphics_pipeline.layout,
+        0,
+        2,
+        sets,
+        0,
+        nullptr);
 
     // Render
     for (const auto& viewport : render_state.viewports) {
