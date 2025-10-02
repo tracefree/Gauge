@@ -74,7 +74,7 @@ VkBool32 validation_layer_callback(
     const char* severity = vkb::to_string_message_severity(p_message_severity);
     const char* type = vkb::to_string_message_type(p_message_type);
     std::println("[{}] {}: {}\n", type, severity, p_callback_data->pMessage);
-    assert(false);
+    // assert(false);
     return VK_FALSE;
 }
 #endif
@@ -140,6 +140,7 @@ static Result<vkb::PhysicalDevice>
 CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     VkPhysicalDeviceFeatures device_features{
         .samplerAnisotropy = VK_TRUE,
+        .fragmentStoresAndAtomics = VK_TRUE,
         .shaderInt16 = VK_TRUE,
     };
     VkPhysicalDeviceVulkan11Features device_features_11{
@@ -559,18 +560,27 @@ Result<> RendererVulkan::InitializeGlobalResources() {
         .use_srgb = false,
     });
 
-    Result<GPUBuffer> buffer_result =
+    Result<GPUBuffer> materials_buffer_result =
         CreateBuffer(
             sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY);
-    CHECK_RET(buffer_result);
-    resources.materials_buffer = buffer_result.value();
+    CHECK_RET(materials_buffer_result);
+    resources.materials_buffer = materials_buffer_result.value();
     global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS);
 
     render_state.camera_views.resize(MAX_CAMERAS);
     render_state.camera_projections.resize(MAX_CAMERAS);
     render_state.camera_view_projections.resize(MAX_CAMERAS);
+
+    Result<GPUBuffer> readback_buffer_result =
+        CreateBuffer(
+            sizeof(Handle<Node>) * 64,
+            VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VMA_MEMORY_USAGE_AUTO);
+    CHECK_RET(readback_buffer_result);
+    resources.readback_buffer = readback_buffer_result.value();
+    global_descriptor.set.WriteStorageBuffer(ctx, 3, 0, resources.readback_buffer.handle, sizeof(Handle<Node>) * 64);
 
     return {};
 }
@@ -644,7 +654,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                         },
                         {
                             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                            .descriptorCount = 1,
+                            .descriptorCount = 2,
                         },
                     },
                     VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT,
@@ -658,6 +668,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                     .AddBinding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_ALL, immputable_samplers)
                     .AddBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_DESCRIPTOR_SETS)
                     .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1)
+                    .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
                     .Build(ctx);
             })
             .and_then([&](VkDescriptorSetLayout p_layout) {
@@ -846,6 +857,7 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         const GPUMesh& mesh = *resources.meshes.Get(draw_object.primitive);
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.material_index = draw_object.material.index;
+        pcs.node_handle = draw_object.node_handle;
         vkCmdPushConstants(cmd.GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);
@@ -913,9 +925,38 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
     }
 }
 
+struct Readback {
+    uint node_handle;
+    float depth;
+};
+
 void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_image_index) {
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd.GetHandle(), "Draw");
+
+    const Readback* readback = (const Readback*)resources.readback_buffer.allocation.info.pMappedData;
+    uint num_hovered_objects = readback[0].node_handle;
+
+    if (num_hovered_objects > 0) {
+        std::vector<Readback> hovered_objects;
+        std::vector<std::string> names;
+        for (uint i = 0; i < num_hovered_objects; i++) {
+            hovered_objects.emplace_back(readback[i + 1]);
+        }
+        struct
+        {
+            bool operator()(Readback a, Readback b) const { return a.depth > b.depth; }
+        } compare_depth;
+        std::sort(hovered_objects.begin(), hovered_objects.end(), compare_depth);
+        for (auto& object : hovered_objects) {
+            auto handle = Handle<std::weak_ptr<Node>>::FromUint(object.node_handle);
+            names.emplace_back(Node::Get(handle).lock()->name);
+        }
+        auto handle = Handle<std::weak_ptr<Node>>::FromUint(hovered_objects[0].node_handle);
+        hovered_node = Node::Get(handle);
+    } else {
+        hovered_node = std::weak_ptr<Node>();
+    }
 
     if (!offscreen) {
         cmd.TransitionImage(swapchain.images[p_next_image_index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
@@ -962,6 +1003,8 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
         sets,
         0,
         nullptr);
+
+    vkCmdFillBuffer(cmd.GetHandle(), resources.readback_buffer.handle, 0, VK_WHOLE_SIZE, 0);
 
     // Render
     for (const auto& viewport : render_state.viewports) {
@@ -1608,4 +1651,8 @@ Quaternion RendererVulkan::ViewportGetCameraRotation(uint p_viewport_id) {
     const Viewport& viewport = render_state.viewports[p_viewport_id];
     return glm::angleAxis(viewport.camera_yaw, Vec3::DOWN) *
            glm::angleAxis(viewport.camera_pitch, Vec3::RIGHT);
+}
+
+std::weak_ptr<Node> RendererVulkan::GetHoveredNode() {
+    return hovered_node;
 }

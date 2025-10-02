@@ -45,6 +45,7 @@ struct RendererVulkan : public Renderer {
         uint camera_index;
         uint scene_index;
         MousePosition mouse_position;
+        uint node_handle;
     };
 
     struct PCS_AABB {
@@ -149,6 +150,7 @@ struct RendererVulkan : public Renderer {
         Pool<GPUMaterial> materials{};
 
         GPUBuffer materials_buffer;
+        GPUBuffer readback_buffer;
 
         Handle<GPUImage> texture_white;
         Handle<GPUImage> texture_black;
@@ -160,6 +162,7 @@ struct RendererVulkan : public Renderer {
 
     bool linear = true;
     bool offscreen = false;
+    std::weak_ptr<Node> hovered_node;
 
    public:
     Result<> Initialize(void (*p_create_surface)(VkInstance p_instance, VkSurfaceKHR* r_surface), bool p_offscreen = false) final override;
@@ -220,7 +223,7 @@ struct RendererVulkan : public Renderer {
     void ViewportSetCameraPosition(uint p_viewport_id, const Vec3& p_position) final override;
     void ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset) final override;
     void ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) final override;
-    virtual Quaternion ViewportGetCameraRotation(uint p_viewport_id) final override;
+    Quaternion ViewportGetCameraRotation(uint p_viewport_id) final override;
 
     Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
 
@@ -230,5 +233,7 @@ struct RendererVulkan : public Renderer {
     Result<GPUImage> UploadTextureToGPU(const Texture& p_texture) const;
 
     static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa);
+
+    std::weak_ptr<Node> GetHoveredNode() final override;
 };
 }  // namespace Gauge

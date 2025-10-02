@@ -4,6 +4,8 @@
 
 using namespace Gauge;
 
+Pool<std::weak_ptr<Node>> Node::pool;
+
 Vec3 Node::GetPosition() const {
     return local_transform.position;
 }

@@ -18,6 +18,7 @@ void MeshInstance::Draw() {
                 .primitive = surface.primitive,
                 .material = surface.material,
                 .transform = node ? node->global_transform : Transform(),
+                .node_handle = node ? node->handle.ToUint() : 0,
             });
     }
 }

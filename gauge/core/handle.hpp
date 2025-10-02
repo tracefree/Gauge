@@ -17,7 +17,16 @@ struct Handle {
         return std::hash<uint>()(index);
     }
 
-    // size_t operator()
+    inline uint ToUint() {
+        return index;  // TODO: take generation into account
+    }
+
+    static inline Handle<T> FromUint(uint p_handle) {
+        return Handle<T>{
+            .generation = 0,  // TODO
+            .index = uint16_t(p_handle),
+        };
+    }
 };
 
 }  // namespace Gauge

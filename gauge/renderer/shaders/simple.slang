@@ -31,11 +31,18 @@ struct Push {
     uint camera_id;
     uint scene_id;
     uint16_t2 mouse_position;
+    uint node_handle;
+}
+
+struct Readback {
+    uint node_handle;
+    float depth;
 }
 
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
 StructuredBuffer<Material> materials;
+RWStructuredBuffer<Readback> readback;
 
 [[vk::binding(0, 1)]]
 ConstantBuffer<Globals> globals;
@@ -83,7 +90,6 @@ FragmentOutput FragmentMain(
     float3 position_vs,
     float3x3 tbn_ws: TBN_WS,
     float2 uv: VertexUV,
-
 )
 {
     let material = materials[push_constants.material_id];
@@ -97,7 +103,7 @@ FragmentOutput FragmentMain(
 
     Camera camera = globals.cameras[push_constants.camera_id];
     float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
-    float3 light_position = float3(1.5 * cos(globals.time), 1.5, 1.5 * sin(globals.time));
+    float3 light_position = float3(1.5 * cos(globals.time * 0), 1.5, 1.5 * sin(globals.time * 0));
     float3 light_vector = light_position - position_ws;
     float light_distance = length(light_vector);
     float3 light_direction_ws = light_vector / light_distance;
@@ -109,8 +115,10 @@ FragmentOutput FragmentMain(
     
     float3 color = albedo.rgb * (ambient + point);
 
-    if (push_constants.mouse_position.x > position_cs.x && push_constants.mouse_position.y > position_cs.y) {
-        color = float3(1.0, 0.0, 0.0);
+    if (push_constants.mouse_position.x == uint16_t(position_cs.x) && push_constants.mouse_position.y == uint16_t(position_cs.y)) {
+        readback[readback[0].node_handle + 1].node_handle = push_constants.node_handle;
+        readback[readback[0].node_handle + 1].depth = position_cs.z;
+        readback[0].node_handle = readback[0].node_handle + 1;
     }
 
     return FragmentOutput(float4(color, 1.0));

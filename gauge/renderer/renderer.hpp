@@ -4,12 +4,14 @@
 #include <gauge/core/config.hpp>
 #include <gauge/core/pool.hpp>
 #include <gauge/renderer/common.hpp>
+#include <memory>
 #include "gauge/core/handle.hpp"
 #include "gauge/math/common.hpp"
 #include "gauge/math/transform.hpp"
 #include "gauge/renderer/aabb.hpp"
 #include "gauge/renderer/texture.hpp"
 #include "gauge/renderer/vulkan/common.hpp"
+#include "gauge/scene/node.hpp"
 
 #include <SDL3/SDL_video.h>
 #include <vulkan/vulkan_core.h>
@@ -38,6 +40,7 @@ struct Renderer {
         Handle<GPUMesh> primitive;
         Handle<GPUMaterial> material;
         Transform transform;
+        uint node_handle;
     };
 
     struct DrawAABB {
@@ -78,6 +81,8 @@ struct Renderer {
 
     virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) = 0;
     virtual void DestroyMaterial(Handle<GPUMaterial> p_handle) = 0;
+
+    virtual std::weak_ptr<Node> GetHoveredNode() = 0;
 
     Renderer() = default;
     virtual ~Renderer() = default;

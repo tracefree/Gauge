@@ -6,6 +6,7 @@
 #include <gauge/math/transform.hpp>
 #include <gauge/renderer/aabb.hpp>
 #include <memory>
+#include <print>
 
 namespace Gauge {
 
@@ -23,10 +24,12 @@ class Node {
    protected:
     std::unordered_map<const std::type_info*, Ref<Component>> component_table;
     std::vector<Ref<Component>> components;
+    static Pool<std::weak_ptr<Node>> pool;
 
    public:
     bool active = true;
     bool visible = true;
+    Handle<std::weak_ptr<Node>> handle;
 
    public:
     Vec3 GetPosition() const;
@@ -86,10 +89,25 @@ class Node {
     static Ref<Node> Create(const std::string& p_name = "[Node]") {
         Ref<Node> node = std::make_shared<Node>(p_name);
         node->self = node;
+        node->handle = pool.Allocate(node);
+        std::println("Created node {} with handle: {}", p_name, node->handle.ToUint());
         return node;
     }
 
+    static std::weak_ptr<Node> Get(Handle<std::weak_ptr<Node>> p_handle) {
+        auto pointer = pool.Get(p_handle);
+        if (pointer == nullptr) {
+            return std::weak_ptr<Node>();
+        }
+        return *pointer;
+    }
+
     Node(const std::string& p_name = "[Node]") : name(p_name) {};
+    ~Node() {
+        if (handle.index > 0) {
+            pool.Free(handle);
+        }
+    }
 };
 
 }  // namespace Gauge
