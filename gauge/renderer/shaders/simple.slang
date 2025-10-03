@@ -42,10 +42,12 @@ struct Readback {
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
 StructuredBuffer<Material> materials;
-RWStructuredBuffer<Readback> readback;
 
 [[vk::binding(0, 1)]]
 ConstantBuffer<Globals> globals;
+
+[[vk::binding(1, 1)]]
+RWStructuredBuffer<Readback> readback;
 
 [[vk::push_constant]]
 ConstantBuffer<Push> push_constants;
@@ -103,7 +105,7 @@ FragmentOutput FragmentMain(
 
     Camera camera = globals.cameras[push_constants.camera_id];
     float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
-    float3 light_position = float3(1.5 * cos(globals.time * 0), 1.5, 1.5 * sin(globals.time * 0));
+    float3 light_position = float3(1.5 * cos(globals.time), 1.5, 1.5 * sin(globals.time));
     float3 light_vector = light_position - position_ws;
     float light_distance = length(light_vector);
     float3 light_direction_ws = light_vector / light_distance;

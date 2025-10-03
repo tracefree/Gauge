@@ -282,6 +282,7 @@ RendererVulkan::CreateFrameData() {
         ctx,
         {
             {.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, .descriptorCount = max_frames_in_flight},
+            {.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, .descriptorCount = max_frames_in_flight},
         },
         VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT,
         max_frames_in_flight);
@@ -291,6 +292,7 @@ RendererVulkan::CreateFrameData() {
     auto layout_result =
         DescriptorSetLayoutBuilder()
             .AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
+            .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
             .SetFlags(VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT)
             .Build(ctx);
     CHECK_RET(layout_result);
@@ -337,8 +339,18 @@ RendererVulkan::CreateFrameData() {
                 .transform([&](GPUBuffer p_buffer) {
                     frame.uniform_buffer = p_buffer;
                 }));
-
         frame.descriptor_set.WriteUniformBuffer(ctx, 0, 0, frame.uniform_buffer.handle, sizeof(GPUGlobals));
+
+        // Readback buffer
+        CHECK_RET(
+            CreateBuffer(
+                sizeof(Handle<Node>) * 64,
+                VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VMA_MEMORY_USAGE_AUTO)
+                .transform([&](GPUBuffer p_buffer) {
+                    frame.readback_buffer = p_buffer;
+                }));
+        frame.descriptor_set.WriteStorageBuffer(ctx, 1, 0, frame.readback_buffer.handle, sizeof(Handle<Node>) * 64);
 
         // Tracy
 #ifdef TRACY_ENABLE
@@ -573,15 +585,6 @@ Result<> RendererVulkan::InitializeGlobalResources() {
     render_state.camera_projections.resize(MAX_CAMERAS);
     render_state.camera_view_projections.resize(MAX_CAMERAS);
 
-    Result<GPUBuffer> readback_buffer_result =
-        CreateBuffer(
-            sizeof(Handle<Node>) * 64,
-            VK_BUFFER_USAGE_2_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VMA_MEMORY_USAGE_AUTO);
-    CHECK_RET(readback_buffer_result);
-    resources.readback_buffer = readback_buffer_result.value();
-    global_descriptor.set.WriteStorageBuffer(ctx, 3, 0, resources.readback_buffer.handle, sizeof(Handle<Node>) * 64);
-
     return {};
 }
 
@@ -654,7 +657,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                         },
                         {
                             .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                            .descriptorCount = 2,
+                            .descriptorCount = 1,
                         },
                     },
                     VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT,
@@ -668,7 +671,6 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                     .AddBinding(VK_DESCRIPTOR_TYPE_SAMPLER, 2, VK_SHADER_STAGE_ALL, immputable_samplers)
                     .AddBinding(VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, MAX_DESCRIPTOR_SETS)
                     .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1)
-                    .AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT)
                     .Build(ctx);
             })
             .and_then([&](VkDescriptorSetLayout p_layout) {
@@ -934,7 +936,7 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd.GetHandle(), "Draw");
 
-    const Readback* readback = (const Readback*)resources.readback_buffer.allocation.info.pMappedData;
+    const Readback* readback = (const Readback*)GetCurrentFrame().readback_buffer.allocation.info.pMappedData;
     uint num_hovered_objects = readback[0].node_handle;
 
     if (num_hovered_objects > 0) {
@@ -1004,7 +1006,27 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
         0,
         nullptr);
 
-    vkCmdFillBuffer(cmd.GetHandle(), resources.readback_buffer.handle, 0, VK_WHOLE_SIZE, 0);
+    // Clear readback buffer
+    // TODO: Create memory barrier helper function
+    {
+        vkCmdFillBuffer(cmd.GetHandle(), GetCurrentFrame().readback_buffer.handle, 0, VK_WHOLE_SIZE, 0);
+        VkBufferMemoryBarrier2 buffer_memory_barrier{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+            .srcStageMask = VK_PIPELINE_STAGE_2_CLEAR_BIT,
+            .srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+            .dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT,
+            .buffer = GetCurrentFrame().readback_buffer.handle,
+            .offset = 0,
+            .size = VK_WHOLE_SIZE,
+        };
+        VkDependencyInfo dependency_info{
+            .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+            .bufferMemoryBarrierCount = 1,
+            .pBufferMemoryBarriers = &buffer_memory_barrier,
+        };
+        vkCmdPipelineBarrier2(cmd.GetHandle(), &dependency_info);
+    }
 
     // Render
     for (const auto& viewport : render_state.viewports) {

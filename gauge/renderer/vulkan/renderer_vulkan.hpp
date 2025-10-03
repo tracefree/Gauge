@@ -66,6 +66,7 @@ struct RendererVulkan : public Renderer {
         // Updated every frame: Camera position, lights...
         DescriptorSet descriptor_set{};
         GPUBuffer uniform_buffer{};
+        GPUBuffer readback_buffer{};
 
 #ifdef TRACY_ENABLE
         tracy::VkCtx* tracy_context{};
@@ -150,7 +151,6 @@ struct RendererVulkan : public Renderer {
         Pool<GPUMaterial> materials{};
 
         GPUBuffer materials_buffer;
-        GPUBuffer readback_buffer;
 
         Handle<GPUImage> texture_white;
         Handle<GPUImage> texture_black;
