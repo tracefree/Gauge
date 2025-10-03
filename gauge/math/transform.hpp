@@ -9,7 +9,7 @@ struct Transform {
     static const Transform IDENTITY;
 
     Vec3 position{0.0f, 0.0f, 0.0f};
-    glm::quat rotation{glm::identity<Quaternion>()};
+    Quaternion rotation{glm::identity<Quaternion>()};
     float scale{1.0f};
 
     Mat4 GetMatrix() const;

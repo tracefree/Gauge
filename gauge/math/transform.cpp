@@ -1,4 +1,5 @@
 #include "transform.hpp"
+#include <cstdlib>
 
 using namespace Gauge;
 
@@ -28,8 +29,17 @@ const Transform Transform::operator*(Transform const& rhs) const {
     };
 }
 
+// From "Real-Time Collision Detection" by Christer Ericson, 4.2.6
 const AABB Transform::operator*(AABB const& rhs) const {
-    AABB aabb = rhs;
-    aabb.position += position;
+    AABB aabb(position, Vec3());
+    Mat3 rotation_matrix = glm::toMat3(rotation);
+    for (uint i = 0; i < 3; ++i) {
+        for (uint j = 0; j < 3; ++j) {
+            aabb.position[i] += rotation_matrix[j][i] * rhs.position[j];
+            aabb.extent[i] += std::abs(rotation_matrix[j][i]) * rhs.extent[j];
+        }
+    }
+    aabb.position *= scale;
+    aabb.extent *= scale;
     return aabb;
 }

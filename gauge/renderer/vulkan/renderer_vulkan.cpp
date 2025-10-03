@@ -501,8 +501,7 @@ RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
     CHECK_RET(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
 
-    GraphicsPipelineBuilder builder(p_name);
-    return builder
+    return GraphicsPipelineBuilder(p_name)
         .SetVertexStage(shader_module.handle, "VertexMain")
         .SetFragmentStage(shader_module.handle, "FragmentMain")
         .AddDescriptorSetLayout(global_descriptor.layout)
@@ -519,13 +518,12 @@ RendererVulkan::CreateAABBPipeline(std::string p_name) {
     CHECK_RET(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
 
-    GraphicsPipelineBuilder builder(p_name);
-    return builder
+    return GraphicsPipelineBuilder(p_name)
         .SetVertexStage(shader_module.handle, "VertexMain")
         .SetFragmentStage(shader_module.handle, "FragmentMain")
         .AddDescriptorSetLayout(global_descriptor.layout)
         .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
-        .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PCS_AABB))
+        .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(PCS_AABB))
         .SetImageFormat(offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format)
         .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
         .SetLineTopology(true)
@@ -880,9 +878,10 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         nullptr);
     cmd.BindPipeline(aabb_pipeline);
     for (const DrawAABB& draw_aabb : draw_aabbs) {
-        pcs_aabb.position = draw_aabb.transform.position + draw_aabb.aabb.position;
-        pcs_aabb.extent = draw_aabb.aabb.extent;
-        vkCmdPushConstants(cmd.GetHandle(), aabb_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PCS_AABB), &pcs_aabb);
+        const AABB transformed_aabb = draw_aabb.transform * draw_aabb.aabb;
+        pcs_aabb.position = transformed_aabb.position;
+        pcs_aabb.extent = transformed_aabb.extent;
+        vkCmdPushConstants(cmd.GetHandle(), aabb_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PCS_AABB), &pcs_aabb);
         vkCmdDraw(cmd.GetHandle(), 24, 1, 0, 0);
     }
 

@@ -9,7 +9,7 @@ class AABB {
     Vec3 position{};
     Vec3 extent{};
 
-   private:
+   protected:
     bool valid = false;
 
    public:
@@ -19,7 +19,7 @@ class AABB {
     inline bool IsValid() { return valid; }
 
     AABB() {}
-    ~AABB() {}
+    AABB(Vec3 position, Vec3 extent) : position(position), extent(extent), valid(true) {}
 };
 
 }  // namespace Gauge
