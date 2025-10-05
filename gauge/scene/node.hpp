@@ -7,13 +7,14 @@
 #include <gauge/renderer/aabb.hpp>
 #include <memory>
 #include <print>
+#include <string>
 #include <typeindex>
 
 namespace Gauge {
 
 class Node {
    public:
-    std::string name;
+    StringID name;
     Transform local_transform;
     Transform global_transform;
     AABB aabb;
@@ -57,7 +58,10 @@ class Node {
 
     bool HasParent() const;
     void AddChild(const Ref<Node>& p_node);
+    bool HasChild(StringID p_name) const;
+    Ref<Node> GetChild(StringID p_name) const;
     void RemoveChildren();
+
     void Draw() const;
     void Update(float delta);
     void ProcessInput(const SDL_Event& event);

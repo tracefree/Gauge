@@ -950,10 +950,10 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
 }
 
 static void NodeTree(const Ref<Node>& node) {
-    bool open = ImGui::TreeNodeEx(node->name.c_str(), ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowItemOverlap);
+    bool open = ImGui::TreeNodeEx(std::string(node->name).c_str(), ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_AllowItemOverlap);
     ImGui::SameLine(ImGui::GetWindowWidth() - 30);
     ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.0f);
-    ImGui::Checkbox(std::format("##{}_vis", node->name.c_str()).c_str(), &node->visible);
+    ImGui::Checkbox(std::format("##{}_vis", node->name).c_str(), &node->visible);
     ImGui::PopStyleVar();
     if (open) {
         ImGui::Text("Position");
@@ -967,7 +967,7 @@ static void NodeTree(const Ref<Node>& node) {
             bool is_component_open = ImGui::TreeNode("MeshInstance");
             ImGui::SameLine(ImGui::GetWindowWidth() - 30);
             ImGui::PushStyleVarY(ImGuiStyleVar_FramePadding, 0.0f);
-            ImGui::Checkbox(std::format("##{}_comp_vis", node->name.c_str()).c_str(), &component->visible);
+            ImGui::Checkbox(std::format("##{}_comp_vis", node->name).c_str(), &component->visible);
             ImGui::PopStyleVar();
             if (is_component_open) {
                 ImGui::TreePop();

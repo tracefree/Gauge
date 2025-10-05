@@ -76,8 +76,27 @@ bool Node::HasParent() const {
 
 void Node::AddChild(const Ref<Node>& p_node) {
     assert(!p_node->HasParent());
+    assert(!HasChild(p_node->name));
     children.push_back(p_node);
     p_node->parent = self;
+}
+
+bool Node::HasChild(StringID p_name) const {
+    for (const auto& child : children) {
+        if (child->name == p_name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Ref<Node> Node::GetChild(StringID p_name) const {
+    for (const auto& child : children) {
+        if (child->name == p_name) {
+            return child;
+        }
+    }
+    return nullptr;
 }
 
 void Node::RemoveChildren() {
