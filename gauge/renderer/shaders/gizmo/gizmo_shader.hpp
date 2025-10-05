@@ -5,29 +5,34 @@
 
 namespace Gauge {
 
-class PBRShader : public Shader {
+class GizmoShader : public Shader {
    public:
     struct MousePosition {
         uint16_t x;
         uint16_t y;
     };
 
+    enum class State {
+        NONE,
+        HOVERED,
+        CLICKED,
+    };
+
     struct PushConstants {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
-        uint sampler;
-        uint material_index;
+        Vec2 color_rg;
+        float color_b;
         uint camera_index;
-        uint scene_index;
         MousePosition mouse_position;
         uint node_handle;
     };
 
     struct DrawObject {
         Handle<GPUMesh> primitive;
-        Handle<GPUMaterial> material;
         Transform transform;
         uint node_handle;
+        Vec3 color;
     };
 
     std::vector<DrawObject> objects;
@@ -37,8 +42,8 @@ class PBRShader : public Shader {
     virtual void Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) const override;
     virtual void Clear() override;
 
-    PBRShader() {}
-    ~PBRShader() {}
+    GizmoShader() {}
+    ~GizmoShader() {}
 };
 
 }  // namespace Gauge

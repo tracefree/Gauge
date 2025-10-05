@@ -23,15 +23,15 @@ DescriptorPool::Create(const VulkanContext& ctx, const std::vector<VkDescriptorP
 
 // --- DescriptorSet ---
 
-VkDescriptorSet DescriptorSet::GetHandle() {
+VkDescriptorSet DescriptorSet::GetHandle() const {
     return handle;
 }
 
-VkDescriptorSetLayout DescriptorSet::GetLayout() {
+VkDescriptorSetLayout DescriptorSet::GetLayout() const {
     return layout;
 }
 
-VkDescriptorPool DescriptorSet::GetPool() {
+VkDescriptorPool DescriptorSet::GetPool() const {
     return pool;
 }
 

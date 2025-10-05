@@ -12,6 +12,7 @@
 #include <gauge/core/config.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/shaders/aabb/aabb_shader.hpp>
+#include <gauge/renderer/shaders/gizmo/gizmo_shader.hpp>
 #include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/descriptor.hpp>
@@ -648,6 +649,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
             }));
 
     RegisterShader<AABBShader>();
+    RegisterShader<GizmoShader>();
     RegisterShader<PBRShader>();
 
     // Immediate command setup
@@ -857,9 +859,9 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd.GetHandle(), "Draw");
 
+    int prev_frame = ((int)current_frame_index - 1) % max_frames_in_flight;
     const Readback* readback = (const Readback*)GetCurrentFrame().readback_buffer.allocation.info.pMappedData;
     uint num_hovered_objects = readback[0].node_handle;
-
     if (num_hovered_objects > 0) {
         std::vector<Readback> hovered_objects;
         std::vector<std::string> names;
@@ -1063,12 +1065,12 @@ void RendererVulkan::Draw() {
         present_result = vkQueuePresentKHR(ctx.graphics_queue, &present_info);
     }
 
+    current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
+
     FrameMark;
     if (present_result == VK_ERROR_OUT_OF_DATE_KHR || present_result == VK_SUBOPTIMAL_KHR) {
         CHECK(CreateSwapchain(true));
     }
-
-    current_frame_index = (current_frame_index + 1) % max_frames_in_flight;
 }
 
 void RendererVulkan::DrawOffscreen() {
@@ -1552,11 +1554,10 @@ void RendererVulkan::DestroyMaterial(Handle<GPUMaterial> p_handle) {
 }
 
 void RendererVulkan::OnShaderChanged() {
-    return;
-    vkDeviceWaitIdle(ctx.device);
-    // vkDestroyPipeline(ctx.device, graphics_pipeline.handle, nullptr);
-    // vkDestroyPipelineLayout(ctx.device, graphics_pipeline.layout, nullptr);
-    // graphics_pipeline = CreateGraphicsPipeline("Primary graphics pipeline").value();
+    std::println("Reloading shaders...");
+    for (auto& shader : shaders) {
+        shader.second->Reload(*this);
+    }
 }
 
 void RendererVulkan::ViewportSetCameraView(uint p_viewport_id, const Mat4& p_view) {

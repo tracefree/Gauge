@@ -1,7 +1,6 @@
 #include "graphics_pipeline_builder.hpp"
-#include <vulkan/vulkan_core.h>
 
-#include "gauge/renderer/vulkan/common.hpp"
+#include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 
 using namespace Gauge;
 
@@ -66,7 +65,8 @@ GraphicsPipelineBuilder& GraphicsPipelineBuilder::EnableDepthTest(bool p_enabled
 }
 
 Result<Pipeline>
-GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
+GraphicsPipelineBuilder::Build(const RendererVulkan& renderer) const {
+    const VulkanContext& ctx = renderer.ctx;
     Pipeline pipeline{};
 
     const VkPipelineShaderStageCreateInfo vertex_shader_stage_info{
@@ -162,7 +162,7 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
 
     VK_CHECK_RET(vkCreatePipelineLayout(ctx.device, &pipeline_layout_info, nullptr, &pipeline.layout),
                  "Could not create pipeline layout");
-    // SetDebugName((uint64_t)pipeline.layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, std::format("{} layout", p_name));
+    renderer.SetDebugName((uint64_t)pipeline.layout, VK_OBJECT_TYPE_PIPELINE_LAYOUT, std::format("{} layout", name));
 
     const VkPipelineRenderingCreateInfo pipeline_rendering_info{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO,
@@ -189,7 +189,7 @@ GraphicsPipelineBuilder::Build(const VulkanContext& ctx) const {
 
     VK_CHECK_RET(vkCreateGraphicsPipelines(ctx.device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &pipeline.handle),
                  "Could not create graphics pipeline");
-    //  SetDebugName((uint64_t)pipeline.handle, VK_OBJECT_TYPE_PIPELINE, p_name);
+    renderer.SetDebugName((uint64_t)pipeline.handle, VK_OBJECT_TYPE_PIPELINE, name);
 
     return pipeline;
 }

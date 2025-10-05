@@ -5,6 +5,7 @@
 #include <gauge/core/handle.hpp>
 
 #include <vector>
+#include "gauge/core/string_id.hpp"
 #include "gauge/renderer/common.hpp"
 
 namespace Gauge {
@@ -15,6 +16,7 @@ struct MeshInstance : public Component {
     struct Surface {
         Handle<GPUMesh> primitive;
         Handle<GPUMaterial> material;
+        StringID shader_id;
     };
     std::vector<Surface> surfaces;
 

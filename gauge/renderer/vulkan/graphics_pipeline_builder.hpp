@@ -9,6 +9,8 @@
 
 namespace Gauge {
 
+struct RendererVulkan;
+
 struct GraphicsPipelineBuilder {
    private:
     std::string name;
@@ -42,7 +44,7 @@ struct GraphicsPipelineBuilder {
     GraphicsPipelineBuilder& SetLineTopology(bool p_enabled);
     GraphicsPipelineBuilder& EnableDepthTest(bool p_enabled = true);
 
-    Result<Pipeline> Build(const VulkanContext& ctx) const;
+    Result<Pipeline> Build(const RendererVulkan& renderer) const;
 
     GraphicsPipelineBuilder(std::string p_name = "");
     ~GraphicsPipelineBuilder() {}

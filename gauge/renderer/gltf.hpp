@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include "gauge/core/string_id.hpp"
 
 namespace fastgltf {
 class Asset;
@@ -45,6 +46,7 @@ struct glTF {
         std::optional<uint> texture_albedo_index;
         std::optional<uint> texture_normal_index;
         std::optional<uint> texture_metallic_roughness_index;
+        StringID shader_id;
     };
 
     struct Primitive {

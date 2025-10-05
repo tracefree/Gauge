@@ -9,14 +9,14 @@ using namespace Gauge;
 
 extern App* gApp;
 
-void AABBShader::Initialize(RendererVulkan& renderer) {
+void AABBShader::Initialize(const RendererVulkan& renderer) {
     id = "AABB"_id;
 
     auto shader_module_result = ShaderModule::FromFile(renderer.ctx, "shaders/aabb.spv");
     CHECK(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
 
-    pipeline =
+    builder =
         GraphicsPipelineBuilder(id)
             .SetVertexStage(shader_module.handle, "VertexMain")
             .SetFragmentStage(shader_module.handle, "FragmentMain")
@@ -26,12 +26,11 @@ void AABBShader::Initialize(RendererVulkan& renderer) {
             .SetImageFormat(renderer.offscreen ? VK_FORMAT_R8G8B8A8_SRGB : renderer.swapchain.image_format)
             .SetSampleCount(RendererVulkan::SampleCountFromMSAA(gApp->project_settings.msaa_level))
             .SetLineTopology(true)
-            .EnableDepthTest(false)
-            .Build(renderer.ctx)
-            .value();
+            .EnableDepthTest(false);
+    pipeline = builder.Build(renderer).value();
 }
 
-void AABBShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) {
+void AABBShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) const {
     const VkDescriptorSet sets[] = {
         renderer.global_descriptor.set.handle,
         renderer.GetCurrentFrame().descriptor_set.handle,

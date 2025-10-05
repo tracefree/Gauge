@@ -22,8 +22,8 @@ class AABBShader : public Shader {
     std::vector<DrawObject> objects;
 
    public:
-    virtual void Initialize(RendererVulkan& renderer) override;
-    virtual void Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) override;
+    virtual void Initialize(const RendererVulkan& renderer) override;
+    virtual void Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) const override;
     virtual void Clear() override;
 
     AABBShader() {}

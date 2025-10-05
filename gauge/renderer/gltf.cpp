@@ -232,6 +232,12 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
             material.texture_metallic_roughness_index = fg_material.pbrData.metallicRoughnessTexture->textureIndex;
         }
         material.handle = gApp->renderer->CreateMaterial(gpu_material);
+
+        if (fg_material.name.starts_with("Gizmo")) {
+            material.shader_id = "Gizmo"_id;
+        } else {
+            material.shader_id = "PBR"_id;
+        }
     }
     return {};
 }
@@ -301,14 +307,16 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
         AABB aabb;
         if (nodes[i].mesh.has_value()) {
             const glTF::Mesh& mesh = meshes[nodes[i].mesh.value()];
-            Ref<MeshInstance> mesh_component = std::make_shared<MeshInstance>();
+            Ref<MeshInstance> mesh_component = instanced_nodes[i]->AddComponent<MeshInstance>();
             for (const auto& primitive : mesh.primitives) {
+                const auto& material = materials[primitive.material_index.value_or(0)];
                 mesh_component->surfaces.emplace_back(MeshInstance::Surface{
                     .primitive = primitive.handle,
-                    .material = materials[primitive.material_index.value_or(0)].handle,
+                    .material = material.handle,
+                    .shader_id = material.shader_id,
                 });
             }
-            instanced_nodes[i]->AddComponent(mesh_component);
+
             instanced_nodes[i]->aabb = mesh.aabb;
         }
     }

@@ -23,9 +23,9 @@ struct DescriptorSet {
     VkDescriptorSetLayout layout{};
 
    public:
-    VkDescriptorSet GetHandle();
-    VkDescriptorSetLayout GetLayout();
-    VkDescriptorPool GetPool();
+    VkDescriptorSet GetHandle() const;
+    VkDescriptorSetLayout GetLayout() const;
+    VkDescriptorPool GetPool() const;
 
     void WriteImage(const VulkanContext& ctx, uint p_bind_point, uint p_element, VkImageView p_view, VkImageLayout p_layout);
     void WriteUniformBuffer(const VulkanContext& ctx, uint p_bind_point, uint p_element, VkBuffer p_buffer, VkDeviceSize p_range, VkDeviceSize p_offset = 0);

@@ -7,6 +7,7 @@
 #include <gauge/renderer/aabb.hpp>
 #include <memory>
 #include <print>
+#include <typeindex>
 
 namespace Gauge {
 
@@ -22,7 +23,7 @@ class Node {
     std::weak_ptr<Node> self;
 
    protected:
-    std::unordered_map<const std::type_info*, Ref<Component>> component_table;
+    std::unordered_map<std::type_index, Ref<Component>> component_table;
     std::vector<Ref<Component>> components;
     static Pool<std::weak_ptr<Node>> pool;
 
@@ -66,7 +67,7 @@ class Node {
     void AddComponent(Ref<C> p_component) {
         p_component->SetNode(this);
         components.push_back(p_component);
-        component_table[&typeid(C)] = p_component;
+        component_table[std::type_index(typeid(C))] = p_component;
     }
 
     template <IsComponent C, typename... Args>
@@ -78,12 +79,12 @@ class Node {
 
     template <IsComponent C>
     Ref<C> GetComponent() {
-        return std::static_pointer_cast<C>(component_table[&typeid(C)]);
+        return std::static_pointer_cast<C>(component_table[std::type_index(typeid(C))]);
     }
 
     template <IsComponent C>
     bool HasComponent() {
-        return component_table.contains(&typeid(C));
+        return component_table.contains(std::type_index(typeid(C)));
     }
 
     static Ref<Node> Create(const std::string& p_name = "[Node]") {
