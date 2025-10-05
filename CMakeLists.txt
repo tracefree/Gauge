@@ -45,6 +45,8 @@ add_library(gauge_renderer STATIC
   gauge/renderer/renderer.cpp
   gauge/renderer/stb_image_usage.cpp
   gauge/renderer/texture.cpp
+  gauge/renderer/shaders/aabb/aabb_shader.cpp
+  gauge/renderer/shaders/pbr/pbr_shader.cpp
   gauge/renderer/vulkan/renderer_vulkan.cpp
   gauge/renderer/vulkan/command_buffer.cpp
   gauge/renderer/vulkan/descriptor.cpp

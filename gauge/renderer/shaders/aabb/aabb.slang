@@ -1,5 +1,5 @@
-#include "input_structures.slang"
-#include "limits.h"
+#include "../input_structures.slang"
+#include "../limits.h"
 
 static const float3 positions[8] = {
     float3(-1.0, -1.0, -1.0), float3(-1.0, -1.0, 1.0), float3(1.0, -1.0, 1.0), float3(1.0, -1.0, -1.0),

@@ -1,5 +1,5 @@
-#include "input_structures.slang"
-#include "limits.h"
+#include "../input_structures.slang"
+#include "../limits.h"
 
 struct Camera {
     float4x4 view;

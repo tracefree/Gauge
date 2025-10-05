@@ -1,9 +1,11 @@
 #include "mesh_instance.hpp"
 
+#include <gauge/core/app.hpp>
+#include <gauge/math/transform.hpp>
+#include <gauge/renderer/renderer.hpp>
+#include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
+#include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 #include <gauge/scene/node.hpp>
-#include "gauge/core/app.hpp"
-#include "gauge/math/transform.hpp"
-#include "gauge/renderer/renderer.hpp"
 
 #include <yaml-cpp/yaml.h>
 
@@ -13,8 +15,9 @@ extern App* gApp;
 
 void MeshInstance::Draw() {
     for (const auto& surface : surfaces) {
-        gApp->renderer->draw_objects.emplace_back(
-            Renderer::DrawObject{
+        auto renderer = static_cast<RendererVulkan*>(&(*gApp->renderer));
+        renderer->GetShader<PBRShader>()->objects.emplace_back(
+            PBRShader::DrawObject{
                 .primitive = surface.primitive,
                 .material = surface.material,
                 .transform = node ? node->global_transform : Transform(),

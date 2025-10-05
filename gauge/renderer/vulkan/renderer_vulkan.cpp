@@ -11,6 +11,8 @@
 #include <gauge/core/app.hpp>
 #include <gauge/core/config.hpp>
 #include <gauge/math/common.hpp>
+#include <gauge/renderer/shaders/aabb/aabb_shader.hpp>
+#include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/descriptor.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
@@ -74,7 +76,7 @@ VkBool32 validation_layer_callback(
     const char* severity = vkb::to_string_message_severity(p_message_severity);
     const char* type = vkb::to_string_message_type(p_message_type);
     std::println("[{}] {}: {}\n", type, severity, p_callback_data->pMessage);
-    // assert(false);
+    assert(false);
     return VK_FALSE;
 }
 #endif
@@ -495,42 +497,6 @@ RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
     return sampler;
 }
 
-Result<Pipeline>
-RendererVulkan::CreateGraphicsPipeline(std::string p_name) {
-    auto shader_module_result = ShaderModule::FromFile(ctx, "shaders/simple.spv");
-    CHECK_RET(shader_module_result);
-    ShaderModule shader_module = shader_module_result.value();
-
-    return GraphicsPipelineBuilder(p_name)
-        .SetVertexStage(shader_module.handle, "VertexMain")
-        .SetFragmentStage(shader_module.handle, "FragmentMain")
-        .AddDescriptorSetLayout(global_descriptor.layout)
-        .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
-        .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PushConstants))
-        .SetImageFormat(offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format)
-        .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
-        .Build(ctx);
-}
-
-Result<Pipeline>
-RendererVulkan::CreateAABBPipeline(std::string p_name) {
-    auto shader_module_result = ShaderModule::FromFile(ctx, "shaders/aabb.spv");
-    CHECK_RET(shader_module_result);
-    ShaderModule shader_module = shader_module_result.value();
-
-    return GraphicsPipelineBuilder(p_name)
-        .SetVertexStage(shader_module.handle, "VertexMain")
-        .SetFragmentStage(shader_module.handle, "FragmentMain")
-        .AddDescriptorSetLayout(global_descriptor.layout)
-        .AddDescriptorSetLayout(frames_in_flight[0].descriptor_set.GetLayout())
-        .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(PCS_AABB))
-        .SetImageFormat(offscreen ? VK_FORMAT_R8G8B8A8_SRGB : swapchain.image_format)
-        .SetSampleCount(SampleCountFromMSAA(gApp->project_settings.msaa_level))
-        .SetLineTopology(true)
-        .EnableDepthTest(false)
-        .Build(ctx);
-}
-
 Result<> RendererVulkan::InitializeGlobalResources() {
     uint white = glm::packUnorm4x8(Vec4(1.0f));
     resources.texture_white = CreateTexture({
@@ -681,13 +647,8 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                 return InitializeImGui(*this);
             }));
 
-    const auto graphics_pipeline_result = CreateGraphicsPipeline("Primary graphics pipeline");
-    CHECK_RET(graphics_pipeline_result);
-    graphics_pipeline = graphics_pipeline_result.value();
-
-    const auto aabb_pipeline_result = CreateAABBPipeline("AABB pipeline");
-    CHECK_RET(aabb_pipeline_result);
-    aabb_pipeline = aabb_pipeline_result.value();
+    RegisterShader<AABBShader>();
+    RegisterShader<PBRShader>();
 
     // Immediate command setup
     CHECK_RET(
@@ -835,54 +796,15 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
     vkCmdSetViewport(cmd.GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd.GetHandle(), 0, 1, &scissor);
 
-    cmd.BindPipeline(graphics_pipeline);
-    PushConstants& pcs = GetCurrentFrame().push_constants;
-    PCS_AABB& pcs_aabb = GetCurrentFrame().pcs_aabb;
-    pcs.sampler = linear ? 0 : 1;
+    for (auto& shader : shaders) {
+        shader.second->Clear();
+    }
 
-    draw_objects.clear();
-    draw_aabbs.clear();
     p_viewport.scene_tree->root->RefreshTransform();
     p_viewport.scene_tree->Draw();
 
-    pcs.camera_index = 0;
-    pcs_aabb.camera_id = 0;
-
-    float mx, my;
-    SDL_GetMouseState(&mx, &my);
-    pcs.mouse_position = {.x = uint16_t(mx), .y = uint16_t(my)};
-
-    for (const DrawObject& draw_object : draw_objects) {
-        pcs.model_matrix = draw_object.transform.GetMatrix();
-        const GPUMesh& mesh = *resources.meshes.Get(draw_object.primitive);
-        pcs.vertex_buffer_address = mesh.vertex_buffer.address;
-        pcs.material_index = draw_object.material.index;
-        pcs.node_handle = draw_object.node_handle;
-        vkCmdPushConstants(cmd.GetHandle(), graphics_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
-        vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
-        vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);
-    }
-
-    const VkDescriptorSet sets[] = {
-        global_descriptor.set.handle,
-        GetCurrentFrame().descriptor_set.handle,
-    };
-    vkCmdBindDescriptorSets(
-        cmd.GetHandle(),
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        aabb_pipeline.layout,
-        0,
-        2,
-        sets,
-        0,
-        nullptr);
-    cmd.BindPipeline(aabb_pipeline);
-    for (const DrawAABB& draw_aabb : draw_aabbs) {
-        const AABB transformed_aabb = draw_aabb.transform * draw_aabb.aabb;
-        pcs_aabb.position = transformed_aabb.position;
-        pcs_aabb.extent = transformed_aabb.extent;
-        vkCmdPushConstants(cmd.GetHandle(), aabb_pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PCS_AABB), &pcs_aabb);
-        vkCmdDraw(cmd.GetHandle(), 24, 1, 0, 0);
+    for (auto& shader : shaders) {
+        shader.second->Draw(*this, cmd);
     }
 
     for (auto callback : render_state.render_callbacks) {
@@ -990,20 +912,6 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
         };
     }
     memcpy(GetCurrentFrame().uniform_buffer.allocation.info.pMappedData, &global_uniforms, sizeof(GPUGlobals));
-
-    const VkDescriptorSet sets[] = {
-        global_descriptor.set.handle,
-        GetCurrentFrame().descriptor_set.handle,
-    };
-    vkCmdBindDescriptorSets(
-        cmd.GetHandle(),
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        graphics_pipeline.layout,
-        0,
-        2,
-        sets,
-        0,
-        nullptr);
 
     // Clear readback buffer
     // TODO: Create memory barrier helper function
@@ -1644,10 +1552,11 @@ void RendererVulkan::DestroyMaterial(Handle<GPUMaterial> p_handle) {
 }
 
 void RendererVulkan::OnShaderChanged() {
+    return;
     vkDeviceWaitIdle(ctx.device);
-    vkDestroyPipeline(ctx.device, graphics_pipeline.handle, nullptr);
-    vkDestroyPipelineLayout(ctx.device, graphics_pipeline.layout, nullptr);
-    graphics_pipeline = CreateGraphicsPipeline("Primary graphics pipeline").value();
+    // vkDestroyPipeline(ctx.device, graphics_pipeline.handle, nullptr);
+    // vkDestroyPipelineLayout(ctx.device, graphics_pipeline.layout, nullptr);
+    // graphics_pipeline = CreateGraphicsPipeline("Primary graphics pipeline").value();
 }
 
 void RendererVulkan::ViewportSetCameraView(uint p_viewport_id, const Mat4& p_view) {

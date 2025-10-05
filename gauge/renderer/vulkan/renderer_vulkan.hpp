@@ -5,6 +5,7 @@
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/renderer.hpp>
+#include <gauge/renderer/shaders/shader.hpp>
 #include <gauge/renderer/texture.hpp>
 #include <gauge/renderer/vulkan/command_buffer.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
@@ -17,6 +18,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <typeindex>
+#include <unordered_map>
 #include <vector>
 
 #include "gauge/core/handle.hpp"
@@ -25,6 +28,8 @@
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
 namespace Gauge {
+
+class Shader;
 
 using RenderCallback = bool (*)(const VulkanContext& ctx, const CommandBufferVulkan& cmd);
 
@@ -48,20 +53,11 @@ struct RendererVulkan : public Renderer {
         uint node_handle;
     };
 
-    struct PCS_AABB {
-        Vec3 position;
-        uint camera_id;
-        Vec3 extent;
-        float _padding1;
-    };
-
     struct FrameData {
         VkCommandPool cmd_pool{};
         VkCommandBuffer cmd{};
         VkSemaphore swapchain_acquire_semaphore{};
         VkFence queue_submit_fence{};
-        PushConstants push_constants{};
-        PCS_AABB pcs_aabb{};
 
         // Updated every frame: Camera position, lights...
         DescriptorSet descriptor_set{};
@@ -108,8 +104,9 @@ struct RendererVulkan : public Renderer {
     std::vector<FrameData> frames_in_flight;
     uint64_t current_frame_index = 0;
 
-    Pipeline graphics_pipeline{};
     Pipeline aabb_pipeline{};
+
+    std::unordered_map<std::type_index, Ref<Shader>> shaders;
 
     // Updated when loading assets: Textures, samplers, materials...
     struct GlobalDescriptor {
@@ -182,6 +179,18 @@ struct RendererVulkan : public Renderer {
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;
     void OnShaderChanged() final override;
 
+    template <IsShader S>
+    void RegisterShader() {
+        auto shader = std::make_shared<S>();
+        shader->Initialize(*this);
+        shaders[std::type_index(typeid(S))] = shader;
+    }
+
+    template <IsShader S>
+    Ref<S> GetShader() {
+        return std::static_pointer_cast<S>(shaders[std::type_index(typeid(S))]);
+    }
+
    public:
     FrameData const& GetCurrentFrame() const;
     FrameData& GetCurrentFrame();
@@ -191,8 +200,6 @@ struct RendererVulkan : public Renderer {
     Result<VkDescriptorPool> CreateDescriptorPool(const std::vector<VkDescriptorPoolSize>& p_pool_sizes, VkDescriptorPoolCreateFlagBits p_flags, uint p_max_sets) const;
     Result<VkDescriptorSet> CreateDescriptorSet(VkDescriptorPool p_pool, VkDescriptorSetLayout p_layout) const;
     Result<VkSampler> CreateSampler(VkFilter p_filter_mode) const;
-    Result<Pipeline> CreateGraphicsPipeline(std::string p_name);
-    Result<Pipeline> CreateAABBPipeline(std::string p_name);
     Result<> CreateSwapchain(bool recreate = false);
     Result<> CreateFrameData();
     Result<> CreateImmadiateCommand();

@@ -35,22 +35,6 @@ struct ViewportSettings {
 };
 
 struct Renderer {
-   public:
-    struct DrawObject {
-        Handle<GPUMesh> primitive;
-        Handle<GPUMaterial> material;
-        Transform transform;
-        uint node_handle;
-    };
-
-    struct DrawAABB {
-        AABB aabb;
-        Transform transform;
-    };
-
-    std::vector<DrawObject> draw_objects;
-    std::vector<DrawAABB> draw_aabbs;
-
    protected:
     bool initialized = false;
     uint max_frames_in_flight = 3;
