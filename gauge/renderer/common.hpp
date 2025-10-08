@@ -16,6 +16,15 @@ struct Vertex {
     Vec4 tangent;
 };
 
+struct PositionVertex {
+    Vec3 position;
+    float padding;
+
+    PositionVertex() {}
+    PositionVertex(Vec3 p_position) : position(p_position) {}
+    PositionVertex(float x, float y, float z) : position(x, y, z) {}
+};
+
 struct CPUMesh {
     std::vector<Vertex> vertices;
     std::vector<uint> indices;

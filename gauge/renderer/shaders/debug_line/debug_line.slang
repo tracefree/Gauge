@@ -1,21 +1,12 @@
 #include "../input_structures.slang"
 #include "../limits.h"
 
-static const float3 positions[8] = {
-    float3(-1.0, -1.0, -1.0), float3(-1.0, -1.0, 1.0), float3(1.0, -1.0, 1.0), float3(1.0, -1.0, -1.0),
-    float3(-1.0, 1.0, -1.0), float3(-1.0, 1.0, 1.0), float3(1.0, 1.0, 1.0), float3(1.0, 1.0, -1.0),
-};
-
-static const uint indices[24] = {
-    0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7
-};
-
 struct PushConstants {
     float4x4 model_matrix;
-    Vertex* vertices;
+    float4* vertices;
     uint camera_id;
     uint padding;
-    float3 extent;
+    float4 color;
 }
 
 struct Camera {
@@ -43,12 +34,12 @@ ConstantBuffer<PushConstants> pcs;
 
 [shader("vertex")]
 float4 VertexMain(uint vertex_id: SV_VertexID) : SV_Position {
-    let world_position = float4(transpose(pcs.model_matrix)[3].xyz + pcs.extent.xyz * positions[indices[vertex_id]], 1.0);
+    let world_position = mul(pcs.model_matrix, float4(pcs.vertices[vertex_id].xyz, 1.0));
     return mul(globals.cameras[pcs.camera_id].view_projection, world_position);
 }
 
 [shader("fragment")]
 float4 FragmentMain() : COLOR_0
 {
-    return float4(1.0, 0.5, 0.0, 1.0);
+    return pcs.color;
 }

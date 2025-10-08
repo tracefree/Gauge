@@ -7,19 +7,20 @@
 
 namespace Gauge {
 
-class AABBShader : public Shader {
+class DebugLineShader : public Shader {
    public:
     struct PushConstants {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
         uint camera_index;
-        uint padding;
-        Vec3 extent;
+        float padding;
+        Vec4 color;
     };
 
     struct DrawObject {
-        AABB aabb;
-        Transform transform;
+        Handle<GPUMesh> mesh;
+        Mat4 transform;
+        Vec4 color;
     };
 
     std::vector<DrawObject> objects;
@@ -29,8 +30,8 @@ class AABBShader : public Shader {
     virtual void Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) const override;
     virtual void Clear() override;
 
-    AABBShader() {}
-    ~AABBShader() {}
+    DebugLineShader() {}
+    ~DebugLineShader() {}
 };
 
 }  // namespace Gauge

@@ -11,7 +11,7 @@
 #include <gauge/core/app.hpp>
 #include <gauge/core/config.hpp>
 #include <gauge/math/common.hpp>
-#include <gauge/renderer/shaders/aabb/aabb_shader.hpp>
+#include <gauge/renderer/shaders/debug_line/debug_line_shader.hpp>
 #include <gauge/renderer/shaders/gizmo/gizmo_shader.hpp>
 #include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
@@ -546,6 +546,28 @@ Result<> RendererVulkan::InitializeGlobalResources() {
     resources.materials_buffer = materials_buffer_result.value();
     global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS);
 
+    resources.debug_mesh_box = CreateMesh(
+        std::vector<PositionVertex>(
+            {
+                PositionVertex(-1.0, -1.0, -1.0),
+                PositionVertex(-1.0, -1.0, 1.0),
+                PositionVertex(1.0, -1.0, 1.0),
+                PositionVertex(1.0, -1.0, -1.0),
+                PositionVertex(-1.0, 1.0, -1.0),
+                PositionVertex(-1.0, 1.0, 1.0),
+                PositionVertex(1.0, 1.0, 1.0),
+                PositionVertex(1.0, 1.0, -1.0),
+            }),
+        std::vector<uint>({0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7}));
+
+    resources.debug_mesh_line = CreateMesh(
+        std::vector<PositionVertex>(
+            {
+                PositionVertex(0.0, 0.0, 1.0),
+                PositionVertex(0.0, 0.0, -1.0),
+            }),
+        std::vector<uint>({0, 1}));
+
     render_state.camera_views.resize(MAX_CAMERAS);
     render_state.camera_projections.resize(MAX_CAMERAS);
     render_state.camera_view_projections.resize(MAX_CAMERAS);
@@ -648,7 +670,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                 return InitializeImGui(*this);
             }));
 
-    RegisterShader<AABBShader>();
+    RegisterShader<DebugLineShader>();
     RegisterShader<GizmoShader>();
     RegisterShader<PBRShader>();
 
@@ -667,7 +689,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
         .flags = VK_FENCE_CREATE_SIGNALED_BIT,
     };
     VK_CHECK_RET(vkCreateFence(ctx.device, &fence_info, nullptr, &immediate_command.fence),
-                 "Could not immediate submit fence");
+                 "Could not create immediate submit fence");
 
     CHECK_RET(InitializeGlobalResources());
 
@@ -786,8 +808,6 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         }
     }
 
-    vkCmdBeginRendering(cmd.GetHandle(), &rendering_info);
-
     const VkViewport vk_viewport{
         p_viewport.settings.position.x, p_viewport.settings.position.y,
         (float)scaled_width, (float)scaled_height,
@@ -797,6 +817,8 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         VkOffset2D{}, p_viewport.settings.use_swapchain ? swapchain.extent : extent};
     vkCmdSetViewport(cmd.GetHandle(), 0, 1, &vk_viewport);
     vkCmdSetScissor(cmd.GetHandle(), 0, 1, &scissor);
+
+    vkCmdBeginRendering(cmd.GetHandle(), &rendering_info);
 
     for (auto& shader : shaders) {
         shader.second->Clear();
@@ -1165,66 +1187,6 @@ RendererVulkan::CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags p_usag
 }
 
 Result<GPUMesh>
-RendererVulkan::UploadMeshToGPU(const std::vector<Vertex>& p_vertices, const std::vector<uint>& p_indices) const {
-    GPUMesh gpu_mesh{};
-    const uint vertex_buffer_size = p_vertices.size() * sizeof(Vertex);
-    const size_t index_buffer_size = p_indices.size() * sizeof(uint);
-
-    gpu_mesh.index_count = p_indices.size();
-
-    // Vertices
-    const auto vertex_buffer_result = CreateBuffer(
-        vertex_buffer_size,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY);
-    CHECK_RET(vertex_buffer_result);
-    gpu_mesh.vertex_buffer = vertex_buffer_result.value();
-    const VkBufferDeviceAddressInfo vertex_buffer_address_info{
-        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
-        .buffer = gpu_mesh.vertex_buffer.handle,
-    };
-    gpu_mesh.vertex_buffer.address = vkGetBufferDeviceAddress(ctx.device, &vertex_buffer_address_info);
-
-    // Indices
-    const auto index_buffer_result = CreateBuffer(
-        index_buffer_size,
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VMA_MEMORY_USAGE_GPU_ONLY);
-    CHECK_RET(index_buffer_result);
-    gpu_mesh.index_buffer = index_buffer_result.value();
-
-    // Staging
-    GPUBuffer staging_buffer{};
-    const auto staging_buffer_result = CreateBuffer(
-        (vertex_buffer_size + index_buffer_size),
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VMA_MEMORY_USAGE_CPU_COPY);
-    CHECK_RET(staging_buffer_result);
-    staging_buffer = staging_buffer_result.value();
-
-    void* data = staging_buffer.allocation.info.pMappedData;
-    memcpy(data, p_vertices.data(), vertex_buffer_size);
-    memcpy((char*)data + vertex_buffer_size, p_indices.data(), index_buffer_size);
-
-    ImmediateSubmit([&](CommandBufferVulkan cmd) {
-        const VkBufferCopy vertex_copy{
-            .size = vertex_buffer_size,
-        };
-        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, gpu_mesh.vertex_buffer.handle, 1, &vertex_copy);
-
-        const VkBufferCopy index_copy{
-            .srcOffset = vertex_buffer_size,
-            .size = index_buffer_size,
-        };
-        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, gpu_mesh.index_buffer.handle, 1, &index_copy);
-    });
-
-    vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
-
-    return gpu_mesh;
-}
-
-Result<GPUMesh>
 RendererVulkan::UploadMeshToGPU(const glTF::Primitive& primitive) const {
     return UploadMeshToGPU(primitive.vertices, primitive.indices);
 }
@@ -1483,7 +1445,18 @@ Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
     return {};
 }
 
-Handle<GPUMesh> RendererVulkan::CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) {
+Handle<GPUMesh>
+RendererVulkan::CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) {
+    Handle<GPUMesh> handle{};
+    CHECK(UploadMeshToGPU(p_vertices, p_indices)
+              .transform([&](GPUMesh p_mesh) {
+                  handle = resources.meshes.Allocate(p_mesh);
+              }));
+    return handle;
+}
+
+Handle<GPUMesh>
+RendererVulkan::CreateMesh(std::vector<PositionVertex> p_vertices, std::vector<uint> p_indices) {
     Handle<GPUMesh> handle{};
     CHECK(UploadMeshToGPU(p_vertices, p_indices)
               .transform([&](GPUMesh p_mesh) {

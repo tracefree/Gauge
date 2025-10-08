@@ -1,16 +1,15 @@
-#include "aabb_shader.hpp"
+#include "debug_line_shader.hpp"
 
 #include <gauge/core/app.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 #include <gauge/renderer/vulkan/shader_module.hpp>
-#include <print>
 
 using namespace Gauge;
 
 extern App* gApp;
 
-void AABBShader::Initialize(const RendererVulkan& renderer) {
+void DebugLineShader::Initialize(const RendererVulkan& renderer) {
     id = "AABB"_id;
 
     auto shader_module_result = ShaderModule::FromFile(renderer.ctx, "shaders/aabb.spv");
@@ -24,7 +23,7 @@ void AABBShader::Initialize(const RendererVulkan& renderer) {
             .SetFragmentStage(shader_module.handle, "FragmentMain")
             .AddDescriptorSetLayout(renderer.global_descriptor.layout)
             .AddDescriptorSetLayout(renderer.frames_in_flight[0].descriptor_set.GetLayout())
-            .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT, sizeof(PushConstants))
+            .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PushConstants))
             .SetImageFormat(renderer.offscreen ? VK_FORMAT_R8G8B8A8_SRGB : renderer.swapchain.image_format)
             .SetSampleCount(RendererVulkan::SampleCountFromMSAA(gApp->project_settings.msaa_level))
             .SetLineTopology(true)
@@ -32,7 +31,7 @@ void AABBShader::Initialize(const RendererVulkan& renderer) {
     pipeline = builder.Build(renderer).value();
 }
 
-void AABBShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) const {
+void DebugLineShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) const {
     const VkDescriptorSet sets[] = {
         renderer.global_descriptor.set.handle,
         renderer.GetCurrentFrame().descriptor_set.handle,
@@ -53,17 +52,16 @@ void AABBShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) 
 
     cmd.BindPipeline(pipeline);
     for (const DrawObject& object : objects) {
-        const AABB transformed_aabb = object.transform * object.aabb;
-        Transform t = Transform();
-        t.position = transformed_aabb.position;
-        pcs.model_matrix = t.GetMatrix();
-        // std::println("Extent: {}", transformed_aabb.extent);
-        pcs.extent = transformed_aabb.extent;  // Vec4(0.0f, transformed_aabb.extent.x, transformed_aabb.extent.y, transformed_aabb.extent.z);
-        vkCmdPushConstants(cmd.GetHandle(), pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
-        vkCmdDraw(cmd.GetHandle(), 24, 1, 0, 0);
+        auto mesh = renderer.resources.meshes.Get(object.mesh);
+        pcs.vertex_buffer_address = mesh->vertex_buffer.address;
+        pcs.model_matrix = object.transform;
+        pcs.color = object.color;
+        vkCmdPushConstants(cmd.GetHandle(), pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
+        vkCmdBindIndexBuffer(cmd.GetHandle(), mesh->index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
+        vkCmdDrawIndexed(cmd.GetHandle(), mesh->index_count, 1, 0, 0, 0);
     }
 }
 
-void AABBShader::Clear() {
+void DebugLineShader::Clear() {
     objects.clear();
 }

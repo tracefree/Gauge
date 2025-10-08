@@ -54,10 +54,11 @@ RWStructuredBuffer<Readback> readback;
 ConstantBuffer<PushConstants> pcs;
 
 [shader("vertex")]
-float4 VertexMain(uint vertexID: SV_VertexID) : SV_Position {
-    let vertex = pcs.vertices[vertexID];
+float4 VertexMain(uint vertex_id: SV_VertexID) : SV_Position {
+    let vertex = pcs.vertices[vertex_id];
     let model_matrix = pcs.model_matrix;
-    let scale = -GIZMO_SCALE * transpose(globals.cameras[0].view)[3].z;
+    let view_position = mul(globals.cameras[0].view, model_matrix);
+    let scale = -GIZMO_SCALE * transpose(view_position)[3].z;
     var world_position = mul(pcs.model_matrix, float4(vertex.position * scale, 1.0));
     
     return mul(globals.cameras[pcs.camera_id].view_projection, world_position);

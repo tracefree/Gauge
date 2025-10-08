@@ -58,6 +58,7 @@ struct Renderer {
     virtual void OnShaderChanged() {};
 
     virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;
+    virtual Handle<GPUMesh> CreateMesh(std::vector<PositionVertex> p_vertices, std::vector<uint> p_indices) = 0;
     virtual void DestroyMesh(Handle<GPUMesh> p_handle) = 0;
 
     virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) = 0;

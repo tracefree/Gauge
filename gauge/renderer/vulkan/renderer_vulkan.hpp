@@ -153,6 +153,9 @@ struct RendererVulkan : public Renderer {
         Handle<GPUImage> texture_black;
         Handle<GPUImage> texture_normal;
         Handle<GPUImage> texture_missing;
+
+        Handle<GPUMesh> debug_mesh_box;
+        Handle<GPUMesh> debug_mesh_line;
     } resources;
 
     VmaPool external_pool{};
@@ -167,6 +170,8 @@ struct RendererVulkan : public Renderer {
     void DrawOffscreen() final override;
 
     virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) final override;
+    virtual Handle<GPUMesh> CreateMesh(std::vector<PositionVertex> p_vertices, std::vector<uint> p_indices) final override;
+
     virtual void DestroyMesh(Handle<GPUMesh> p_handle) final override;
 
     virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) final override;
@@ -234,7 +239,9 @@ struct RendererVulkan : public Renderer {
 
     Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
 
-    Result<GPUMesh> UploadMeshToGPU(const std::vector<Vertex>& p_vertices, const std::vector<uint>& p_indices) const;
+    template <typename V>
+    Result<GPUMesh> UploadMeshToGPU(const std::vector<V>& p_vertices, const std::vector<uint>& p_indices) const;
+
     Result<GPUMesh> UploadMeshToGPU(const CPUMesh& mesh) const;
     Result<GPUMesh> UploadMeshToGPU(const glTF::Primitive& primitive) const;
     Result<GPUImage> UploadTextureToGPU(const Texture& p_texture) const;
@@ -243,4 +250,66 @@ struct RendererVulkan : public Renderer {
 
     NodeHandle GetHoveredNode() final override;
 };
+
+template <typename V>
+inline Result<GPUMesh>
+RendererVulkan::UploadMeshToGPU(const std::vector<V>& p_vertices, const std::vector<uint>& p_indices) const {
+    GPUMesh gpu_mesh{};
+    const uint vertex_buffer_size = p_vertices.size() * sizeof(V);
+    const size_t index_buffer_size = p_indices.size() * sizeof(uint);
+
+    gpu_mesh.index_count = p_indices.size();
+
+    // Vertices
+    const auto vertex_buffer_result = CreateBuffer(
+        vertex_buffer_size,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+    CHECK_RET(vertex_buffer_result);
+    gpu_mesh.vertex_buffer = vertex_buffer_result.value();
+    const VkBufferDeviceAddressInfo vertex_buffer_address_info{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+        .buffer = gpu_mesh.vertex_buffer.handle,
+    };
+    gpu_mesh.vertex_buffer.address = vkGetBufferDeviceAddress(ctx.device, &vertex_buffer_address_info);
+
+    // Indices
+    const auto index_buffer_result = CreateBuffer(
+        index_buffer_size,
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+    CHECK_RET(index_buffer_result);
+    gpu_mesh.index_buffer = index_buffer_result.value();
+
+    // Staging
+    GPUBuffer staging_buffer{};
+    const auto staging_buffer_result = CreateBuffer(
+        (vertex_buffer_size + index_buffer_size),
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_COPY);
+    CHECK_RET(staging_buffer_result);
+    staging_buffer = staging_buffer_result.value();
+
+    void* data = staging_buffer.allocation.info.pMappedData;
+    memcpy(data, p_vertices.data(), vertex_buffer_size);
+    memcpy((char*)data + vertex_buffer_size, p_indices.data(), index_buffer_size);
+
+    ImmediateSubmit([&](CommandBufferVulkan cmd) {
+        const VkBufferCopy vertex_copy{
+            .size = vertex_buffer_size,
+        };
+        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, gpu_mesh.vertex_buffer.handle, 1, &vertex_copy);
+
+        const VkBufferCopy index_copy{
+            .srcOffset = vertex_buffer_size,
+            .size = index_buffer_size,
+        };
+        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, gpu_mesh.index_buffer.handle, 1, &index_copy);
+    });
+
+    vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
+
+    return gpu_mesh;
+}
+
 }  // namespace Gauge
