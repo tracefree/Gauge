@@ -159,7 +159,7 @@ struct RendererVulkan : public Renderer {
 
     bool linear = true;
     bool offscreen = false;
-    std::weak_ptr<Node> hovered_node;
+    NodeHandle hovered_node;
 
    public:
     Result<> Initialize(void (*p_create_surface)(VkInstance p_instance, VkSurfaceKHR* r_surface), bool p_offscreen = false) final override;
@@ -241,6 +241,6 @@ struct RendererVulkan : public Renderer {
 
     static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa);
 
-    std::weak_ptr<Node> GetHoveredNode() final override;
+    NodeHandle GetHoveredNode() final override;
 };
 }  // namespace Gauge

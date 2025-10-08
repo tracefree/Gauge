@@ -871,14 +871,9 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
             bool operator()(Readback a, Readback b) const { return a.depth > b.depth; }
         } compare_depth;
         std::sort(hovered_objects.begin(), hovered_objects.end(), compare_depth);
-        for (auto& object : hovered_objects) {
-            auto handle = NodeHandle::FromUint(object.node_handle);
-            names.emplace_back(Node::Get(handle).lock()->name);
-        }
-        auto handle = NodeHandle::FromUint(hovered_objects[0].node_handle);
-        hovered_node = Node::Get(handle);
+        hovered_node = NodeHandle::FromUint(hovered_objects[0].node_handle);
     } else {
-        hovered_node = std::weak_ptr<Node>();
+        hovered_node = NodeHandle();
     }
 
     if (!offscreen) {
@@ -1582,6 +1577,6 @@ Quaternion RendererVulkan::ViewportGetCameraRotation(uint p_viewport_id) {
            glm::angleAxis(viewport.camera_pitch, Vec3::RIGHT);
 }
 
-std::weak_ptr<Node> RendererVulkan::GetHoveredNode() {
+NodeHandle RendererVulkan::GetHoveredNode() {
     return hovered_node;
 }

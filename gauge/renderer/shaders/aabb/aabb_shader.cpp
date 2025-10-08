@@ -4,6 +4,7 @@
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 #include <gauge/renderer/vulkan/shader_module.hpp>
+#include <print>
 
 using namespace Gauge;
 
@@ -15,6 +16,7 @@ void AABBShader::Initialize(const RendererVulkan& renderer) {
     auto shader_module_result = ShaderModule::FromFile(renderer.ctx, "shaders/aabb.spv");
     CHECK(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
+    renderer.SetDebugName((uint64_t)shader_module.handle, VK_OBJECT_TYPE_SHADER_MODULE, std::format("{} shader module", id));
 
     builder =
         GraphicsPipelineBuilder(id)
@@ -52,8 +54,11 @@ void AABBShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) 
     cmd.BindPipeline(pipeline);
     for (const DrawObject& object : objects) {
         const AABB transformed_aabb = object.transform * object.aabb;
-        pcs.position = transformed_aabb.position;
-        pcs.extent = transformed_aabb.extent;
+        Transform t = Transform();
+        t.position = transformed_aabb.position;
+        pcs.model_matrix = t.GetMatrix();
+        // std::println("Extent: {}", transformed_aabb.extent);
+        pcs.extent = transformed_aabb.extent;  // Vec4(0.0f, transformed_aabb.extent.x, transformed_aabb.extent.y, transformed_aabb.extent.z);
         vkCmdPushConstants(cmd.GetHandle(), pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdDraw(cmd.GetHandle(), 24, 1, 0, 0);
     }

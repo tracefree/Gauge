@@ -10,10 +10,11 @@ namespace Gauge {
 class AABBShader : public Shader {
    public:
     struct PushConstants {
-        Vec3 position;
+        Mat4 model_matrix;
+        VkDeviceAddress vertex_buffer_address;
         uint camera_index;
+        uint padding;
         Vec3 extent;
-        float _padding1;
     };
 
     struct DrawObject {

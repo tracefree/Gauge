@@ -10,11 +10,12 @@ static const uint indices[24] = {
     0, 1, 1, 2, 2, 3, 3, 0, 4, 5, 5, 6, 6, 7, 7, 4, 0, 4, 1, 5, 2, 6, 3, 7
 };
 
-struct Push {
-    float3 position;
+struct PushConstants {
+    float4x4 model_matrix;
+    Vertex* vertices;
     uint camera_id;
+    uint padding;
     float3 extent;
-    float _padding1;
 }
 
 struct Camera {
@@ -38,12 +39,12 @@ struct Globals {
 ConstantBuffer<Globals> globals;
 
 [[vk::push_constant]]
-ConstantBuffer<Push> push_constants;
+ConstantBuffer<PushConstants> pcs;
 
 [shader("vertex")]
 float4 VertexMain(uint vertex_id: SV_VertexID) : SV_Position {
-    let world_position = float4(push_constants.position + push_constants.extent * positions[indices[vertex_id]], 1.0);
-    return mul(globals.cameras[push_constants.camera_id].view_projection, world_position);
+    let world_position = float4(transpose(pcs.model_matrix)[3].xyz + pcs.extent.xyz * positions[indices[vertex_id]], 1.0);
+    return mul(globals.cameras[pcs.camera_id].view_projection, world_position);
 }
 
 [shader("fragment")]

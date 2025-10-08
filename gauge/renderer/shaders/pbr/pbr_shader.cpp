@@ -25,6 +25,7 @@ void PBRShader::Initialize(const RendererVulkan& renderer) {
             .AddDescriptorSetLayout(renderer.global_descriptor.layout)
             .AddDescriptorSetLayout(renderer.frames_in_flight[0].descriptor_set.GetLayout())
             .AddPushConstantRange(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(PushConstants))
+            .SetTransparency(true)
             .SetImageFormat(renderer.offscreen ? VK_FORMAT_R8G8B8A8_SRGB : renderer.swapchain.image_format)
             .SetSampleCount(RendererVulkan::SampleCountFromMSAA(gApp->project_settings.msaa_level));
     pipeline = builder.Build(renderer).value();

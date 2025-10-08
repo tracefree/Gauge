@@ -66,7 +66,7 @@ struct Renderer {
     virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) = 0;
     virtual void DestroyMaterial(Handle<GPUMaterial> p_handle) = 0;
 
-    virtual std::weak_ptr<Node> GetHoveredNode() = 0;
+    virtual NodeHandle GetHoveredNode() = 0;
 
     Renderer() = default;
     virtual ~Renderer() = default;

@@ -36,7 +36,7 @@ struct PushConstants {
 }
 
 struct Readback {
-    uint node_handle;
+    Atomic<uint> node_handle;
     float depth;
 }
 
@@ -69,9 +69,11 @@ float4 FragmentMain(
 ) : COLOR0
 {
     if (pcs.mouse_position.x == uint16_t(position_cs.x) && pcs.mouse_position.y == uint16_t(position_cs.y)) {
-        readback[readback[0].node_handle + 1].node_handle = pcs.node_handle;
-        readback[readback[0].node_handle + 1].depth = position_cs.z;
-        readback[0].node_handle = readback[0].node_handle + 1;
+        uint index = readback[0].node_handle.load();
+        index++;
+        readback[index].node_handle = pcs.node_handle;
+        readback[index].depth = position_cs.z;
+        readback[0].node_handle++;
     }
     
     return float4(pcs.color_rg, pcs.color_b,  1.0);

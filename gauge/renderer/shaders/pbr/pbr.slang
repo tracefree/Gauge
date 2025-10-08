@@ -35,7 +35,7 @@ struct Push {
 }
 
 struct Readback {
-    uint node_handle;
+    Atomic<uint> node_handle;
     float depth;
 }
 
@@ -50,7 +50,7 @@ ConstantBuffer<Globals> globals;
 RWStructuredBuffer<Readback> readback;
 
 [[vk::push_constant]]
-ConstantBuffer<Push> push_constants;
+ConstantBuffer<Push> pcs;
 
 struct VertexOutput {
     float4 position_cs : SV_Position;
@@ -66,20 +66,20 @@ struct FragmentOutput {
 
 [shader("vertex")]
 VertexOutput VertexMain(uint vertexID: SV_VertexID) {
-    let vertex = push_constants.vertices[vertexID];
-    let model_matrix = push_constants.model_matrix;
+    let vertex = pcs.vertices[vertexID];
+    let model_matrix = pcs.model_matrix;
     var tbn_ws = float3x3(
         normalize(mul(model_matrix, float4(vertex.tangent.xyz, 0.0)).xyz),
         normalize(mul(model_matrix, float4(cross(vertex.normal, vertex.tangent.xyz) * vertex.tangent.w, 0.0)).xyz),
         normalize(mul(model_matrix, float4(vertex.normal, 0.0)).xyz)
     );
 
-    let world_position = mul(push_constants.model_matrix, float4(vertex.position, 1.0));
+    let world_position = mul(pcs.model_matrix, float4(vertex.position, 1.0));
     
     return VertexOutput(
-        mul(globals.cameras[push_constants.camera_id].view_projection, world_position),
+        mul(globals.cameras[pcs.camera_id].view_projection, world_position),
         world_position.xyz,
-        mul(globals.cameras[push_constants.camera_id].view, world_position).xyz,
+        mul(globals.cameras[pcs.camera_id].view, world_position).xyz,
         tbn_ws,
         float2(vertex.uv_x, vertex.uv_y)
     );
@@ -94,16 +94,16 @@ FragmentOutput FragmentMain(
     float2 uv: VertexUV,
 )
 {
-    let material = materials[push_constants.material_id];
+    let material = materials[pcs.material_id];
 
-    let albedo_texture = textures[material.texture_albedo].Sample(samplers[(int)push_constants.sampler], uv);
+    let albedo_texture = textures[material.texture_albedo].Sample(samplers[(int)pcs.sampler], uv);
 
     var albedo = material.albedo * albedo_texture;
-    let normal_texture = textures[material.texture_normal].Sample(samplers[(int)push_constants.sampler], uv).xyz;
+    let normal_texture = textures[material.texture_normal].Sample(samplers[(int)pcs.sampler], uv).xyz;
     let normal_ts = normal_texture.xyz * 2.0 - 1.0;
     let normal_ws = mul(normal_ts, tbn_ws);
 
-    Camera camera = globals.cameras[push_constants.camera_id];
+    Camera camera = globals.cameras[pcs.camera_id];
     float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
     float3 light_position = float3(1.5 * cos(globals.time), 1.5, 1.5 * sin(globals.time));
     float3 light_vector = light_position - position_ws;
@@ -117,10 +117,12 @@ FragmentOutput FragmentMain(
     
     float3 color = albedo.rgb * (ambient + point);
 
-    if (push_constants.mouse_position.x == uint16_t(position_cs.x) && push_constants.mouse_position.y == uint16_t(position_cs.y)) {
-        readback[readback[0].node_handle + 1].node_handle = push_constants.node_handle;
-        readback[readback[0].node_handle + 1].depth = position_cs.z;
-        readback[0].node_handle = readback[0].node_handle + 1;
+    if (pcs.mouse_position.x == uint16_t(position_cs.x) && pcs.mouse_position.y == uint16_t(position_cs.y)) {
+        uint index = readback[0].node_handle.load();
+        index++;
+        readback[index].node_handle = pcs.node_handle;
+        readback[index].depth = position_cs.z;
+        readback[0].node_handle++;
     }
 
     return FragmentOutput(float4(color, 1.0));
