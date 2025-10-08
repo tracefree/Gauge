@@ -183,4 +183,11 @@ void Input::Initialize() {
         {.bindings = {tangential_binding}});
 
     singleton->active_action_sets["freecam"] = freecam_set;
+
+    // TODO: Move to static initialization of TransformGizmo
+    ActionSet transform_set{};
+    transform_set.AddAction<Vec2>(
+        "mouse_motion",
+        {.bindings = {mouse_motion_binding}});
+    singleton->active_action_sets["transform"] = transform_set;
 }

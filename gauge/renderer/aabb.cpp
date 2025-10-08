@@ -1,5 +1,7 @@
 #include "aabb.hpp"
 
+#include <gauge/math/transform.hpp>
+
 using namespace Gauge;
 
 bool AABB::IsPointInside(Vec3 p_point) const {

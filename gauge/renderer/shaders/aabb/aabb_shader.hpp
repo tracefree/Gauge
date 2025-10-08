@@ -1,6 +1,8 @@
 #pragma once
 
+#include <gauge/renderer/aabb.hpp>
 #include <gauge/renderer/shaders/shader.hpp>
+
 #include <vector>
 
 namespace Gauge {

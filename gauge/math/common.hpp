@@ -29,6 +29,10 @@ class Vec2 : public glm::vec2 {
         return glm::vec2::operator-=((glm::vec2)rhs);
     }
 
+    inline Vec2 Normalized() const {
+        return glm::normalize((glm::vec2) * this);
+    }
+
     inline float Length() const {
         return glm::length((glm::vec2) * this);
     }
@@ -65,6 +69,10 @@ class Vec3 : public glm::vec3 {
     }
     inline Vec3 operator-=(const Vec3& rhs) {
         return glm::vec3::operator-=((glm::vec3)rhs);
+    }
+
+    inline Vec3 Normalized() const {
+        return glm::normalize((glm::vec3) * this);
     }
 
     inline float Length() const {
@@ -112,6 +120,24 @@ T Interpolate(T a, T b, float duration, float delta) {
 }  // namespace Gauge
 
 template <>
+struct std::formatter<Gauge::Vec2> {
+    // We'll store our formatting options here
+    // For now, let's keep it simple
+    std::string_view format_spec;
+
+    // The 'parse' function
+    constexpr auto parse(std::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+
+    // The 'format' function
+    auto format(const Gauge::Vec2& p, std::format_context& ctx) const {
+        // Write the formatted string to the output iterator
+        return std::format_to(ctx.out(), "[{}, {}]", p.x, p.y);
+    }
+};
+
+template <>
 struct std::formatter<Gauge::Vec3> {
     // We'll store our formatting options here
     // For now, let's keep it simple
@@ -126,5 +152,23 @@ struct std::formatter<Gauge::Vec3> {
     auto format(const Gauge::Vec3& p, std::format_context& ctx) const {
         // Write the formatted string to the output iterator
         return std::format_to(ctx.out(), "[{}, {}, {}]", p.x, p.y, p.z);
+    }
+};
+
+template <>
+struct std::formatter<Gauge::Vec4> {
+    // We'll store our formatting options here
+    // For now, let's keep it simple
+    std::string_view format_spec;
+
+    // The 'parse' function
+    constexpr auto parse(std::format_parse_context& ctx) {
+        return ctx.begin();
+    }
+
+    // The 'format' function
+    auto format(const Gauge::Vec4& p, std::format_context& ctx) const {
+        // Write the formatted string to the output iterator
+        return std::format_to(ctx.out(), "[{}, {}, {}, {}]", p.x, p.y, p.z, p.w);
     }
 };

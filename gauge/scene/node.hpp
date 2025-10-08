@@ -12,6 +12,8 @@
 
 namespace Gauge {
 
+using NodeHandle = Handle<std::weak_ptr<Node>>;
+
 class Node {
    public:
     StringID name;
@@ -31,7 +33,7 @@ class Node {
    public:
     bool active = true;
     bool visible = true;
-    Handle<std::weak_ptr<Node>> handle;
+    NodeHandle handle;
 
    public:
     Vec3 GetPosition() const;
@@ -64,7 +66,7 @@ class Node {
 
     void Draw() const;
     void Update(float delta);
-    void ProcessInput(const SDL_Event& event);
+    bool ProcessEvent(const SDL_Event& event);
     void Cleanup();
 
     template <IsComponent C>
@@ -72,6 +74,7 @@ class Node {
         p_component->SetNode(this);
         components.push_back(p_component);
         component_table[std::type_index(typeid(C))] = p_component;
+        p_component->Initialize();
     }
 
     template <IsComponent C, typename... Args>
@@ -99,7 +102,7 @@ class Node {
         return node;
     }
 
-    static std::weak_ptr<Node> Get(Handle<std::weak_ptr<Node>> p_handle) {
+    static std::weak_ptr<Node> Get(NodeHandle p_handle) {
         auto pointer = pool.Get(p_handle);
         if (pointer == nullptr) {
             return std::weak_ptr<Node>();

@@ -57,8 +57,8 @@ ConstantBuffer<PushConstants> pcs;
 float4 VertexMain(uint vertexID: SV_VertexID) : SV_Position {
     let vertex = pcs.vertices[vertexID];
     let model_matrix = pcs.model_matrix;
-    let scale = GIZMO_SCALE * length(transpose(globals.cameras[0].view)[3].xyz);
-    let world_position = mul(pcs.model_matrix, float4(vertex.position * scale, 1.0));
+    let scale = -GIZMO_SCALE * transpose(globals.cameras[0].view)[3].z;
+    var world_position = mul(pcs.model_matrix, float4(vertex.position * scale, 1.0));
     
     return mul(globals.cameras[pcs.camera_id].view_projection, world_position);
 }

@@ -23,8 +23,8 @@ struct Handle {
 
     static inline Handle<T> FromUint(uint p_handle) {
         return Handle<T>{
-            .generation = 0,  // TODO
             .index = uint16_t(p_handle),
+            .generation = 0,  // TODO
         };
     }
 };

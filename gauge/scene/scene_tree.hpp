@@ -9,6 +9,7 @@ struct SceneTree {
     Ref<Node> root;
 
     void Draw();
+    bool ProcessEvent(const SDL_Event& event);
 };
 
 }  // namespace Gauge

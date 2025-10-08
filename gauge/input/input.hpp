@@ -85,8 +85,9 @@ class Input {
 
     void AddActionSet(const ActionSet& p_action_set);
 
-    KeyState GetKeyState(SDL_Scancode p_scancode) { return key_states[p_scancode]; }
-    KeyState GetMouseButtonState(MouseButton p_mouse_button) { return mouse_button_states[p_mouse_button]; }
+    inline KeyState GetKeyState(SDL_Scancode p_scancode) { return key_states[p_scancode]; }
+    inline KeyState GetMouseButtonState(MouseButton p_mouse_button) { return mouse_button_states[p_mouse_button]; }
+    inline bool IsMousePressed(MouseButton p_mouse_button) { return mouse_button_states[p_mouse_button].pressed; }
 
     template <typename T>
     T GetActionValue(const std::string& p_action_id) {

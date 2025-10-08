@@ -858,8 +858,6 @@ struct Readback {
 void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_image_index) {
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd.GetHandle(), "Draw");
-
-    int prev_frame = ((int)current_frame_index - 1) % max_frames_in_flight;
     const Readback* readback = (const Readback*)GetCurrentFrame().readback_buffer.allocation.info.pMappedData;
     uint num_hovered_objects = readback[0].node_handle;
     if (num_hovered_objects > 0) {
@@ -874,10 +872,10 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
         } compare_depth;
         std::sort(hovered_objects.begin(), hovered_objects.end(), compare_depth);
         for (auto& object : hovered_objects) {
-            auto handle = Handle<std::weak_ptr<Node>>::FromUint(object.node_handle);
+            auto handle = NodeHandle::FromUint(object.node_handle);
             names.emplace_back(Node::Get(handle).lock()->name);
         }
-        auto handle = Handle<std::weak_ptr<Node>>::FromUint(hovered_objects[0].node_handle);
+        auto handle = NodeHandle::FromUint(hovered_objects[0].node_handle);
         hovered_node = Node::Get(handle);
     } else {
         hovered_node = std::weak_ptr<Node>();

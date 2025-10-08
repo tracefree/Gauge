@@ -1,0 +1,141 @@
+{
+	"BUILD_DIR" : "/home/rie/Projects/Kruskal/gauge/thirdparty/imgui_autogen",
+	"CMAKE_BINARY_DIR" : "/home/rie/Projects/Kruskal",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/rie/Projects/Kruskal/gauge/thirdparty",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/rie/Projects/Kruskal/gauge/thirdparty",
+	"CMAKE_EXECUTABLE" : "/usr/bin/cmake",
+	"CMAKE_LIST_FILES" : [ "/home/rie/Projects/Kruskal/gauge/thirdparty/CMakeLists.txt" ],
+	"CMAKE_SOURCE_DIR" : "/home/rie/Projects/Kruskal",
+	"CROSS_CONFIG" : false,
+	"DEP_FILE" : "/home/rie/Projects/Kruskal/gauge/thirdparty/imgui_autogen/deps",
+	"DEP_FILE_RULE_NAME" : "imgui_autogen/timestamp",
+	"HEADERS" : 
+	[
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/backends/imgui_impl_sdl3.h",
+			"MU",
+			"LVWZOPJ5AV/moc_imgui_impl_sdl3.cpp",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/backends/imgui_impl_vulkan.h",
+			"MU",
+			"LVWZOPJ5AV/moc_imgui_impl_vulkan.cpp",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/imgui.h",
+			"MU",
+			"4DOPLU3LR5/moc_imgui.cpp",
+			null
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/home/rie/Projects/Kruskal/gauge/thirdparty/imgui_autogen/include",
+	"MOC_COMPILATION_FILE" : "/home/rie/Projects/Kruskal/gauge/thirdparty/imgui_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : 
+	[
+		"GLM_FORCE_DEPTH_ZERO_TO_ONE",
+		"IMGUI_IMPL_VULKAN_USE_VOLK",
+		"VMA_DYNAMIC_VULKAN_FUNCTIONS=0",
+		"VMA_STATIC_VULKAN_FUNCTIONS=0"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui",
+		"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/backends",
+		"/home/rie/Projects/Kruskal/gauge/thirdparty/VulkanMemoryAllocator/include",
+		"/home/rie/Projects/Kruskal/gauge/thirdparty/fastgltf/include",
+		"/usr/include/qt6/QtGui/6.9.2",
+		"/usr/include/qt6/QtGui/6.9.2/QtGui",
+		"/usr/include/qt6/QtCore/6.9.2",
+		"/usr/include/qt6/QtCore/6.9.2/QtCore",
+		"/usr/include/qt6/QtDBus/6.9.2",
+		"/usr/include/qt6/QtDBus/6.9.2/QtDBus",
+		"/home/rie/Projects/Kruskal/gauge/thirdparty/volk",
+		"/usr/include/c++/15.2.1",
+		"/usr/include/c++/15.2.1/x86_64-pc-linux-gnu",
+		"/usr/include/c++/15.2.1/backward",
+		"/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include",
+		"/usr/local/include",
+		"/usr/lib/gcc/x86_64-pc-linux-gnu/15.2.1/include-fixed",
+		"/usr/include"
+	],
+	"MOC_MACRO_NAMES" : 
+	[
+		"Q_OBJECT",
+		"Q_GADGET",
+		"Q_NAMESPACE",
+		"Q_NAMESPACE_EXPORT",
+		"Q_GADGET_EXPORT",
+		"Q_ENUM_NS"
+	],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : false,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/usr/bin/c++",
+		"-std=gnu++23",
+		"-w",
+		"-dM",
+		"-E",
+		"/usr/share/cmake/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/home/rie/Projects/Kruskal/gauge/thirdparty/imgui_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : [],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 6,
+	"PARSE_CACHE_FILE" : "/home/rie/Projects/Kruskal/gauge/thirdparty/CMakeFiles/imgui_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/lib/qt6/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/lib/qt6/uic",
+	"QT_VERSION_MAJOR" : 6,
+	"QT_VERSION_MINOR" : 9,
+	"SETTINGS_FILE" : "/home/rie/Projects/Kruskal/gauge/thirdparty/CMakeFiles/imgui_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/backends/imgui_impl_sdl3.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/backends/imgui_impl_vulkan.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/imgui.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/imgui_draw.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/imgui_tables.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/rie/Projects/Kruskal/gauge/thirdparty/imgui/imgui_widgets.cpp",
+			"MU",
+			null
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : [],
+	"UIC_UI_FILES" : [],
+	"USE_BETTER_GRAPH" : true,
+	"VERBOSITY" : 0
+}

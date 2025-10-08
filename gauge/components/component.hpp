@@ -1,5 +1,6 @@
 #pragma once
 
+#include <SDL3/SDL_events.h>
 #include <gauge/common.hpp>
 #include <gauge/core/string_id.hpp>
 
@@ -26,7 +27,6 @@ class Node;
 #define COMPONENT_FACTORY_IMPL(class, name)                                 \
     void class ::Instantiate(YAML::Node p_data, Ref<Node> p_node) {         \
         auto component = p_node->AddComponent<class>(p_data);               \
-        component->Initialize();                                            \
     }                                                                       \
     bool class ::registered = Component::RegisterType(#name, &Instantiate); \
     class ::class(YAML::Node p_data)
@@ -36,12 +36,13 @@ struct Component {
     using CreateFunction = void (*)(YAML::Node, std::shared_ptr<Node>);
 
     StringID name;
-    bool active = true;
     bool visible = true;
+    bool active = true;
     Node* node;
 
     virtual void Initialize() {}
     virtual void Update(float delta) {}
+    virtual bool HandleEvent(const SDL_Event& event) { return false; };
     virtual void Draw() {}
     virtual void Finalize() {}
 
@@ -51,6 +52,8 @@ struct Component {
 
     static bool RegisterType(StringID p_name, CreateFunction);
     static void Create(StringID p_name, YAML::Node p_data, Ref<Node> r_node);
+
+    Component(bool p_visible = true, bool p_active = true) : visible(p_visible), active(p_active) {}
 
    protected:
     static StringID::Map<Component::CreateFunction>& GetCreateFunctions();

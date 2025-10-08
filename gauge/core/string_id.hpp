@@ -35,6 +35,10 @@ class StringID {
         return *string_pool.Get(handle);
     }
 
+    inline constexpr std::string& GetString() const {
+        return *string_pool.Get(handle);
+    }
+
     inline constexpr operator uint64_t() const {
         return (uint64_t)handle;
     }

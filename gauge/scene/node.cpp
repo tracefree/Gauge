@@ -107,7 +107,8 @@ void Node::Update(float delta) {
     if (!active)
         return;
     for (auto& component : components) {
-        component->Update(delta);
+        if (component->active)
+            component->Update(delta);
     }
     for (auto& child : children) {
         child->Update(delta);
@@ -140,4 +141,13 @@ void Node::RefreshTransform(Transform const& p_parent_transform) {
     for (auto child : children) {
         child->RefreshTransform(global_transform);
     }
+}
+
+bool Node::ProcessEvent(const SDL_Event& event) {
+    for (auto component : components) {
+        if (component->HandleEvent(event)) {
+            return true;
+        }
+    }
+    return false;
 }
