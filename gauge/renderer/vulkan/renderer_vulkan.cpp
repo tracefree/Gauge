@@ -888,7 +888,7 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
         for (uint i = 0; i < num_hovered_objects; i++) {
             hovered_objects.emplace_back(readback[i + 1]);
         }
-        struct
+        const struct
         {
             bool operator()(Readback a, Readback b) const { return a.depth > b.depth; }
         } compare_depth;
@@ -1369,7 +1369,8 @@ void RendererVulkan::DestroyImage(GPUImage& p_image) const {
     p_image.extent = {};
 }
 
-Result<RendererVulkan::Viewport> RendererVulkan::CreateViewport(const ViewportSettings& p_settings) const {
+Result<RendererVulkan::Viewport>
+RendererVulkan::CreateViewport(const ViewportSettings& p_settings) const {
     Viewport viewport{
         .settings = p_settings,
     };
@@ -1395,7 +1396,8 @@ void RendererVulkan::ViewportDestroyImages(Viewport& p_viewport) const {
     }
 }
 
-Result<> RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
+Result<>
+RendererVulkan::ViewportCreateImages(Viewport& p_viewport) const {
     const float render_scale = std::clamp(p_viewport.settings.render_scale, 0.1f, 1.0f);
     const uint scaled_width = (uint)(p_viewport.settings.width * render_scale);
     const uint scaled_height = (uint)(p_viewport.settings.height * render_scale);
@@ -1469,7 +1471,8 @@ void RendererVulkan::DestroyMesh(Handle<GPUMesh> p_handle) {
     // TODO
 }
 
-Handle<GPUImage> RendererVulkan::CreateTexture(const Texture& p_texture) {
+Handle<GPUImage>
+RendererVulkan::CreateTexture(const Texture& p_texture) {
     Handle<GPUImage> handle{};
     Result<GPUImage> image_result =
         UploadTextureToGPU(p_texture)
@@ -1489,7 +1492,8 @@ void RendererVulkan::DestroyTexture(Handle<GPUImage> p_handle) {
     // TODO
 }
 
-Handle<GPUMaterial> RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
+Handle<GPUMaterial>
+RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
     Handle<GPUMaterial> handle = resources.materials.Allocate(p_material);
 
     // Staging
@@ -1544,12 +1548,14 @@ void RendererVulkan::ViewportRotateCamera(uint p_viewport_id, float p_yaw, float
     viewport.camera_yaw = viewport.camera_yaw + p_yaw;
 }
 
-Quaternion RendererVulkan::ViewportGetCameraRotation(uint p_viewport_id) {
+Quaternion
+RendererVulkan::ViewportGetCameraRotation(uint p_viewport_id) {
     const Viewport& viewport = render_state.viewports[p_viewport_id];
     return glm::angleAxis(viewport.camera_yaw, Vec3::DOWN) *
            glm::angleAxis(viewport.camera_pitch, Vec3::RIGHT);
 }
 
-NodeHandle RendererVulkan::GetHoveredNode() {
+NodeHandle
+RendererVulkan::GetHoveredNode() {
     return hovered_node;
 }

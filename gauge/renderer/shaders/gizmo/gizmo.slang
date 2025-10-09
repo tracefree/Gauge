@@ -42,7 +42,7 @@ struct Readback {
 
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
-StructuredBuffer<Material> materials;
+StructuredBuffer<PBRMaterial> materials;
 
 [[vk::binding(0, 1)]]
 ConstantBuffer<Globals> globals;

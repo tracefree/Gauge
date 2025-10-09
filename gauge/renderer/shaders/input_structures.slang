@@ -7,7 +7,7 @@ struct Vertex {
     float4 tangent;
 }
 
-struct Material {
+struct PBRMaterial {
   float4 albedo;
   float metallic;
   float roughness;
