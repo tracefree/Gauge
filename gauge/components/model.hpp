@@ -13,6 +13,7 @@ struct ModelComponent : public Component {
     void Initialize() final override;
 
    public:
+    static void StaticInitialize() {}
     COMPONENT_FACTORY_HEADER(ModelComponent)
 };
 

@@ -82,6 +82,9 @@ add_library(gauge STATIC
   gauge/components/character_controller.cpp
   gauge/components/mesh_instance.cpp
   gauge/components/model.cpp
+  gauge/physics/physics.cpp
+  gauge/physics/jolt/jolt.cpp
+  gauge/register_types.cpp
 )
 
 set_source_files_properties(
@@ -100,6 +103,9 @@ target_include_directories(gauge_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_precompile_headers(gauge PUBLIC <vector> <print> <string> <unordered_map> <memory>)
 target_include_directories(gauge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+
+target_include_directories(gauge PRIVATE thirdparty/JoltPhysics)
+
 target_link_libraries(gauge_renderer PUBLIC
   SDL3
   Vulkan::Vulkan
@@ -117,6 +123,7 @@ target_link_libraries(gauge_renderer PUBLIC
 
 target_link_libraries(gauge PUBLIC
   gauge_renderer
+  Jolt
   SDL3
   yaml-cpp::yaml-cpp
   Tracy::TracyClient

@@ -21,6 +21,7 @@ struct MeshInstance : public Component {
     std::vector<Surface> surfaces;
 
    public:
+    static void StaticInitialize() {}
     virtual void Draw() override;
 
     COMPONENT_FACTORY_HEADER(MeshInstance)

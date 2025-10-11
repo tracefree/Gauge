@@ -11,6 +11,7 @@ struct CharacterController : public Component {
     virtual void Initialize() final override;
     virtual void Update(float delta) final override;
 
+    static void StaticInitialize() {}
     COMPONENT_FACTORY_HEADER(CharacterController);
 };
 

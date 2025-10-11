@@ -14,6 +14,8 @@ struct AABBGizmo : public Component {
     virtual void Draw() override;
     AABBGizmo() {}
     AABBGizmo(AABB p_aabb) : Component(false, false), aabb(p_aabb) {}
+
+    static void StaticInitialize() {}
 };
 
 }  // namespace Gauge

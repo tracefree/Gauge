@@ -5,6 +5,7 @@
 #include <gauge/input/input.hpp>
 #include <gauge/scene/node.hpp>
 #include <gauge/scene/yaml.hpp>
+#include <print>
 
 #include <SDL3/SDL_mouse.h>
 
@@ -145,6 +146,10 @@ Mat4 Camera::GetTransformMatrix() const {
 
 Mat4 Camera::GetViewMatrix() const {
     return glm::inverse(GetTransformMatrix());
+}
+
+void Camera::StaticInitialize() {
+    std::println("camera init");
 }
 
 COMPONENT_FACTORY_IMPL(Camera, camera) {

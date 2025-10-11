@@ -62,6 +62,7 @@ struct Component {
 template <typename C>
 concept IsComponent = requires(C component) {
     std::is_base_of_v<Component, C>;
+    C::StaticInitialize();
 };
 
 }  // namespace Gauge

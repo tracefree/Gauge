@@ -49,3 +49,6 @@ target_include_directories(imgui PUBLIC
 # fastgltf
 add_subdirectory(fastgltf)
 include_directories(fastgltf/include)
+
+# JoltPhysics
+add_subdirectory(JoltPhysics/Build)
