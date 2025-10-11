@@ -1,5 +1,9 @@
 #include "input.hpp"
+#include <SDL3/SDL_error.h>
+#include <SDL3/SDL_gamepad.h>
+#include <SDL3/SDL_joystick.h>
 
+#include <cstddef>
 #include <gauge/math/common.hpp>
 
 #include <chrono>
@@ -111,10 +115,23 @@ void Input::ResetKeys() {
 void Input::Initialize() {
     std::println("Initializing input system...");
     singleton = new Input{};
-    ActionSet freecam_set{};
-
     using Modifiers = std::vector<Ref<Input::Binding<bool>>>;
 
+    // Load gamepads
+    int number_gamepads = 0;
+    SDL_JoystickID* joystick_ids = SDL_GetGamepads(&number_gamepads);
+    if (joystick_ids == NULL) {
+        std::println("Error: Could not get gamepads. Input: {}", SDL_GetError());
+    } else if (number_gamepads > 0) {
+        SDL_Gamepad* gamepad = SDL_OpenGamepad(joystick_ids[0]);
+        if (gamepad == NULL) {
+            std::println("Error: Could not open gamepad. Input: {}", SDL_GetError());
+        } else {
+            singleton->gamepad = gamepad;
+        }
+    }
+
+    // Common keyboard bindings
     auto right_mouse_button_binding = std::make_shared<MouseButtonBinding>(MouseButton::RIGHT);
     auto middle_mouse_button_binding = std::make_shared<MouseButtonBinding>(MouseButton::MIDDLE);
     auto mouse_wheel_binding = std::make_shared<MouseWheelBinding>();
@@ -128,6 +145,22 @@ void Input::Initialize() {
         SDL_SCANCODE_E,
         SDL_SCANCODE_Q);
 
+    // Common gamepad bindings
+    auto left_stick_binding = std::make_shared<GamepadJoystickBinding>(
+        SDL_GAMEPAD_AXIS_LEFTX,
+        SDL_GAMEPAD_AXIS_LEFTY,
+        Vec2(1.0f, -1.0f),
+        0.2f);
+    auto right_stick_binding = std::make_shared<GamepadJoystickBinding>(
+        SDL_GAMEPAD_AXIS_RIGHTX,
+        SDL_GAMEPAD_AXIS_RIGHTY,
+        Vec2(10.0f, 10.0f),
+        0.0f);
+    auto east_button_binding = std::make_shared<GamepadButtonBinding>(
+        SDL_GAMEPAD_BUTTON_EAST);
+
+    // Freecam
+    ActionSet freecam_set{};
     freecam_set.AddAction<bool>(
         "grab_mouse",
         {.bindings = {right_mouse_button_binding, middle_mouse_button_binding}});
@@ -183,6 +216,35 @@ void Input::Initialize() {
         {.bindings = {tangential_binding}});
 
     singleton->active_action_sets["freecam"] = freecam_set;
+
+    // Third person camera
+    ActionSet third_person_camera;
+    third_person_camera.AddAction<float>(
+        "zoom",
+        {.bindings = {mouse_wheel_binding}});
+    third_person_camera.AddAction<Vec2>(
+        "orbit",
+        {.bindings = {
+             mouse_motion_binding,
+             right_stick_binding,
+         }});
+    singleton->active_action_sets["third_person_camera"] = third_person_camera;
+
+    // Character controller
+    ActionSet character;
+    character.AddAction<Vec2>(
+        "move",
+        {.bindings = {
+             wasd_binding,
+             left_stick_binding,
+         }});
+    character.AddAction<bool>(
+        "sprint",
+        {.bindings = {
+             shift_binding,
+             east_button_binding,
+         }});
+    singleton->active_action_sets["character"] = character;
 
     // TODO: Move to static initialization of TransformGizmo
     ActionSet transform_set{};

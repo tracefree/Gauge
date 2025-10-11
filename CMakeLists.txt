@@ -75,8 +75,9 @@ add_library(gauge STATIC
   gauge/scene/scene.cpp
   gauge/scene/scene_tree.cpp
   gauge/components/aabb_gizmo.cpp
-  gauge/components/component.cpp
   gauge/components/camera.cpp
+  gauge/components/component.cpp
+  gauge/components/character_controller.cpp
   gauge/components/mesh_instance.cpp
   gauge/components/model.cpp
 )

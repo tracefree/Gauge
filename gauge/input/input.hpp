@@ -4,10 +4,12 @@
 #include <gauge/math/common.hpp>
 
 #include <SDL3/SDL_events.h>
+#include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_keycode.h>
 #include <SDL3/SDL_scancode.h>
 
 #include <chrono>
+#include <print>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -73,6 +75,8 @@ class Input {
     std::unordered_map<SDL_Scancode, KeyState> key_states;
     std::unordered_map<MouseButton, KeyState> mouse_button_states;
     std::unordered_map<std::string, ActionSet> active_action_sets;
+
+    SDL_Gamepad* gamepad{};
 
    public:
     void HandleSDLEvent(const SDL_Event& p_event);
@@ -202,7 +206,7 @@ class MouseMotionBinding : public Input::Binding<Vec2> {
     }
 };
 
-// --- MouseWheelBinding
+// --- MouseWheelBinding ---
 class MouseWheelBinding : public Input::Binding<float> {
    public:
     float GetValue() final override {
@@ -245,6 +249,56 @@ class CombinationBinding : public Input::Binding<T> {
         Ref<Input::Binding<T>> p_target_binding)
         : activation_bindings(p_activation_bindings),
           target_binding(p_target_binding) {}
+};
+
+// --- GamepadAxisBinding ---
+
+class GamepadJoystickBinding : public Input::Binding<Vec2> {
+   public:
+    const uint MAX_VALUE = 32768;
+    SDL_GamepadAxis axis_x;
+    SDL_GamepadAxis axis_y;
+    Vec2 scaling;
+    float threshold;
+    Vec2 GetValue() final override {
+        SDL_Gamepad* gamepad = Input::Get()->gamepad;
+        if (gamepad == nullptr)
+            return Vec2::ZERO;
+
+        const Vec2 direction =
+            (scaling / float(MAX_VALUE)) *
+            Vec2(
+                SDL_GetGamepadAxis(gamepad, axis_x),
+                SDL_GetGamepadAxis(gamepad, axis_y));
+        if (direction.Length() >= threshold) {
+            return direction;
+        } else {
+            return Vec2::ZERO;
+        }
+    }
+    GamepadJoystickBinding(
+        SDL_GamepadAxis p_axis_x = SDL_GAMEPAD_AXIS_INVALID,
+        SDL_GamepadAxis p_axis_y = SDL_GAMEPAD_AXIS_INVALID,
+        Vec2 p_scaling = Vec2::ONE,
+        float p_threshold = 0.2f)
+        : axis_x(p_axis_x),
+          axis_y(p_axis_y),
+          scaling(p_scaling),
+          threshold(p_threshold) {}
+};
+
+class GamepadButtonBinding : public Input::Binding<bool> {
+   public:
+    SDL_GamepadButton button{};
+
+    bool GetValue() final override {
+        SDL_Gamepad* gamepad = Input::Get()->gamepad;
+        if (gamepad == nullptr)
+            return false;
+        return SDL_GetGamepadButton(gamepad, button);
+    }
+
+    GamepadButtonBinding(SDL_GamepadButton p_button) : button(p_button) {}
 };
 
 }  // namespace Gauge

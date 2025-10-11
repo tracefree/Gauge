@@ -27,15 +27,15 @@ void MeshInstance::Draw() {
                     .node_handle = node ? node->handle.ToUint() : 0,
                 });
         } else if (shader_name == "Gizmo") {
-            const auto& material = renderer->resources.materials.Get(surface.material);
-            const bool is_hovered = renderer->GetHoveredNode() == node->handle;
-            Vec4 color = (is_hovered) ? (material->albedo + 0.3f) : material->albedo;
+            // const bool is_hovered = renderer->GetHoveredNode() == node->handle;
+            //  const auto& material = renderer->resources.materials.Get(surface.material);
+            //  Vec4 color = (is_hovered) ? (material->albedo + 0.3f) : material->albedo;
             renderer->GetShader<GizmoShader>()->objects.emplace_back(
                 GizmoShader::DrawObject{
                     .primitive = surface.primitive,
+                    .material = surface.material,
                     .transform = node ? node->global_transform : Transform(),
                     .node_handle = node ? node->handle.ToUint() : 0,
-                    .color = color,
                 });
         }
     }

@@ -8,6 +8,7 @@
 #include <gauge/core/resource_manager.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
+#include <gauge/renderer/vulkan/renderer_vulkan.hpp>
 
 #include <fastgltf/core.hpp>
 #include <fastgltf/glm_element_traits.hpp>
@@ -196,16 +197,27 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset, const std::filesyste
 }
 
 Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
+    auto renderer = static_cast<RendererVulkan*>(&(*gApp->renderer));
     materials.resize(p_asset.materials.size());
     for (uint i = 0; i < p_asset.materials.size(); ++i) {
         const fastgltf::Material& fg_material = p_asset.materials[i];
         glTF::Material& material = materials[i];
         material.name = fg_material.name;
         material.albedo = Vec4FromFastGLTF(fg_material.pbrData.baseColorFactor);
+
+        if (fg_material.name.starts_with("Gizmo")) {
+            material.shader_id = "Gizmo"_id;
+            material.handle = renderer->CreateMaterial(GPU_BasicMaterial{
+                .color = material.albedo,
+            });
+            continue;
+        }
+
+        material.shader_id = "PBR"_id;
         material.metallic = fg_material.pbrData.metallicFactor;
         material.roughness = fg_material.pbrData.roughnessFactor;
 
-        GPUMaterial gpu_material{
+        GPU_PBRMaterial gpu_material{
             .albedo = material.albedo,
             .metallic = material.metallic,
             .roughness = material.roughness,
@@ -231,13 +243,8 @@ Result<> glTF::LoadMaterials(const fastgltf::Asset& p_asset) {
         if (fg_material.pbrData.metallicRoughnessTexture.has_value()) {
             material.texture_metallic_roughness_index = fg_material.pbrData.metallicRoughnessTexture->textureIndex;
         }
-        material.handle = gApp->renderer->CreateMaterial(gpu_material);
 
-        if (fg_material.name.starts_with("Gizmo")) {
-            material.shader_id = "Gizmo"_id;
-        } else {
-            material.shader_id = "PBR"_id;
-        }
+        material.handle = renderer->CreateMaterial(gpu_material);
     }
     return {};
 }
@@ -356,9 +363,9 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
     }
 
     for (auto node : instanced_nodes) {
-        node->AddComponent<AABBGizmo>(node->aabb)->visible = false;
+        node->AddComponent<AABBGizmo>(node->aabb);
     }
-    root_node->AddComponent<AABBGizmo>(root_node->aabb)->visible = false;
+    root_node->AddComponent<AABBGizmo>(root_node->aabb);
 
     return root_node;
 }

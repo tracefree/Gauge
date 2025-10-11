@@ -1,5 +1,6 @@
 #include "camera.hpp"
 
+#include <format>
 #include <gauge/core/app.hpp>
 #include <gauge/input/input.hpp>
 #include <gauge/scene/node.hpp>
@@ -11,6 +12,7 @@ using namespace Gauge;
 
 extern App* gApp;
 extern Window* gWindow;
+extern Ref<Node> player;
 
 void Camera::Initialize() {
     window = gWindow;
@@ -18,7 +20,17 @@ void Camera::Initialize() {
 
 void Camera::Update(float delta) {
     // Zoom
-    const float zoom = 0.1f * Input::Get()->GetActionValue<float>("freecam/zoom");
+    std::string action_set;
+    switch (mode) {
+        case Mode::FREEFLY: {
+            action_set = "freecam";
+        } break;
+        case Mode::THIRD_PERSON: {
+            action_set = "third_person_camera";
+        } break;
+    };
+
+    const float zoom = 0.05f * Input::Get()->GetActionValue<float>(std::format("{}/zoom", action_set));
     if (zoom) {
         target_distance -= target_distance * zoom;
         if (max_distance > min_distance) {
@@ -29,56 +41,71 @@ void Camera::Update(float delta) {
     }
     distance = Math::Interpolate(distance, target_distance, 0.1f, delta);
 
-    // 1st person movement
-    const Vec2 horizontal_movement = Input::Get()->GetActionValue<Vec2>("freecam/horizontal");
-    const float vertical_movement = Input::Get()->GetActionValue<float>("freecam/vertical");
-    if (horizontal_movement || vertical_movement) {
-        Vec3 movement = GetRotation() *
-                        Vec3(horizontal_movement.x,
-                             0.0,
-                             -horizontal_movement.y);
-        movement.y += vertical_movement;
-        const float speed = delta * 2.0f * (Input::Get()->GetActionValue<bool>("freecam/boost") ? 4.0f : 1.5f);
-        node->Move(speed * movement);
-    }
+    if (mode == Mode::FREEFLY) {
+        // 1st person movement
+        const Vec2 horizontal_movement = Input::Get()->GetActionValue<Vec2>("freecam/horizontal");
+        const float vertical_movement = Input::Get()->GetActionValue<float>("freecam/vertical");
+        if (horizontal_movement || vertical_movement) {
+            Vec3 movement = GetRotation() *
+                            Vec3(horizontal_movement.x,
+                                 0.0,
+                                 -horizontal_movement.y);
+            movement.y += vertical_movement;
+            const float speed = delta * 2.0f * (Input::Get()->GetActionValue<bool>("freecam/boost") ? 4.0f : 1.5f);
+            node->Move(speed * movement);
+        }
 
-    // 1st person rotation
-    const Vec2 look_mouse_motion = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("freecam/look");
-    if (look_mouse_motion) {
-        Vec3 current_world_position = Vec3(GetTransformMatrix()[3]);
-        Rotate(look_mouse_motion.x, -look_mouse_motion.y);
-        Vec3 new_world_position = GetRotation() * Vec3::FORWARD * distance + current_world_position;
-        node->SetPosition(new_world_position);
-    }
+        // 1st person rotation
+        const Vec2 look_mouse_motion = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("freecam/look");
+        if (look_mouse_motion) {
+            Vec3 current_world_position = Vec3(GetTransformMatrix()[3]);
+            Rotate(look_mouse_motion.x, -look_mouse_motion.y);
+            Vec3 new_world_position = GetRotation() * Vec3::FORWARD * distance + current_world_position;
+            node->SetPosition(new_world_position);
+        }
 
-    // Tangential movement
-    const Vec2 tangential_movement = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("freecam/tangential");
-    if (tangential_movement) {
-        const float speed = 1.0f;
-        Vec3 movement =
-            GetRotation() *
-            Vec3(
-                -tangential_movement.x,
-                tangential_movement.y,
-                0.0f);
-        node->Move(std::sqrt(distance) * speed * movement);
-    } else {
-        // Orbit rotation
-        const Vec2 orbit_mouse_motion = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("freecam/orbit");
-        if (orbit_mouse_motion) {
-            Rotate(orbit_mouse_motion.x, -orbit_mouse_motion.y);
+        // Tangential movement
+        const Vec2 tangential_movement = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("freecam/tangential");
+        if (tangential_movement) {
+            const float speed = 1.0f;
+            Vec3 movement =
+                GetRotation() *
+                Vec3(
+                    -tangential_movement.x,
+                    tangential_movement.y,
+                    0.0f);
+            node->Move(std::sqrt(distance) * speed * movement);
+        } else {
+            // Orbit rotation
+            const Vec2 orbit_mouse_motion = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("freecam/orbit");
+            if (orbit_mouse_motion) {
+                Rotate(orbit_mouse_motion.x, -orbit_mouse_motion.y);
+            }
+        }
+
+        bool capture_action_active = Input::Get()->GetActionValue<bool>("freecam/grab_mouse");
+        if (!mouse_captured && capture_action_active) {
+            GrabMouse();
+        } else if (mouse_captured && !capture_action_active) {
+            ReleaseMouse();
+        }
+
+        if (mouse_captured) {
+            SDL_WarpMouseInWindow(window->GetSDLHandle(), pre_grab_mouse_position.x, pre_grab_mouse_position.y);
         }
     }
 
-    bool capture_action_active = Input::Get()->GetActionValue<bool>("freecam/grab_mouse");
-    if (!mouse_captured && capture_action_active) {
-        GrabMouse();
-    } else if (mouse_captured && !capture_action_active) {
-        ReleaseMouse();
-    }
+    else if (mode == Mode::THIRD_PERSON) {
+        // Orbit rotation
+        const Vec2 orbit_mouse_motion = MOUSE_SENSITIVITY * Input::Get()->GetActionValue<Vec2>("third_person_camera/orbit");
+        if (orbit_mouse_motion) {
+            Rotate(orbit_mouse_motion.x, -orbit_mouse_motion.y);
+        }
 
-    if (mouse_captured) {
-        SDL_WarpMouseInWindow(window->GetSDLHandle(), pre_grab_mouse_position.x, pre_grab_mouse_position.y);
+        if (player) {
+            const Vec3 new_position = Math::Interpolate(node->GetPosition(), (player->GetGlobalTransform().position + Vec3::UP * 1.6f), 0.1f, delta);
+            node->SetPosition(new_position);
+        }
     }
 
     gApp->renderer->ViewportSetCameraView(0, GetViewMatrix());
@@ -103,6 +130,10 @@ void Camera::Rotate(float p_yaw, float p_pitch) {
 Quaternion Camera::GetRotation() const {
     return glm::angleAxis(yaw, Vec3::DOWN) *
            glm::angleAxis(pitch, Vec3::RIGHT);
+}
+
+Quaternion Camera::GetPlanarRotation() const {
+    return glm::angleAxis(-yaw, Vec3(0.0f, 1.0f, 0.0f));
 }
 
 Mat4 Camera::GetTransformMatrix() const {

@@ -110,8 +110,8 @@ float Wrap(float x, float min, float max);
 double Wrap(double x, double max);
 double Wrap(double x, double min, double max);
 
-template <typename T>
-T Interpolate(T a, T b, float duration, float delta) {
+template <typename T, typename S = T>
+T Interpolate(T a, S b, float duration, float delta) {
     return a + (b - a) * (1.0f - std::exp(-delta / duration));
 }
 

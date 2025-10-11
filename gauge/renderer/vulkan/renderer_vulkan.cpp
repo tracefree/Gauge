@@ -539,12 +539,15 @@ Result<> RendererVulkan::InitializeGlobalResources() {
 
     Result<GPUBuffer> materials_buffer_result =
         CreateBuffer(
-            sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS,
+            sizeof(VkDeviceAddress) * MAX_DESCRIPTOR_SETS,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VMA_MEMORY_USAGE_GPU_ONLY);
     CHECK_RET(materials_buffer_result);
     resources.materials_buffer = materials_buffer_result.value();
-    global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, sizeof(GPUMaterial) * MAX_DESCRIPTOR_SETS);
+    global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, VK_WHOLE_SIZE);
+
+    RegisterMaterialType<GPU_PBRMaterial>();
+    RegisterMaterialType<GPU_BasicMaterial>();
 
     resources.debug_mesh_box = CreateMesh(
         std::vector<PositionVertex>(
@@ -1492,34 +1495,7 @@ void RendererVulkan::DestroyTexture(Handle<GPUImage> p_handle) {
     // TODO
 }
 
-Handle<GPUMaterial>
-RendererVulkan::CreateMaterial(const GPUMaterial& p_material) {
-    Handle<GPUMaterial> handle = resources.materials.Allocate(p_material);
-
-    // Staging
-    const auto staging_buffer_result = CreateBuffer(
-        sizeof(GPUMaterial),
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VMA_MEMORY_USAGE_CPU_COPY);
-    CHECK(staging_buffer_result);
-    GPUBuffer staging_buffer = staging_buffer_result.value();
-
-    void* data = staging_buffer.allocation.info.pMappedData;
-    memcpy(data, &p_material, sizeof(GPUMaterial));
-
-    ImmediateSubmit([&](CommandBufferVulkan cmd) {
-        const VkBufferCopy buffer_copy{
-            .dstOffset = (handle.index) * sizeof(GPUMaterial),
-            .size = sizeof(GPUMaterial),
-        };
-        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, resources.materials_buffer.handle, 1, &buffer_copy);
-    });
-
-    vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
-    return handle;
-}
-
-void RendererVulkan::DestroyMaterial(Handle<GPUMaterial> p_handle) {
+void RendererVulkan::DestroyMaterial(Handle<GPU_PBRMaterial> p_handle) {
     // TODO
 }
 

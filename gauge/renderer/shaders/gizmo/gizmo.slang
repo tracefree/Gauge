@@ -1,54 +1,25 @@
 #include "../input_structures.slang"
-#include "../limits.h"
-
-static const float GIZMO_SCALE = 0.2;
-
-struct Camera {
-    float4x4 view;
-    float4x4 view_projection;
-    float4x4 inverse_projection;
-}
-
-struct Scene {
-    float3 light_position;
-    float light_attenuation;
-}
-
-struct Globals {
-    float time;
-    Camera cameras[MAX_CAMERAS];
-    Scene scenes[MAX_SCENES];
-}
-
-enum Sampler {
-    LINEAR = 0,
-    NEAREST = 1,
-}
-
-struct PushConstants {
-    float4x4 model_matrix;
-    Vertex* vertices;
-    float2 color_rg;
-    float color_b;
-    uint camera_id;
-    uint16_t2 mouse_position;
-    uint node_handle;
-}
-
-struct Readback {
-    Atomic<uint> node_handle;
-    float depth;
-}
 
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
-StructuredBuffer<PBRMaterial> materials;
+StructuredBuffer<void*> materials;
 
 [[vk::binding(0, 1)]]
 ConstantBuffer<Globals> globals;
 
 [[vk::binding(1, 1)]]
 RWStructuredBuffer<Readback> readback;
+
+static const float GIZMO_SCALE = 0.2;
+
+struct PushConstants {
+    float4x4 model_matrix;
+    Vertex* vertices;
+    uint16_t2 mouse_position;
+    MaterialHandle material_handle;
+    uint camera_id;
+    uint node_handle;
+}
 
 [[vk::push_constant]]
 ConstantBuffer<PushConstants> pcs;
@@ -76,6 +47,8 @@ float4 FragmentMain(
         readback[index].depth = position_cs.z;
         readback[0].node_handle++;
     }
-    
-    return float4(pcs.color_rg, pcs.color_b,  1.0);
+
+    let material = GetMaterial<BasicMaterial>(pcs.material_handle);
+      
+    return material.color;
 }

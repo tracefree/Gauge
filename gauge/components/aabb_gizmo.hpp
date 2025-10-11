@@ -13,7 +13,7 @@ struct AABBGizmo : public Component {
    public:
     virtual void Draw() override;
     AABBGizmo() {}
-    AABBGizmo(AABB p_aabb) : aabb(p_aabb) {}
+    AABBGizmo(AABB p_aabb) : Component(false, false), aabb(p_aabb) {}
 };
 
 }  // namespace Gauge

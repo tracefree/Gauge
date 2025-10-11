@@ -9,6 +9,11 @@ namespace Gauge {
 struct Camera : public Component {
     const float MOUSE_SENSITIVITY = (1 / 500.0f);
 
+    enum class Mode {
+        FREEFLY,
+        THIRD_PERSON,
+    } mode = Mode::FREEFLY;
+
     float yaw{};
     float pitch{};
 
@@ -29,9 +34,12 @@ struct Camera : public Component {
     void ReleaseMouse();
     void Rotate(float p_yaw, float p_pitch);
     Quaternion GetRotation() const;
+    Quaternion GetPlanarRotation() const;
 
     Mat4 GetTransformMatrix() const;
     Mat4 GetViewMatrix() const;
+
+    Camera(Mode p_mode) : mode(p_mode) {}
 
     COMPONENT_FACTORY_HEADER(Camera);
 };

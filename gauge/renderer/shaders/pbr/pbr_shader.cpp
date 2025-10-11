@@ -47,18 +47,17 @@ void PBRShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd) c
         nullptr);
 
     PushConstants pcs;
-    pcs.camera_index = 0;
+    pcs.camera_id = 0;
     float mx, my;
     SDL_GetMouseState(&mx, &my);
     pcs.mouse_position = {.x = uint16_t(mx), .y = uint16_t(my)};
-    pcs.sampler = 0;
     cmd.BindPipeline(pipeline);
-    for (const DrawObject& draw_object : objects) {
-        pcs.model_matrix = draw_object.transform.GetMatrix();
-        const GPUMesh& mesh = *renderer.resources.meshes.Get(draw_object.primitive);
+    for (const DrawObject& object : objects) {
+        pcs.model_matrix = object.transform.GetMatrix();
+        pcs.material = *renderer.resources.materials.Get(object.material);
+        const GPUMesh& mesh = *renderer.resources.meshes.Get(object.primitive);
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
-        pcs.material_index = draw_object.material.index;
-        pcs.node_handle = draw_object.node_handle;
+        pcs.node_handle = object.node_handle;
         vkCmdPushConstants(cmd.GetHandle(), pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);

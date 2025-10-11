@@ -15,11 +15,9 @@ class PBRShader : public Shader {
     struct PushConstants {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
-        uint sampler;
-        uint material_index;
-        uint camera_index;
-        uint scene_index;
         MousePosition mouse_position;
+        GPUMaterial material;
+        uint camera_id;
         uint node_handle;
     };
 

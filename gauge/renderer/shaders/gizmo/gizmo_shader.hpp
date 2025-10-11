@@ -21,15 +21,15 @@ class GizmoShader : public Shader {
     struct PushConstants {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
-        Vec2 color_rg;
-        float color_b;
-        uint camera_index;
         MousePosition mouse_position;
+        GPUMaterial material;
+        uint camera_id;
         uint node_handle;
     };
 
     struct DrawObject {
         Handle<GPUMesh> primitive;
+        Handle<GPUMaterial> material;
         Transform transform;
         uint node_handle;
         Vec3 color;

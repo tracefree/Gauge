@@ -13,10 +13,12 @@
 #include <gauge/scene/scene_tree.hpp>
 
 #include <SDL3/SDL_video.h>
+#include <sys/types.h>
 #include <vulkan/vulkan_core.h>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <print>
 #include <string>
 #include <typeindex>
 #include <unordered_map>
@@ -142,11 +144,18 @@ struct RendererVulkan : public Renderer {
         VkSampler nearest{};
     } samplers;
 
+    struct MaterialTypeData {
+        uint id;
+        GPUBuffer buffer;
+    };
+
     struct GlobalResources {
         Pool<GPUMesh> meshes;
         Pool<GPUImage> textures;
-        Pool<GPUMaterial> materials{};
+        Pool<GPUMaterial> materials;
 
+        // Array of pointers to concrete material buffers
+        std::vector<VkDeviceAddress> material_addresses;
         GPUBuffer materials_buffer;
 
         Handle<GPUImage> texture_white;
@@ -157,6 +166,12 @@ struct RendererVulkan : public Renderer {
         Handle<GPUMesh> debug_mesh_box;
         Handle<GPUMesh> debug_mesh_line;
     } resources;
+
+    template <typename MaterialType>
+    static Pool<MaterialType> materials;
+
+    std::unordered_map<std::type_index, MaterialTypeData> material_types;
+    uint registered_material_types = 0;
 
     VmaPool external_pool{};
 
@@ -177,8 +192,10 @@ struct RendererVulkan : public Renderer {
     virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) final override;
     virtual void DestroyTexture(Handle<GPUImage> p_handle) final override;
 
-    virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) final override;
-    virtual void DestroyMaterial(Handle<GPUMaterial> p_handle) final override;
+    template <typename MaterialType>
+    Handle<GPUMaterial> CreateMaterial(const MaterialType& p_material);
+
+    virtual void DestroyMaterial(Handle<GPU_PBRMaterial> p_handle) final override;
 
     void OnWindowResized(uint p_width, uint p_height) final override;
     void OnViewportResized(Viewport& p_viewport, uint p_width, uint p_height) const;
@@ -194,6 +211,51 @@ struct RendererVulkan : public Renderer {
     template <IsShader S>
     Ref<S> GetShader() {
         return std::static_pointer_cast<S>(shaders[std::type_index(typeid(S))]);
+    }
+
+    template <typename MaterialType>
+    inline void RegisterMaterialType() {
+        MaterialTypeData material_type_data{
+            .id = (uint)resources.material_addresses.size(),
+        };
+        material_type_data.buffer = CreateBuffer(
+                                        sizeof(MaterialType) * 1000,
+                                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                                        VMA_MEMORY_USAGE_GPU_ONLY)
+                                        .value();
+        const VkBufferDeviceAddressInfo buffer_address_info{
+            .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+            .buffer = material_type_data.buffer.handle,
+        };
+        VkDeviceAddress buffer_address = vkGetBufferDeviceAddress(ctx.device, &buffer_address_info);
+        resources.material_addresses.push_back(buffer_address);
+        material_types[std::type_index(typeid(MaterialType))] = material_type_data;
+
+        // Staging
+        const auto staging_buffer_result = CreateBuffer(
+            sizeof(VkDeviceAddress),
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VMA_MEMORY_USAGE_CPU_COPY);
+        CHECK(staging_buffer_result);
+        GPUBuffer staging_buffer = staging_buffer_result.value();
+
+        void* data = staging_buffer.allocation.info.pMappedData;
+        memcpy(data, &buffer_address, sizeof(VkDeviceAddress));
+
+        ImmediateSubmit([&](CommandBufferVulkan cmd) {
+            const VkBufferCopy buffer_copy{
+                .dstOffset = (material_type_data.id) * sizeof(VkDeviceAddress),
+                .size = sizeof(VkDeviceAddress),
+            };
+            vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, resources.materials_buffer.handle, 1, &buffer_copy);
+        });
+
+        vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
+    }
+
+    template <typename MaterialType>
+    MaterialTypeData& GetMaterialTypeData() {
+        return material_types[std::type_index(typeid(MaterialType))];
     }
 
    public:
@@ -239,8 +301,8 @@ struct RendererVulkan : public Renderer {
 
     Result<> ImmediateSubmit(std::function<void(CommandBufferVulkan p_cmd)>&& function) const;
 
-    template <typename V>
-    Result<GPUMesh> UploadMeshToGPU(const std::vector<V>& p_vertices, const std::vector<uint>& p_indices) const;
+    template <typename VertexType>
+    Result<GPUMesh> UploadMeshToGPU(const std::vector<VertexType>& p_vertices, const std::vector<uint>& p_indices) const;
 
     Result<GPUMesh> UploadMeshToGPU(const CPUMesh& mesh) const;
     Result<GPUMesh> UploadMeshToGPU(const glTF::Primitive& primitive) const;
@@ -251,11 +313,44 @@ struct RendererVulkan : public Renderer {
     NodeHandle GetHoveredNode() final override;
 };
 
-template <typename V>
+template <typename MaterialType>
+Handle<GPUMaterial> RendererVulkan::CreateMaterial(const MaterialType& p_material) {
+    auto material_type_data = GetMaterialTypeData<MaterialType>();
+
+    Handle<MaterialType> handle = materials<MaterialType>.Allocate(p_material);
+
+    // Staging
+    const auto staging_buffer_result = CreateBuffer(
+        sizeof(MaterialType),
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VMA_MEMORY_USAGE_CPU_COPY);
+    CHECK(staging_buffer_result);
+    GPUBuffer staging_buffer = staging_buffer_result.value();
+
+    void* data = staging_buffer.allocation.info.pMappedData;
+    memcpy(data, &p_material, sizeof(MaterialType));
+
+    ImmediateSubmit([&](CommandBufferVulkan cmd) {
+        const VkBufferCopy buffer_copy{
+            .dstOffset = (handle.index) * sizeof(MaterialType),
+            .size = sizeof(MaterialType),
+        };
+        vkCmdCopyBuffer(cmd.GetHandle(), staging_buffer.handle, material_type_data.buffer.handle, 1, &buffer_copy);
+    });
+
+    vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
+    std::println("mat {}, id {}", material_type_data.id, handle.index);
+    return resources.materials.Allocate({
+        .type = material_type_data.id,
+        .id = handle.index,
+    });
+}
+
+template <typename VertexType>
 inline Result<GPUMesh>
-RendererVulkan::UploadMeshToGPU(const std::vector<V>& p_vertices, const std::vector<uint>& p_indices) const {
+RendererVulkan::UploadMeshToGPU(const std::vector<VertexType>& p_vertices, const std::vector<uint>& p_indices) const {
     GPUMesh gpu_mesh{};
-    const uint vertex_buffer_size = p_vertices.size() * sizeof(V);
+    const uint vertex_buffer_size = p_vertices.size() * sizeof(VertexType);
     const size_t index_buffer_size = p_indices.size() * sizeof(uint);
 
     gpu_mesh.index_count = p_indices.size();
@@ -311,5 +406,8 @@ RendererVulkan::UploadMeshToGPU(const std::vector<V>& p_vertices, const std::vec
 
     return gpu_mesh;
 }
+
+template <typename MaterialType>
+Pool<MaterialType> RendererVulkan::materials;
 
 }  // namespace Gauge

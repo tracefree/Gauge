@@ -31,11 +31,20 @@ struct CPUMesh {
 };
 
 struct GPUMaterial {
+    uint type;
+    uint id;
+};
+
+struct GPU_PBRMaterial {
     Vec4 albedo = Vec4(1.0f);
     float metallic = 0.0f;
     float roughness = 0.0f;
     uint texture_albedo = 0;
     uint texture_normal = 2;
+};
+
+struct GPU_BasicMaterial {
+    Vec4 color = Vec4(1.0f);
 };
 
 }  // namespace Gauge

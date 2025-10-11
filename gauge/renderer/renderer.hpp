@@ -64,8 +64,8 @@ struct Renderer {
     virtual Handle<GPUImage> CreateTexture(const Texture& p_texture) = 0;
     virtual void DestroyTexture(Handle<GPUImage> p_handle) = 0;
 
-    virtual Handle<GPUMaterial> CreateMaterial(const GPUMaterial& p_material) = 0;
-    virtual void DestroyMaterial(Handle<GPUMaterial> p_handle) = 0;
+    // virtual Handle<GPU_PBRMaterial> CreateMaterial(const GPU_PBRMaterial& p_material) = 0;
+    virtual void DestroyMaterial(Handle<GPU_PBRMaterial> p_handle) = 0;
 
     virtual NodeHandle GetHoveredNode() = 0;
 

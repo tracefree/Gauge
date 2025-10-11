@@ -1,5 +1,6 @@
 #include "scene.hpp"
 
+#include <gauge/components/aabb_gizmo.hpp>
 #include <gauge/core/resource_manager.hpp>
 #include <gauge/core/string_id.hpp>
 #include <gauge/scene/node.hpp>
@@ -50,6 +51,11 @@ Ref<Node> Scene::FromData(YAML::Node p_data) {
 
         node->AddChild(new_node);
     }
+
+    for (auto child : node->children) {
+        node->aabb.Grow(child->aabb);
+    }
+    node->AddComponent<AABBGizmo>(node->aabb);
 
     return node;
 }

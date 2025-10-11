@@ -1,47 +1,8 @@
 #include "../input_structures.slang"
-#include "../limits.h"
-
-struct Camera {
-    float4x4 view;
-    float4x4 view_projection;
-    float4x4 inverse_projection;
-}
-
-struct Scene {
-    float3 light_position;
-    float light_attenuation;
-}
-
-struct Globals {
-    float time;
-    Camera cameras[MAX_CAMERAS];
-    Scene scenes[MAX_SCENES];
-}
-
-enum Sampler {
-    LINEAR = 0,
-    NEAREST = 1,
-}
-
-struct Push {
-    float4x4 model_matrix;
-    Vertex* vertices;
-    Sampler sampler;
-    uint material_id;
-    uint camera_id;
-    uint scene_id;
-    uint16_t2 mouse_position;
-    uint node_handle;
-}
-
-struct Readback {
-    Atomic<uint> node_handle;
-    float depth;
-}
 
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
-StructuredBuffer<PBRMaterial> materials;
+StructuredBuffer<void*> materials;
 
 [[vk::binding(0, 1)]]
 ConstantBuffer<Globals> globals;
@@ -49,19 +10,24 @@ ConstantBuffer<Globals> globals;
 [[vk::binding(1, 1)]]
 RWStructuredBuffer<Readback> readback;
 
+struct PushConstants {
+    float4x4 model_matrix;
+    Vertex* vertices;
+    uint16_t2 mouse_position;
+    MaterialHandle material_handle;
+    uint camera_id;
+    uint node_handle;
+}
+
 [[vk::push_constant]]
-ConstantBuffer<Push> pcs;
+ConstantBuffer<PushConstants> pcs;
 
 struct VertexOutput {
     float4 position_cs : SV_Position;
     float3 position_ws;
     float3 position_vs;
-    float3x3 tbn_ws : TBN_WS;
-    float2 uv : VertexUV;
-};
-
-struct FragmentOutput {
-    float4 Albedo : COLOR0;
+    float3x3 tbn_ws;
+    float2 uv;
 };
 
 [shader("vertex")]
@@ -86,20 +52,20 @@ VertexOutput VertexMain(uint vertexID: SV_VertexID) {
 }
 
 [shader("fragment")]
-FragmentOutput FragmentMain(
+float4 FragmentMain(
     float4 position_cs: SV_Position,
     float3 position_ws,
     float3 position_vs,
-    float3x3 tbn_ws: TBN_WS,
-    float2 uv: VertexUV,
-)
+    float3x3 tbn_ws,
+    float2 uv,
+) : COLOR0
 {
-    let material = materials[pcs.material_id];
+    let material = GetMaterial<PBRMaterial>(pcs.material_handle);
 
-    let albedo_texture = textures[material.texture_albedo].Sample(samplers[(int)pcs.sampler], uv);
-
+    let albedo_texture = textures[material.texture_albedo].Sample(samplers[Sampler::LINEAR], uv);
     var albedo = material.albedo * albedo_texture;
-    let normal_texture = textures[material.texture_normal].Sample(samplers[(int)pcs.sampler], uv).xyz;
+
+    let normal_texture = textures[material.texture_normal].Sample(samplers[Sampler::LINEAR], uv).xyz;
     let normal_ts = normal_texture.xyz * 2.0 - 1.0;
     let normal_ws = mul(normal_ts, tbn_ws);
 
@@ -125,5 +91,5 @@ FragmentOutput FragmentMain(
         readback[0].node_handle++;
     }
 
-    return FragmentOutput(float4(color, 1.0));
+    return float4(color, 1.0);
 }

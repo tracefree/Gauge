@@ -83,7 +83,7 @@ struct GPUGlobals {
 struct Mesh {
     std::string name;
     GPUMesh data;
-    GPUMaterial material;
+    GPU_PBRMaterial material;
 };
 
 struct Model {

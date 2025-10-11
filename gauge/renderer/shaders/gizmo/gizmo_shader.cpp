@@ -26,7 +26,7 @@ void GizmoShader::Initialize(const RendererVulkan& renderer) {
             .AddDescriptorSetLayout(renderer.global_descriptor.layout)
             .AddDescriptorSetLayout(renderer.frames_in_flight[0].descriptor_set.GetLayout())
             .AddPushConstantRange((VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), sizeof(PushConstants))
-            .EnableDepthTest(true)
+            .EnableDepthTest(false)
             .SetImageFormat(renderer.offscreen ? VK_FORMAT_R8G8B8A8_SRGB : renderer.swapchain.image_format)
             .SetSampleCount(RendererVulkan::SampleCountFromMSAA(gApp->project_settings.msaa_level));
     pipeline = builder.Build(renderer).value();
@@ -48,18 +48,17 @@ void GizmoShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd)
         nullptr);
 
     PushConstants pcs;
-    pcs.camera_index = 0;
+    pcs.camera_id = 0;
     float mx, my;
     SDL_GetMouseState(&mx, &my);
     pcs.mouse_position = {.x = uint16_t(mx), .y = uint16_t(my)};
     cmd.BindPipeline(pipeline);
     for (const DrawObject& object : objects) {
         pcs.model_matrix = object.transform.GetMatrix();
+        pcs.material = *renderer.resources.materials.Get(object.material);
         GPUMesh& mesh = *renderer.resources.meshes.Get(object.primitive);
         pcs.vertex_buffer_address = mesh.vertex_buffer.address;
         pcs.node_handle = object.node_handle;
-        pcs.color_rg = Vec2(object.color.r, object.color.g);
-        pcs.color_b = object.color.b;
         vkCmdPushConstants(cmd.GetHandle(), pipeline.layout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(PushConstants), &pcs);
         vkCmdBindIndexBuffer(cmd.GetHandle(), mesh.index_buffer.handle, 0, VK_INDEX_TYPE_UINT32);
         vkCmdDrawIndexed(cmd.GetHandle(), mesh.index_count, 1, 0, 0, 0);
