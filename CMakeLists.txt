@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.31)
+cmake_minimum_required(VERSION 3.25)
 project(gauge VERSION 0.0.1 LANGUAGES CXX C)
 
 # --- Setup ---
@@ -24,9 +24,11 @@ find_package(SDL3 REQUIRED CONFIG COMPONENTS SDL3-shared)
 #set_target_properties(SDL3 PROPERTIES IMPORTED_LOCATION /home/rie/Projects/Gauge/sandbox/lib/libSDL3.so)
 
 # Vulkan
-set(BUILD_SHARED_LIBS ON)
+set(BUILD_SHARED_LIBS OFF)
 find_package(Vulkan REQUIRED)
 find_package(VulkanHeaders REQUIRED CONFIG)
+include_directories(${VULKAN_SDK}/include)
+
 
 # Other
 add_subdirectory(thirdparty)
@@ -108,6 +110,9 @@ target_link_libraries(gauge_renderer PUBLIC
   GPUOpen::VulkanMemoryAllocator
   glm
   imgui
+  m
+  stdc++fs
+  gauge
 )
 
 target_link_libraries(gauge PUBLIC
@@ -117,4 +122,7 @@ target_link_libraries(gauge PUBLIC
   Tracy::TracyClient
   glm
   imgui
+  m
+  c
+  stdc++fs
 )

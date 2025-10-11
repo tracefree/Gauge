@@ -2,6 +2,7 @@
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_gamepad.h>
 #include <SDL3/SDL_joystick.h>
+#include <SDL3/SDL_scancode.h>
 
 #include <cstddef>
 #include <gauge/math/common.hpp>
@@ -136,6 +137,7 @@ void Input::Initialize() {
     auto middle_mouse_button_binding = std::make_shared<MouseButtonBinding>(MouseButton::MIDDLE);
     auto mouse_wheel_binding = std::make_shared<MouseWheelBinding>();
     auto shift_binding = std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_LSHIFT);
+    auto space_binding = std::make_shared<KeyBinding<bool>>(SDL_SCANCODE_SPACE);
     auto wasd_binding = std::make_shared<KeyBinding<Vec2>>(
         SDL_SCANCODE_D,
         SDL_SCANCODE_A,
@@ -154,10 +156,12 @@ void Input::Initialize() {
     auto right_stick_binding = std::make_shared<GamepadJoystickBinding>(
         SDL_GAMEPAD_AXIS_RIGHTX,
         SDL_GAMEPAD_AXIS_RIGHTY,
-        Vec2(10.0f, 10.0f),
+        Vec2(20.0f),
         0.0f);
     auto east_button_binding = std::make_shared<GamepadButtonBinding>(
         SDL_GAMEPAD_BUTTON_EAST);
+    auto south_button_binding = std::make_shared<GamepadButtonBinding>(
+        SDL_GAMEPAD_BUTTON_SOUTH);
 
     // Freecam
     ActionSet freecam_set{};
@@ -243,6 +247,12 @@ void Input::Initialize() {
         {.bindings = {
              shift_binding,
              east_button_binding,
+         }});
+    character.AddAction<bool>(
+        "jump",
+        {.bindings = {
+             space_binding,
+             south_button_binding,
          }});
     singleton->active_action_sets["character"] = character;
 

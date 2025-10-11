@@ -6,6 +6,8 @@
 namespace Gauge {
 
 struct CharacterController : public Component {
+    Vec3 velocity = Vec3::ZERO;
+
     virtual void Initialize() final override;
     virtual void Update(float delta) final override;
 

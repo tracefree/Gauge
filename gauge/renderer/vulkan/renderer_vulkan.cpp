@@ -30,7 +30,6 @@
 #include <memory>
 #include <print>
 #include <string>
-#include <tracy/Tracy.hpp>
 #include <vector>
 
 #include <SDL3/SDL_error.h>
@@ -57,12 +56,16 @@
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
 #include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
+#include "thirdparty/tracy/public/tracy/Tracy.hpp"
 
 #include <gauge/renderer/shaders/limits.h>
 
 #define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
+
+#ifdef DEBUG
 #define USE_VULKAN_DEBUG 1
+#endif
 
 using namespace Gauge;
 
@@ -169,25 +172,31 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     vkb::PhysicalDeviceSelector selector{p_instance};
 
     selector
-        .set_minimum_version(1, 4)
+        .set_minimum_version(1, 3)
         .set_required_features(device_features)
         .add_required_extension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME)
         .set_required_features_11(device_features_11)
         .set_required_features_12(device_features_12)
-        .set_required_features_13(device_features_13)
-        .add_required_extension(VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME)
-        .add_required_extension_features<VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR>(
-            VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR{
-                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
-                .unifiedImageLayouts = VK_TRUE,
-            });
+        .set_required_features_13(device_features_13);
+    //    .add_required_extension(VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME);
+    // .add_required_extension_features<VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR>(
+    //     VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR{
+    //         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
+    //          .unifiedImageLayouts = VK_TRUE,
+    //     });
 
     if (p_surface != VK_NULL_HANDLE) {
         selector.set_surface(p_surface);
     }
 
     auto physical_device_ret = selector.select();
+
     if (!physical_device_ret) {
+        std::println("Detailed reasons:");
+        const auto& detailed_reasons = physical_device_ret.detailed_failure_reasons();
+        for (const std::string& reason : detailed_reasons) {
+            std::println("{}", reason);
+        }
         return Error(std::format("Could not create Vulkan physical device. vk-bootstrap error code: [{}] {}. Vulkan result: {}.",
                                  physical_device_ret.full_error().type.value(),
                                  physical_device_ret.full_error().type.message(),
@@ -1520,7 +1529,7 @@ void RendererVulkan::ViewportMoveCamera(uint p_viewport_id, const Vec3& p_offset
 
 void RendererVulkan::ViewportRotateCamera(uint p_viewport_id, float p_yaw, float p_pitch) {
     Viewport& viewport = render_state.viewports[p_viewport_id];
-    viewport.camera_pitch = std::clamp(viewport.camera_pitch + p_pitch, -M_PI_2f, M_PI_2f);
+    viewport.camera_pitch = std::clamp(viewport.camera_pitch + p_pitch, HALF_PI, HALF_PI);
     viewport.camera_yaw = viewport.camera_yaw + p_yaw;
 }
 
