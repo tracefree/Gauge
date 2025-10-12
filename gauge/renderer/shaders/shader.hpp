@@ -24,7 +24,7 @@ class Shader {
     void Reload(const RendererVulkan& renderer);
 
     Shader() {}
-    ~Shader() {}
+    virtual ~Shader() {}
 };
 
 template <typename S>

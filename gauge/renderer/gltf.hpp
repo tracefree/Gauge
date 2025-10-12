@@ -14,7 +14,9 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include "gauge/core/string_id.hpp"
+#include "gauge/physics/physics.hpp"
 
 namespace fastgltf {
 class Asset;
@@ -61,6 +63,7 @@ struct glTF {
         std::string name;
         std::vector<Primitive> primitives;
         AABB aabb{};
+        Physics::ShapeHandle collision_shape{};
     };
 
     std::string name;
@@ -74,6 +77,7 @@ struct glTF {
     Result<> LoadTextures(const fastgltf::Asset& p_asset, const std::filesystem::path& p_path = std::filesystem::path());
     Result<> LoadMaterials(const fastgltf::Asset& p_asset);
     Result<> LoadMeshes(const fastgltf::Asset& p_asset);
+    Result<> PostProcess(const fastgltf::Asset& p_asset);
 
    public:
     static Result<glTF> FromFile(const std::string& p_path);

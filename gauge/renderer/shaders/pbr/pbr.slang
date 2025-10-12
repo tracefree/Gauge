@@ -78,7 +78,7 @@ float4 FragmentMain(
     
     float3 light_direction_vs = mul(camera.view, float4(light_direction_ws, 0.0)).xyz;
 
-    float ambient = 0.05;
+    float ambient = 0.15;
     float point = max(dot(normal_vs, light_direction_vs), 0.0) * (1 / light_distance);
     
     float3 color = albedo.rgb * (ambient + point);

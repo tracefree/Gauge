@@ -11,9 +11,7 @@
 #include <gauge/core/app.hpp>
 #include <gauge/core/config.hpp>
 #include <gauge/math/common.hpp>
-#include <gauge/renderer/shaders/debug_line/debug_line_shader.hpp>
-#include <gauge/renderer/shaders/gizmo/gizmo_shader.hpp>
-#include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
+
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/descriptor.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
@@ -555,9 +553,6 @@ Result<> RendererVulkan::InitializeGlobalResources() {
     resources.materials_buffer = materials_buffer_result.value();
     global_descriptor.set.WriteStorageBuffer(ctx, 2, 0, resources.materials_buffer.handle, VK_WHOLE_SIZE);
 
-    RegisterMaterialType<GPU_PBRMaterial>();
-    RegisterMaterialType<GPU_BasicMaterial>();
-
     resources.debug_mesh_box = CreateMesh(
         std::vector<PositionVertex>(
             {
@@ -681,10 +676,6 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
                 global_descriptor.set = p_set;
                 return InitializeImGui(*this);
             }));
-
-    RegisterShader<DebugLineShader>();
-    RegisterShader<GizmoShader>();
-    RegisterShader<PBRShader>();
 
     // Immediate command setup
     CHECK_RET(

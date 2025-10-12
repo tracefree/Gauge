@@ -51,4 +51,6 @@ add_subdirectory(fastgltf)
 include_directories(fastgltf/include)
 
 # JoltPhysics
+# Include Jolt
 add_subdirectory(JoltPhysics/Build)
+include_directories(JoltPhysics)

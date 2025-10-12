@@ -9,6 +9,7 @@ namespace Gauge {
 struct ModelComponent : public Component {
    public:
     std::string path;
+    bool generate_collisions{};
 
     void Initialize() final override;
 

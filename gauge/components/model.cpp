@@ -5,6 +5,7 @@
 #include <gauge/scene/node.hpp>
 #include <gauge/scene/yaml.hpp>
 
+#include <print>
 #include <string>
 
 using namespace Gauge;
@@ -16,4 +17,5 @@ void ModelComponent::Initialize() {
 
 COMPONENT_FACTORY_IMPL(ModelComponent, model) {
     path = p_data["path"].as<std::string>();
+    generate_collisions = p_data["collisions"].IsDefined() && p_data["collisions"].as<bool>();
 }

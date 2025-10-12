@@ -15,7 +15,9 @@ struct Pool {
 
     Handle<T> Allocate(T p_data);
     T* Get(Handle<T> p_handle);
+    T* Get(uint p_handle);
     void Free(Handle<T> p_handle);
+    void Free(uint p_handle);
 
     Pool(uint p_initial_size = 2048);
 };
@@ -58,9 +60,19 @@ T* Pool<T>::Get(Handle<T> p_handle) {
 }
 
 template <typename T>
+T* Pool<T>::Get(uint p_handle) {
+    return Get(Handle<T>::FromUint(p_handle));
+}
+
+template <typename T>
 void Pool<T>::Free(Handle<T> p_handle) {
     generations[p_handle.index]++;
     free_list.push(p_handle.index);
+}
+
+template <typename T>
+void Pool<T>::Free(uint p_handle) {
+    Free(Handle<T>::FromUint(p_handle));
 }
 
 }  // namespace Gauge

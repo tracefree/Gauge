@@ -17,6 +17,8 @@
 
 #include "fastgltf/math.hpp"
 #include "fastgltf/util.hpp"
+#include "gauge/components/physics/static_body.hpp"
+#include "gauge/physics/physics.hpp"
 #include "thirdparty/stb/stb_image.h"
 
 #include <assert.h>
@@ -24,6 +26,7 @@
 #include <memory>
 #include <print>
 #include <variant>
+#include <vector>
 
 using namespace Gauge;
 
@@ -301,6 +304,9 @@ glTF::FromFile(const std::string& p_path) {
                   })
                   .and_then([&gltf, &asset]() {
                       return gltf.LoadMeshes(asset.get());
+                  })
+                  .and_then([&gltf, &asset]() {
+                      return gltf.PostProcess(asset.get());
                   }));
     return gltf;
 }
@@ -325,6 +331,10 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
             }
 
             instanced_nodes[i]->aabb = mesh.aabb;
+
+            if (mesh.collision_shape != 0) {
+                auto static_body = instanced_nodes[i]->AddComponent<StaticBody>(mesh.collision_shape);
+            }
         }
     }
 
@@ -368,4 +378,30 @@ Result<Ref<Gauge::Node>> glTF::CreateNode() const {
     root_node->AddComponent<AABBGizmo>(root_node->aabb);
 
     return root_node;
+}
+
+Result<> glTF::PostProcess(const fastgltf::Asset& p_asset) {
+    for (auto& node : nodes) {
+        if (!node.name.ends_with("_col") || !node.mesh.has_value())
+            continue;
+
+        auto& mesh = meshes[node.mesh.value()];
+        std::println("Generating trimesh collision shape for {}", mesh.name);
+
+        std::vector<Vec3> vertices;
+        std::vector<uint> indices;
+        uint index_offset = 0;
+        for (auto& primitive : mesh.primitives) {
+            for (const auto& vertex : primitive.vertices) {
+                vertices.push_back(vertex.position);
+            }
+            for (uint index : primitive.indices) {
+                indices.push_back(index + index_offset);
+            }
+            index_offset += primitive.vertices.size();
+        }
+        mesh.collision_shape = Physics::Get()->ShapeCreateMesh(vertices, indices);
+    }
+
+    return {};
 }

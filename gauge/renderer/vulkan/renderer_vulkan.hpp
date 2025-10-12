@@ -339,7 +339,6 @@ Handle<GPUMaterial> RendererVulkan::CreateMaterial(const MaterialType& p_materia
     });
 
     vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
-    std::println("mat {}, id {}", material_type_data.id, handle.index);
     return resources.materials.Allocate({
         .type = material_type_data.id,
         .id = handle.index,

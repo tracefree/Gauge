@@ -1,5 +1,4 @@
 #include "../input_structures.slang"
-#include "../limits.h"
 
 struct PushConstants {
     float4x4 model_matrix;
@@ -9,22 +8,7 @@ struct PushConstants {
     float4 color;
 }
 
-struct Camera {
-    float4x4 view;
-    float4x4 view_projection;
-    float4x4 inverse_projection;
-}
-
-struct Scene {
-    float3 light_position;
-    float light_attenuation;
-}
-
-struct Globals {
-    float time;
-    Camera cameras[MAX_CAMERAS];
-    Scene scenes[MAX_SCENES];
-}
+StructuredBuffer<void*> materials;
 
 [[vk::binding(0, 1)]]
 ConstantBuffer<Globals> globals;

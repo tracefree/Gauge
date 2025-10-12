@@ -11,9 +11,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --- Dependencies ---
 
-include_directories(
+include_directories(SYSTEM
   thirdparty/imgui/
   thirdparty/imgui/backends/
+  thirdparty/JoltPhysics/
 )
 
 include_directories(SYSTEM thirdparty/volk)
@@ -82,8 +83,10 @@ add_library(gauge STATIC
   gauge/components/character_controller.cpp
   gauge/components/mesh_instance.cpp
   gauge/components/model.cpp
+  gauge/components/physics/static_body.cpp
   gauge/physics/physics.cpp
   gauge/physics/jolt/jolt.cpp
+  gauge/physics/jolt/character.cpp
   gauge/register_types.cpp
 )
 
@@ -91,8 +94,11 @@ set_source_files_properties(
   thirdparty/volk/volk.c PROPERTIES SKIP_PRECOMPILE_HEADERS ON
 )
 
+
+target_include_directories(gauge PUBLIC thirdparty/fastgltf/include)
+
 target_include_directories(gauge_renderer PUBLIC thirdparty/fastgltf/include)
-include_directories(gauge_renderer PUBLIC thirdparty/VulkanMemoryAllocator/include)
+include_directories(thirdparty/VulkanMemoryAllocator/include)
 
 target_compile_definitions(gauge_renderer PRIVATE VK_NO_PROTOTYPES)
 #target_compile_definitions(gauge PRIVATE VK_NO_PROTOTYPES)
@@ -103,8 +109,9 @@ target_include_directories(gauge_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_precompile_headers(gauge PUBLIC <vector> <print> <string> <unordered_map> <memory>)
 target_include_directories(gauge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
+target_include_directories(gauge PUBLIC ${joltphysics_SOURCE_DIR})
+include_directories(SYSTEM thirdparty/JoltPhysics)
 
-target_include_directories(gauge PRIVATE thirdparty/JoltPhysics)
 
 target_link_libraries(gauge_renderer PUBLIC
   SDL3
