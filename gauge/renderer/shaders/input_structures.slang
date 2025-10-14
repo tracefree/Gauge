@@ -15,13 +15,28 @@ struct Camera {
     float4x4 inverse_projection;
 }
 
+struct PointLight {
+    float3 position;
+    float range;
+    float3 color;
+    float intensity;
+}
+
 struct Scene {
-    float3 light_position;
-    float light_attenuation;
+    float3 ambient_light_color;
+    float ambient_light_intensity;
+    uint active_point_lights;
+    float _padding1;
+    float _padding2;
+    float _padding3;
+    PointLight point_lights[MAX_POINT_LIGHTS];
 }
 
 struct Globals {
     float time;
+    float _padding1;
+    float _padding2;
+    float _padding3;
     Camera cameras[MAX_CAMERAS];
     Scene scenes[MAX_SCENES];
 }

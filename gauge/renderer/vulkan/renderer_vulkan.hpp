@@ -126,6 +126,7 @@ struct RendererVulkan : public Renderer {
 
     struct RenderState {
         std::vector<Viewport> viewports;
+        std::vector<GPUScene> scenes;
         std::vector<Model> models;
         std::vector<RenderCallback> render_callbacks;
         std::vector<Mat4> camera_views;

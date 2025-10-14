@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gauge/math/transform.hpp>
+#include "gauge/math/common.hpp"
 
 #define VK_NO_PROTOTYPES 1
 #include <volk.h>
@@ -69,13 +70,28 @@ struct GPUCamera {
     Mat4 inverse_projection;
 };
 
+struct GPUPointLight {
+    Vec3 position;
+    float range;
+    Vec3 color;
+    float intensity;
+};
+
 struct GPUScene {
-    Vec3 light_position;
-    float light_attenuation;
+    Vec3 ambient_light_color;
+    float ambient_light_intensity;
+    uint active_point_lights;
+    float _padding1;
+    float _padding2;
+    float _padding3;
+    GPUPointLight point_lights[MAX_POINT_LIGHTS];
 };
 
 struct GPUGlobals {
     float time;
+    float _padding1;
+    float _padding2;
+    float _padding3;
     alignas(16) GPUCamera cameras[MAX_CAMERAS];
     alignas(16) GPUScene scenes[MAX_SCENES];
 };

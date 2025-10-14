@@ -81,6 +81,7 @@ add_library(gauge STATIC
   gauge/components/camera.cpp
   gauge/components/component.cpp
   gauge/components/character_controller.cpp
+  gauge/components/light/point_light.cpp
   gauge/components/mesh_instance.cpp
   gauge/components/model.cpp
   gauge/components/physics/static_body.cpp

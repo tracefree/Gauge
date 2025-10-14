@@ -3,6 +3,7 @@
 #include <gauge/components/aabb_gizmo.hpp>
 #include <gauge/components/camera.hpp>
 #include <gauge/components/character_controller.hpp>
+#include <gauge/components/light/point_light.hpp>
 #include <gauge/components/mesh_instance.hpp>
 #include <gauge/components/model.hpp>
 #include <gauge/components/physics/static_body.hpp>
@@ -32,6 +33,7 @@ static void RegisterComponents() {
     RegisterComponent<MeshInstance>();
     RegisterComponent<ModelComponent>();
     RegisterComponent<StaticBody>();
+    RegisterComponent<PointLight>();
 }
 
 void Gauge::RegisterShaders() {

@@ -70,18 +70,23 @@ float4 FragmentMain(
     let normal_ws = mul(normal_ts, tbn_ws);
 
     Camera camera = globals.cameras[pcs.camera_id];
-    float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
-    float3 light_position = float3(1.5 * cos(globals.time), 1.5, 1.5 * sin(globals.time));
-    float3 light_vector = light_position - position_ws;
-    float light_distance = length(light_vector);
-    float3 light_direction_ws = light_vector / light_distance;
-    
-    float3 light_direction_vs = mul(camera.view, float4(light_direction_ws, 0.0)).xyz;
+    let scene = globals.scenes[0];
 
-    float ambient = 0.15;
-    float point = max(dot(normal_vs, light_direction_vs), 0.0) * (1 / light_distance);
+    let ambient = (scene.ambient_light_color * scene.ambient_light_intensity);
+    float3 light = ambient;
+
+    float3 normal_vs = normalize(mul(camera.view, float4(normal_ws, 0.0)).xyz);
     
-    float3 color = albedo.rgb * (ambient + point);
+    for (uint point_light_index = 0; point_light_index < scene.active_point_lights; point_light_index++) {
+        let point_light = scene.point_lights[point_light_index];
+        float3 light_vector = point_light.position - position_ws;
+        float light_distance = length(light_vector);
+        float3 light_direction_ws = light_vector / light_distance;
+        float3 light_direction_vs = mul(camera.view, float4(light_direction_ws, 0.0)).xyz;
+        light += point_light.color * point_light.intensity * max(dot(normal_vs, light_direction_vs), 0.0) * (1 / light_distance);
+    }
+    
+    float3 color = albedo.rgb * light;
 
     if (pcs.mouse_position.x == uint16_t(position_cs.x) && pcs.mouse_position.y == uint16_t(position_cs.y)) {
         uint index = readback[0].node_handle.load();

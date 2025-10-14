@@ -2,66 +2,61 @@
 
 #include "VkBootstrap.h"
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <cstddef>
-#include <cstring>
+#include <gauge/renderer/shaders/limits.h>
 #include <gauge/common.hpp>
+#include <gauge/components/component.hpp>
 #include <gauge/core/app.hpp>
 #include <gauge/core/config.hpp>
+#include <gauge/core/handle.hpp>
 #include <gauge/math/common.hpp>
-
+#include <gauge/renderer/common.hpp>
+#include <gauge/renderer/gltf.hpp>
+#include <gauge/renderer/renderer.hpp>
+#include <gauge/renderer/texture.hpp>
+#include <gauge/renderer/vulkan/command_buffer.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
 #include <gauge/renderer/vulkan/descriptor.hpp>
 #include <gauge/renderer/vulkan/graphics_pipeline_builder.hpp>
 #include <gauge/renderer/vulkan/imgui.hpp>
 #include <gauge/renderer/vulkan/shader_module.hpp>
-
-#include <cassert>
-#include <cstdint>
-#include <expected>
-#include <format>
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/ext/matrix_float4x4.hpp>
-#include <glm/trigonometric.hpp>
-#include <memory>
-#include <print>
-#include <string>
-#include <vector>
+#include <gauge/scene/node.hpp>
+#include <gauge/scene/scene_tree.hpp>
 
 #include <SDL3/SDL_error.h>
 #include <SDL3/SDL_mouse.h>
 #include <SDL3/SDL_system.h>
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
-#include <sys/types.h>
-#include <vulkan/vulkan_core.h>
 
-#include "gauge/components/component.hpp"
-#include "gauge/core/handle.hpp"
-#include "gauge/math/common.hpp"
-#include "gauge/renderer/common.hpp"
-#include "gauge/renderer/gltf.hpp"
-#include "gauge/renderer/renderer.hpp"
-#include "gauge/renderer/texture.hpp"
-#include "gauge/renderer/vulkan/command_buffer.hpp"
-#include "gauge/scene/node.hpp"
-#include "gauge/scene/scene_tree.hpp"
-#include "glm/matrix.hpp"
-#include "glm/packing.hpp"
+#include "thirdparty/glm/glm/ext/matrix_clip_space.hpp"
+#include "thirdparty/glm/glm/matrix.hpp"
+#include "thirdparty/glm/glm/packing.hpp"
+#include "thirdparty/glm/glm/trigonometric.hpp"
+#include "thirdparty/tracy/public/tracy/Tracy.hpp"
+
 #include "thirdparty/imgui/imgui.h"
 
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
 #include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
-#include "thirdparty/tracy/public/tracy/Tracy.hpp"
 
-#include <gauge/renderer/shaders/limits.h>
+#include <sys/types.h>
+#include <algorithm>
+#include <cassert>
+#include <chrono>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <expected>
+#include <format>
+#include <memory>
+#include <print>
+#include <string>
+#include <vector>
 
 #define TRACY_VK_USE_SYMBOL_TABLE
 #define CUSTUM_VALIDATION_LAYER_DEBUG_CALLBACK 1
-
-#ifdef DEBUG
+#ifdef NDEBUG
 #define USE_VULKAN_DEBUG 1
 #endif
 
@@ -175,13 +170,13 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
         .add_required_extension(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME)
         .set_required_features_11(device_features_11)
         .set_required_features_12(device_features_12)
-        .set_required_features_13(device_features_13);
-    //    .add_required_extension(VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME);
-    // .add_required_extension_features<VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR>(
-    //     VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR{
-    //         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
-    //          .unifiedImageLayouts = VK_TRUE,
-    //     });
+        .set_required_features_13(device_features_13)
+        .add_required_extension(VK_KHR_UNIFIED_IMAGE_LAYOUTS_EXTENSION_NAME)
+        .add_required_extension_features<VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR>(
+            VkPhysicalDeviceUnifiedImageLayoutsFeaturesKHR{
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_UNIFIED_IMAGE_LAYOUTS_FEATURES_KHR,
+                .unifiedImageLayouts = VK_TRUE,
+            });
 
     if (p_surface != VK_NULL_HANDLE) {
         selector.set_surface(p_surface);
@@ -742,6 +737,13 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     render_state.viewports[0].scene_tree = std::make_shared<SceneTree>();
     render_state.viewports[0].scene_tree->root = Node::Create("Root");
 
+    render_state.scenes.emplace_back(
+        GPUScene{
+            .ambient_light_color = Vec3(1.0f),
+            .ambient_light_intensity = 0.1f,
+            .active_point_lights = 0,
+        });
+
     initialized = true;
     return {};
 }
@@ -931,6 +933,8 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
             .inverse_projection = glm::inverse(projection),
         };
     }
+    global_uniforms.scenes[0] = render_state.scenes[0];
+
     memcpy(GetCurrentFrame().uniform_buffer.allocation.info.pMappedData, &global_uniforms, sizeof(GPUGlobals));
 
     // Clear readback buffer
@@ -1049,6 +1053,7 @@ void RendererVulkan::Draw() {
     RecordCommands(cmd, next_image_index);
     TracyVkCollect(current_frame.tracy_context, cmd.GetHandle());
     CHECK(cmd.End());
+
     {
         ZoneScopedN("vkQueueSubmit");
         // Submit to graphics queue
