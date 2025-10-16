@@ -59,7 +59,6 @@ struct GPUImage {
     VkImageView view{};
     VkFormat format{};
     VkExtent3D extent{};
-    // VkDeviceMemory memory{};
     Allocation allocation{};
     int file_descriptor{};
 };

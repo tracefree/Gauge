@@ -9,16 +9,25 @@
 using namespace Gauge;
 
 void Physics::JoltCharacter::Initialize() {
-    auto jolt = static_cast<JoltBackend*>(Physics::Get());
-
-    auto shape = JPH::RotatedTranslatedShapeSettings(JPH::Vec3(0.0, 0.9, 0.0), JPH::Quat::sIdentity(), new JPH::CapsuleShape(0.6f, 0.3f)).Create().Get();
+    const auto jolt = static_cast<JoltBackend*>(Physics::Get());
+    const auto shape = JPH::RotatedTranslatedShapeSettings(
+                           JPH::Vec3(0.0, 0.9, 0.0),
+                           JPH::Quat::sIdentity(),
+                           new JPH::CapsuleShape(0.6f, 0.3f))
+                           .Create()
+                           .Get();
     const auto settings = std::make_unique<JPH::CharacterVirtualSettings>();
     settings->mMaxSlopeAngle = 0.0;
     settings->mShape = shape;
     settings->mInnerBodyShape = shape;
     settings->mInnerBodyLayer = ToJolt<JPH::ObjectLayer>(Physics::Layer::DYNAMIC);
-    settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), -0.3f);
-    jolt_character = std::make_unique<JPH::CharacterVirtual>(settings.get(), JPH::RVec3::sZero(), JPH::Quat::sIdentity(), 0, &(jolt->physics_system));
+    settings->mSupportingVolume = JPH::Plane(JPH::Vec3::sAxisY(), 0.0f);
+    jolt_character = std::make_unique<JPH::CharacterVirtual>(
+        settings.get(),
+        JPH::RVec3::sZero(),
+        JPH::Quat::sIdentity(),
+        0,
+        &(jolt->physics_system));
 }
 
 void Physics::JoltCharacter::Finalize() {

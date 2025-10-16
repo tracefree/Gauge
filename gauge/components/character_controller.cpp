@@ -34,7 +34,7 @@ void CharacterController::Update(float delta) {
         float weight = (1.0f - std::exp(-(float(delta) / 0.025f)));
         node->SetRotation(glm::slerp(node->GetRotation(), target_rotation, weight));
     } else if (character->IsOnGround()) {
-        velocity = Vec3(0.0, velocity.y, 0.0);
+        velocity = Vec3::ZERO;
     }
 
     velocity.y -= 9.81 * delta;
