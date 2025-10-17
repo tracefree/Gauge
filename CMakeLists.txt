@@ -49,6 +49,7 @@ add_library(gauge_renderer STATIC
   gauge/renderer/stb_image_usage.cpp
   gauge/renderer/texture.cpp
   gauge/renderer/shaders/shader.cpp
+  gauge/renderer/shaders/billboard/billboard_shader.cpp
   gauge/renderer/shaders/debug_line/debug_line_shader.cpp
   gauge/renderer/shaders/pbr/pbr_shader.cpp
   gauge/renderer/shaders/gizmo/gizmo_shader.cpp
@@ -78,6 +79,7 @@ add_library(gauge STATIC
   gauge/scene/scene.cpp
   gauge/scene/scene_tree.cpp
   gauge/components/aabb_gizmo.cpp
+  gauge/components/billboard.cpp
   gauge/components/camera.cpp
   gauge/components/component.cpp
   gauge/components/character_controller.cpp

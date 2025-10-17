@@ -47,4 +47,9 @@ struct GPU_BasicMaterial {
     Vec4 color = Vec4(1.0f);
 };
 
+struct GPU_BillboardMaterial {
+    Vec4 color = Vec4(1.0f);
+    uint texture = 3;
+};
+
 }  // namespace Gauge

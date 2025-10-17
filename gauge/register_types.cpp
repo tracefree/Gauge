@@ -11,6 +11,7 @@
 #include <gauge/input/input.hpp>
 #include <gauge/physics/jolt/jolt.hpp>
 #include <gauge/physics/physics.hpp>
+#include <gauge/renderer/shaders/billboard/billboard_shader.hpp>
 #include <gauge/renderer/shaders/debug_line/debug_line_shader.hpp>
 #include <gauge/renderer/shaders/gizmo/gizmo_shader.hpp>
 #include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
@@ -38,6 +39,7 @@ static void RegisterComponents() {
 
 void Gauge::RegisterShaders() {
     auto renderer = static_cast<RendererVulkan*>(&(*gApp->renderer));
+    renderer->RegisterShader<BillboardShader>();
     renderer->RegisterShader<DebugLineShader>();
     renderer->RegisterShader<GizmoShader>();
     renderer->RegisterShader<PBRShader>();
@@ -47,6 +49,7 @@ void Gauge::RegisterMaterialTypes() {
     auto renderer = static_cast<RendererVulkan*>(&(*gApp->renderer));
     renderer->RegisterMaterialType<GPU_PBRMaterial>();
     renderer->RegisterMaterialType<GPU_BasicMaterial>();
+    renderer->RegisterMaterialType<GPU_BillboardMaterial>();
 }
 
 void Gauge::RegisterTypes() {

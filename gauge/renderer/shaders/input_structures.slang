@@ -13,6 +13,8 @@ struct Camera {
     float4x4 view;
     float4x4 view_projection;
     float4x4 inverse_projection;
+    float2 pixel_size;
+    float2 _padding0;
 }
 
 struct PointLight {
@@ -66,6 +68,11 @@ struct PBRMaterial {
 
 struct BasicMaterial {
   float4 color;
+}
+
+struct BillboardMaterial {
+    float4 color;
+    uint texture;
 }
 
 T GetMaterial<T>(MaterialHandle material_handle) {

@@ -6,8 +6,6 @@
 #include <gauge/scene/node.hpp>
 #include <gauge/scene/yaml.hpp>
 
-#include <memory>
-
 using namespace Gauge;
 
 extern Ref<Node> player;

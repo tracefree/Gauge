@@ -1,5 +1,6 @@
 #include "point_light.hpp"
 
+#include <gauge/components/billboard.hpp>
 #include <gauge/core/app.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/vulkan/common.hpp>
@@ -7,9 +8,20 @@
 #include <gauge/scene/node.hpp>
 #include <gauge/scene/yaml.hpp>
 
+#include <print>
+
 using namespace Gauge;
 
 extern App* gApp;
+
+void PointLight::Initialize() {
+    auto renderer = static_cast<RendererVulkan*>(&(*gApp->renderer));
+    auto billboard = node->AddComponent<Billboard>(Vec2(100.0));
+    billboard->material = renderer->CreateMaterial<GPU_BillboardMaterial>(GPU_BillboardMaterial{
+        .color = Vec4(color, 1.0f),
+        .texture = renderer->resources.texture_point_light,
+    });
+}
 
 void PointLight::Update(float delta) {
     auto renderer = static_cast<RendererVulkan*>(&(*gApp->renderer));

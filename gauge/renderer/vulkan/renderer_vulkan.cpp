@@ -8,7 +8,9 @@
 #include <gauge/core/app.hpp>
 #include <gauge/core/config.hpp>
 #include <gauge/core/handle.hpp>
+#include <gauge/core/resource_manager.hpp>
 #include <gauge/math/common.hpp>
+#include <gauge/register_types.hpp>
 #include <gauge/renderer/common.hpp>
 #include <gauge/renderer/gltf.hpp>
 #include <gauge/renderer/renderer.hpp>
@@ -574,6 +576,11 @@ Result<> RendererVulkan::InitializeGlobalResources() {
     render_state.camera_projections.resize(MAX_CAMERAS);
     render_state.camera_view_projections.resize(MAX_CAMERAS);
 
+    Gauge::RegisterShaders();
+    Gauge::RegisterMaterialTypes();
+
+    resources.texture_point_light = CreateTexture(*ResourceManager::Load<Gauge::Texture>("assets/textures/lightbulb.png"));
+
     return {};
 }
 
@@ -931,7 +938,7 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
             .view = render_state.camera_views[i],
             .view_projection = render_state.camera_view_projections[i],
             .inverse_projection = glm::inverse(projection),
-        };
+            .pixel_size = 1.0f / Vec2(viewport.settings.width, viewport.settings.height)};
     }
     global_uniforms.scenes[0] = render_state.scenes[0];
 

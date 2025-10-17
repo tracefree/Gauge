@@ -67,6 +67,8 @@ struct GPUCamera {
     Mat4 view;
     Mat4 view_projection;
     Mat4 inverse_projection;
+    Vec2 pixel_size;
+    Vec2 _padding0;
 };
 
 struct GPUPointLight {
@@ -91,8 +93,8 @@ struct GPUGlobals {
     float _padding1;
     float _padding2;
     float _padding3;
-    alignas(16) GPUCamera cameras[MAX_CAMERAS];
-    alignas(16) GPUScene scenes[MAX_SCENES];
+    GPUCamera cameras[MAX_CAMERAS];
+    GPUScene scenes[MAX_SCENES];
 };
 
 struct Mesh {

@@ -163,6 +163,7 @@ struct RendererVulkan : public Renderer {
         Handle<GPUImage> texture_black;
         Handle<GPUImage> texture_normal;
         Handle<GPUImage> texture_missing;
+        Handle<GPUImage> texture_point_light;
 
         Handle<GPUMesh> debug_mesh_box;
         Handle<GPUMesh> debug_mesh_line;

@@ -13,6 +13,7 @@ struct PointLight : public Component {
     float range = 5.0f;
 
    public:
+    virtual void Initialize() override;
     virtual void Draw() override;
     virtual void Update(float delta) override;
 

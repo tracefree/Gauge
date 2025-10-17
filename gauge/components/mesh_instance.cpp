@@ -27,9 +27,6 @@ void MeshInstance::Draw() {
                     .node_handle = node ? node->handle.ToUint() : 0,
                 });
         } else if (shader_name == "Gizmo") {
-            // const bool is_hovered = renderer->GetHoveredNode() == node->handle;
-            //  const auto& material = renderer->resources.materials.Get(surface.material);
-            //  Vec4 color = (is_hovered) ? (material->albedo + 0.3f) : material->albedo;
             renderer->GetShader<GizmoShader>()->objects.emplace_back(
                 GizmoShader::DrawObject{
                     .primitive = surface.primitive,
