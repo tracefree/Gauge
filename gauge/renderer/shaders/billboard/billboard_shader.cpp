@@ -51,10 +51,6 @@ void BillboardShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& 
     PushConstants pcs;
     pcs.camera_index = 0;
 
-    float mx, my;
-    SDL_GetMouseState(&mx, &my);
-    pcs.mouse_position = {.x = uint16_t(mx), .y = uint16_t(my)};
-
     cmd.BindPipeline(pipeline);
     for (const DrawObject& object : objects) {
         pcs.world_position = object.world_position;

@@ -146,6 +146,7 @@ CreatePhysicalDevice(vkb::Instance p_instance, VkSurfaceKHR p_surface) {
     };
     VkPhysicalDeviceVulkan11Features device_features_11{
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+        .uniformAndStorageBuffer16BitAccess = VK_TRUE,
         .storagePushConstant16 = VK_TRUE,
         .shaderDrawParameters = VK_TRUE,
     };
@@ -918,8 +919,11 @@ void RendererVulkan::RecordCommands(const CommandBufferVulkan& cmd, uint p_next_
     // TODO: Move elsewhere
     const auto current_time = std::chrono::steady_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - gApp->start_time).count();
+    float mx, my;
+    SDL_GetMouseState(&mx, &my);
     GPUGlobals global_uniforms{
         .time = time,
+        .mouse_position = GPUGlobals::MousePosition{.x = uint16_t(mx), .y = uint16_t(my)},
     };
     for (uint i = 0; i < render_state.viewports.size(); ++i) {
         const auto& viewport = render_state.viewports[i];

@@ -4,7 +4,6 @@ struct PushConstants {
     float4x4 model_matrix;
     float4* vertices;
     uint camera_id;
-    uint padding;
     float4 color;
 }
 
@@ -14,7 +13,7 @@ StructuredBuffer<void*> materials;
 ConstantBuffer<Globals> globals;
 
 [[vk::push_constant]]
-ConstantBuffer<PushConstants> pcs;
+ConstantBuffer<PushConstants, ScalarDataLayout> pcs;
 
 [shader("vertex")]
 float4 VertexMain(uint vertex_id: SV_VertexID) : SV_Position {

@@ -1,4 +1,5 @@
 #include "../input_structures.slang"
+#include "../node_select.slang"
 
 struct PushConstants {
     float3 world_position;
@@ -6,8 +7,6 @@ struct PushConstants {
     float2 size;
     MaterialHandle material_handle;
     uint node_handle;
-    uint16_t2 mouse_position;
-    float2 _padding0;
 };
 
 ConstantBuffer<SamplerState[]> samplers;
@@ -50,13 +49,7 @@ float4 FragmentMain(
     float2 uv
 ) : COLOR_0
 {
-    if (pcs.mouse_position.x == uint16_t(position_cs.x) && pcs.mouse_position.y == uint16_t(position_cs.y)) {
-        uint index = readback[0].node_handle.load();
-        index++;
-        readback[index].node_handle = pcs.node_handle;
-        readback[index].depth = position_cs.z;
-        readback[0].node_handle++;
-    }
+    write_hovered_node(position_cs.xyz);
 
     let material = GetMaterial<BillboardMaterial>(pcs.material_handle);
     let texture = textures[material.texture].Sample(samplers[Sampler::LINEAR], uv);

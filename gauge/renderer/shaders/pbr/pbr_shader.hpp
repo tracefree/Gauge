@@ -7,15 +7,9 @@ namespace Gauge {
 
 class PBRShader : public Shader {
    public:
-    struct MousePosition {
-        uint16_t x;
-        uint16_t y;
-    };
-
     struct PushConstants {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
-        MousePosition mouse_position;
         GPUMaterial material;
         uint camera_id;
         uint node_handle;

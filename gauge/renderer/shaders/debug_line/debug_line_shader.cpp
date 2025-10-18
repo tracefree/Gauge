@@ -10,9 +10,9 @@ using namespace Gauge;
 extern App* gApp;
 
 void DebugLineShader::Initialize(const RendererVulkan& renderer) {
-    id = "AABB"_id;
+    id = "DebugLine"_id;
 
-    auto shader_module_result = ShaderModule::FromFile(renderer.ctx, "shaders/aabb.spv");
+    auto shader_module_result = ShaderModule::FromFile(renderer.ctx, "shaders/debug_line.spv");
     CHECK(shader_module_result);
     ShaderModule shader_module = shader_module_result.value();
     renderer.SetDebugName((uint64_t)shader_module.handle, VK_OBJECT_TYPE_SHADER_MODULE, std::format("{} shader module", id));

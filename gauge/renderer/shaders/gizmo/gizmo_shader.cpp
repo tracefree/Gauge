@@ -49,9 +49,6 @@ void GizmoShader::Draw(RendererVulkan& renderer, const CommandBufferVulkan& cmd)
 
     PushConstants pcs;
     pcs.camera_id = 0;
-    float mx, my;
-    SDL_GetMouseState(&mx, &my);
-    pcs.mouse_position = {.x = uint16_t(mx), .y = uint16_t(my)};
     cmd.BindPipeline(pipeline);
     for (const DrawObject& object : objects) {
         pcs.model_matrix = object.transform.GetMatrix();

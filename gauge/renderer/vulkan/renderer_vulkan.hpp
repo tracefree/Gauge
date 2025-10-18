@@ -39,22 +39,6 @@ struct RendererVulkan : public Renderer {
    public:
     VulkanContext ctx{};
 
-    struct MousePosition {
-        uint16_t x;
-        uint16_t y;
-    };
-
-    struct PushConstants {
-        Mat4 model_matrix;
-        VkDeviceAddress vertex_buffer_address;
-        uint sampler;
-        uint material_index;
-        uint camera_index;
-        uint scene_index;
-        MousePosition mouse_position;
-        uint node_handle;
-    };
-
     struct FrameData {
         VkCommandPool cmd_pool{};
         VkCommandBuffer cmd{};

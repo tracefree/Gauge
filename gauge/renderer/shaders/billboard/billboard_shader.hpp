@@ -8,18 +8,12 @@ namespace Gauge {
 
 class BillboardShader : public Shader {
    public:
-    struct MousePosition {
-        uint16_t x;
-        uint16_t y;
-    };
     struct PushConstants {
         Vec3 world_position;
         uint camera_index;
         Vec2 size;
         GPUMaterial material;
         uint node_handle;
-        MousePosition mouse_position;
-        Vec2 _padding0;
     };
 
     struct DrawObject {

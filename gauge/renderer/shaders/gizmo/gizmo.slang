@@ -1,4 +1,5 @@
 #include "../input_structures.slang"
+#include "../node_select.slang"
 
 ConstantBuffer<SamplerState[]> samplers;
 ConstantBuffer<Texture2D[]> textures;
@@ -15,14 +16,13 @@ static const float GIZMO_SCALE = 0.2;
 struct PushConstants {
     float4x4 model_matrix;
     Vertex* vertices;
-    uint16_t2 mouse_position;
     MaterialHandle material_handle;
     uint camera_id;
     uint node_handle;
 }
 
 [[vk::push_constant]]
-ConstantBuffer<PushConstants> pcs;
+ConstantBuffer<PushConstants, ScalarDataLayout> pcs;
 
 [shader("vertex")]
 float4 VertexMain(uint vertex_id: SV_VertexID) : SV_Position {
@@ -40,15 +40,8 @@ float4 FragmentMain(
     float4 position_cs: SV_Position,
 ) : COLOR0
 {
-    if (pcs.mouse_position.x == uint16_t(position_cs.x) && pcs.mouse_position.y == uint16_t(position_cs.y)) {
-        uint index = readback[0].node_handle.load();
-        index++;
-        readback[index].node_handle = pcs.node_handle;
-        readback[index].depth = position_cs.z;
-        readback[0].node_handle++;
-    }
+    write_hovered_node(position_cs.xyz);
 
     let material = GetMaterial<BasicMaterial>(pcs.material_handle);
-      
     return material.color;
 }

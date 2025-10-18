@@ -36,7 +36,7 @@ struct Scene {
 
 struct Globals {
     float time;
-    float _padding1;
+    uint16_t2 mouse_position;
     float _padding2;
     float _padding3;
     Camera cameras[MAX_CAMERAS];

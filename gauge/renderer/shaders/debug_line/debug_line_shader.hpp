@@ -13,7 +13,6 @@ class DebugLineShader : public Shader {
         Mat4 model_matrix;
         VkDeviceAddress vertex_buffer_address;
         uint camera_index;
-        float padding;
         Vec4 color;
     };
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <gauge/math/transform.hpp>
 #include "gauge/math/common.hpp"
 
@@ -90,7 +91,10 @@ struct GPUScene {
 
 struct GPUGlobals {
     float time;
-    float _padding1;
+    struct MousePosition {
+        uint16_t x;
+        uint16_t y;
+    } mouse_position;
     float _padding2;
     float _padding3;
     GPUCamera cameras[MAX_CAMERAS];
