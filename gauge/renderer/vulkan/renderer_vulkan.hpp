@@ -37,6 +37,8 @@ using RenderCallback = bool (*)(const VulkanContext& ctx, const CommandBufferVul
 
 struct RendererVulkan : public Renderer {
    public:
+    const uint MAX_DESCRIPTOR_SETS = 16536;
+
     VulkanContext ctx{};
 
     struct FrameData {
@@ -80,8 +82,6 @@ struct RendererVulkan : public Renderer {
 
         std::shared_ptr<SceneTree> scene_tree{};
     };
-
-    const uint MAX_DESCRIPTOR_SETS = 16536;
 
     std::vector<VkSemaphore>
         swapchain_release_semaphores;
@@ -302,8 +302,7 @@ struct RendererVulkan : public Renderer {
 template <typename MaterialType>
 Handle<GPUMaterial> RendererVulkan::CreateMaterial(const MaterialType& p_material) {
     auto material_type_data = GetMaterialTypeData<MaterialType>();
-
-    Handle<MaterialType> handle = materials<MaterialType>.Allocate(p_material);
+    auto handle = materials<MaterialType>.Allocate(p_material);
 
     // Staging
     const auto staging_buffer_result = CreateBuffer(

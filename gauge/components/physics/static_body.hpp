@@ -7,7 +7,7 @@
 
 namespace Gauge {
 
-struct StaticBody : public Component {
+struct StaticBody final : public Component {
     Physics::ShapeHandle shape{};
     Physics::ShapeHandle body{};
 

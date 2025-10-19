@@ -8,6 +8,8 @@ if(CCACHE_FOUND)
   set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_C_COMPILER "/usr/bin/clang")
+set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
 
 # --- Dependencies ---
 
@@ -106,17 +108,20 @@ include_directories(thirdparty/VulkanMemoryAllocator/include)
 target_compile_definitions(gauge_renderer PRIVATE VK_NO_PROTOTYPES)
 #target_compile_definitions(gauge PRIVATE VK_NO_PROTOTYPES)
 
-target_precompile_headers(gauge_renderer PUBLIC <vector> <print> <string> <unordered_map> <memory>)
+target_precompile_headers(gauge_renderer PUBLIC "gauge/pch.hpp")
 target_include_directories(gauge_renderer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_precompile_headers(gauge PUBLIC <vector> <print> <string> <unordered_map> <memory>)
+target_precompile_headers(gauge PUBLIC "gauge/pch.hpp")
 target_include_directories(gauge PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_include_directories(gauge PUBLIC ${joltphysics_SOURCE_DIR})
 include_directories(SYSTEM thirdparty/JoltPhysics)
 
+target_include_directories(gauge PUBLIC thirdparty/KTX-Software/include/)
+
 
 target_link_libraries(gauge_renderer PUBLIC
+  ktx
   SDL3
   Vulkan::Vulkan
   vk-bootstrap::vk-bootstrap

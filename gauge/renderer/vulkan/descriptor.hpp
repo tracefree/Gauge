@@ -2,6 +2,8 @@
 
 #include <gauge/common.hpp>
 
+#include <vector>
+
 #include <volk.h>
 #include <vulkan/vulkan_core.h>
 

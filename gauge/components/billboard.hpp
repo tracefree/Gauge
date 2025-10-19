@@ -8,7 +8,7 @@
 
 namespace Gauge {
 
-struct Billboard : public Component {
+struct Billboard final : public Component {
    public:
     Handle<GPUMaterial> material;
     Vec2 size = Vec2(50.0f);

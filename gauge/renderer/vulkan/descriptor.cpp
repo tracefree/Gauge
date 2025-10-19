@@ -1,6 +1,6 @@
 #include "descriptor.hpp"
-#include <vulkan/vulkan_core.h>
-#include "gauge/renderer/vulkan/common.hpp"
+
+#include <gauge/renderer/vulkan/common.hpp>
 
 using namespace Gauge;
 

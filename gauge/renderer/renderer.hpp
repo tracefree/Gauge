@@ -54,7 +54,6 @@ struct Renderer {
     virtual Quaternion ViewportGetCameraRotation(uint p_viewport_id) = 0;
 
     virtual void OnWindowResized(uint p_width, uint p_height) {};
-    virtual void OnMouseMoved(float p_position_x, float p_position_y) {};
     virtual void OnShaderChanged() {};
 
     virtual Handle<GPUMesh> CreateMesh(std::vector<Vertex> p_vertices, std::vector<uint> p_indices) = 0;

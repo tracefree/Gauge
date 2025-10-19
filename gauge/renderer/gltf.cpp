@@ -156,42 +156,43 @@ Result<> glTF::LoadTextures(const fastgltf::Asset& p_asset, const std::filesyste
         glTF::Texture& texture = textures[i];
         auto fg_image = p_asset.images[fg_texture.imageIndex.value()];
         std::string err;
-        std::visit(fastgltf::visitor{
-                       [&](fastgltf::sources::URI& file_name) {
-                           auto file_path = StringID(p_path / file_name.uri.fspath());
-                           texture.data = ResourceManager::Load<Gauge::Texture>(file_path);
-                       },
-                       [&](const fastgltf::sources::Array& array) {
-                           std::println("Array!");
-                           assert(false);
-                       },
-                       [&](fastgltf::sources::BufferView& view) {
-                           auto& buffer_view = p_asset.bufferViews[view.bufferViewIndex];
-                           auto& buffer = p_asset.buffers[buffer_view.bufferIndex];
-                           std::visit(
-                               fastgltf::visitor{
-                                   [&](auto& argument) {
-                                       err = "Could not load texture: Buffer type not implemented";
-                                   },
-                                   [&](const fastgltf::sources::Array& array) {
-                                       int width, height, number_channels;
-                                       texture.data->data = stbi_load_from_memory((stbi_uc*)array.bytes.data() + buffer_view.byteOffset, static_cast<int>(buffer_view.byteLength), &width, &height, &number_channels, 4);
-                                       texture.data->width = (uint)width;
-                                       texture.data->height = (uint)width;
-                                       if (!texture.data->data) {
-                                           err = "Could not load texture: Couldn't load data from memory";
-                                           texture.data->data = nullptr;
-                                       }
-                                   },
-                               },
-                               buffer.data);
-                       },
-                       [&](auto& argument) {
-                           err = "Could not load texture: data source not implemented";
-                           assert(false);
-                       },
-                   },
-                   fg_image.data);
+        std::visit(
+            fastgltf::visitor{
+                [&](fastgltf::sources::URI& file_name) {
+                    const auto file_path = StringID(p_path / file_name.uri.fspath());
+                    texture.data = ResourceManager::Load<Gauge::Texture>(file_path);
+                },
+                [&](const fastgltf::sources::Array& array) {
+                    std::println("Array!");
+                    assert(false);
+                },
+                [&](fastgltf::sources::BufferView& view) {
+                    const auto& buffer_view = p_asset.bufferViews[view.bufferViewIndex];
+                    const auto& buffer = p_asset.buffers[buffer_view.bufferIndex];
+                    std::visit(
+                        fastgltf::visitor{
+                            [&](auto& argument) {
+                                err = "Could not load texture: Buffer type not implemented";
+                            },
+                            [&](const fastgltf::sources::Array& array) {
+                                int width, height, number_channels;
+                                texture.data->data = stbi_load_from_memory((stbi_uc*)array.bytes.data() + buffer_view.byteOffset, static_cast<int>(buffer_view.byteLength), &width, &height, &number_channels, 4);
+                                texture.data->width = (uint)width;
+                                texture.data->height = (uint)width;
+                                if (!texture.data->data) {
+                                    err = "Could not load texture: Couldn't load data from memory";
+                                    texture.data->data = nullptr;
+                                }
+                            },
+                        },
+                        buffer.data);
+                },
+                [&](auto& argument) {
+                    err = "Could not load texture: data source not implemented";
+                    assert(false);
+                },
+            },
+            fg_image.data);
         if (!err.empty()) {
             return Error(err);
         }

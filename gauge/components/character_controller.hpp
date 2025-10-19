@@ -12,7 +12,7 @@ namespace Physics {
 class Character;
 }
 
-struct CharacterController : public Component {
+struct CharacterController final : public Component {
     std::unique_ptr<Physics::Character> character;
     Vec3 velocity = Vec3::ZERO;
 

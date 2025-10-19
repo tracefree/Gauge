@@ -12,7 +12,7 @@ namespace Gauge {
 
 struct GPUMesh;
 
-struct MeshInstance : public Component {
+struct MeshInstance final : public Component {
     struct Surface {
         Handle<GPUMesh> primitive;
         Handle<GPUMaterial> material;

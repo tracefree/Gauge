@@ -7,7 +7,7 @@
 
 namespace Gauge {
 
-struct PointLight : public Component {
+struct PointLight final : public Component {
     Vec3 color = Vec3::ONE;
     float intensity = 1.0f;
     float range = 5.0f;

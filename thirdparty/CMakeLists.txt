@@ -54,3 +54,10 @@ include_directories(fastgltf/include)
 # Include Jolt
 add_subdirectory(JoltPhysics/Build)
 include_directories(JoltPhysics)
+
+# KTX-Software
+set(KTX_FEATURE_TOOLS OFF)
+set(KTX_FEATURE_TESTS OFF)
+set(KTX_FEATURE_GL_UPLOAD OFF)
+add_subdirectory(KTX-Software)
+include_directories(KTX-Software/include)

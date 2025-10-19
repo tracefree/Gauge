@@ -1,7 +1,9 @@
 #pragma once
 
+#include <hashtable.h>
 #include <cstddef>
 #include <cstdint>
+
 namespace Gauge {
 
 template <typename T>

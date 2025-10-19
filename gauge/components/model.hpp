@@ -6,7 +6,7 @@
 
 namespace Gauge {
 
-struct ModelComponent : public Component {
+struct ModelComponent final : public Component {
    public:
     std::string path;
     bool generate_collisions{};

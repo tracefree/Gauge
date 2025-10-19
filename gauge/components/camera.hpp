@@ -6,7 +6,7 @@
 
 namespace Gauge {
 
-struct Camera : public Component {
+struct Camera final : public Component {
     const float MOUSE_SENSITIVITY = (1 / 500.0f);
 
     enum class Mode {

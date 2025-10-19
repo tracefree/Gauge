@@ -10,6 +10,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
+#include <format>
+
 namespace Gauge {
 
 class Vec2 : public glm::vec2 {

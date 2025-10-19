@@ -128,6 +128,7 @@ class KeyBinding<bool> : public Input::Binding<bool> {
     }
 
     KeyBinding(SDL_Scancode p_scancode) : scancode(p_scancode) {}
+    virtual ~KeyBinding() {}
 };
 
 template <>
@@ -148,6 +149,8 @@ class KeyBinding<float> : public Input::Binding<float> {
                SDL_Scancode p_scancode_negative)
         : scancodes(p_scancode_positive,
                     p_scancode_negative) {}
+
+    virtual ~KeyBinding() {}
 };
 
 template <>
@@ -181,6 +184,8 @@ class KeyBinding<Vec2> : public Input::Binding<Vec2> {
                     p_scancode_negative_x,
                     p_scancode_positive_y,
                     p_scancode_negative_y) {}
+
+    virtual ~KeyBinding() {}
 };
 
 // --- MouseButtonBinding ---
@@ -195,6 +200,7 @@ class MouseButtonBinding : public Input::Binding<bool> {
 
     MouseButtonBinding() {}
     MouseButtonBinding(MouseButton p_mouse_button) : mouse_button(p_mouse_button) {}
+    virtual ~MouseButtonBinding() {}
 };
 
 // --- MouseMotionBinding ---
@@ -204,6 +210,7 @@ class MouseMotionBinding : public Input::Binding<Vec2> {
     Vec2 GetValue() final override {
         return Input::Get()->mouse.motion;
     }
+    virtual ~MouseMotionBinding() {}
 };
 
 // --- MouseWheelBinding ---
@@ -212,6 +219,7 @@ class MouseWheelBinding : public Input::Binding<float> {
     float GetValue() final override {
         return Input::Get()->mouse.wheel;
     }
+    virtual ~MouseWheelBinding() {}
 };
 
 // --- CombinationBinding ---
@@ -249,6 +257,8 @@ class CombinationBinding : public Input::Binding<T> {
         Ref<Input::Binding<T>> p_target_binding)
         : activation_bindings(p_activation_bindings),
           target_binding(p_target_binding) {}
+
+    virtual ~CombinationBinding() {}
 };
 
 // --- GamepadAxisBinding ---
@@ -285,6 +295,8 @@ class GamepadJoystickBinding : public Input::Binding<Vec2> {
           axis_y(p_axis_y),
           scaling(p_scaling),
           threshold(p_threshold) {}
+
+    virtual ~GamepadJoystickBinding() {}
 };
 
 class GamepadButtonBinding : public Input::Binding<bool> {
@@ -299,6 +311,7 @@ class GamepadButtonBinding : public Input::Binding<bool> {
     }
 
     GamepadButtonBinding(SDL_GamepadButton p_button) : button(p_button) {}
+    virtual ~GamepadButtonBinding() {}
 };
 
 }  // namespace Gauge

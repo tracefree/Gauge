@@ -34,3 +34,6 @@
 [submodule "thirdparty/JoltPhysics"]
 	path = thirdparty/JoltPhysics
 	url = git@github.com:jrouwe/JoltPhysics.git
+[submodule "thirdparty/KTX-Software"]
+	path = thirdparty/KTX-Software
+	url = git@github.com:KhronosGroup/KTX-Software.git

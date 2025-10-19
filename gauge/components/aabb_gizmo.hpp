@@ -7,7 +7,7 @@
 
 namespace Gauge {
 
-struct AABBGizmo : public Component {
+struct AABBGizmo final : public Component {
     AABB aabb{};
 
    public:
