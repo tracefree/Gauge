@@ -16,14 +16,18 @@
 #include <gauge/renderer/shaders/gizmo/gizmo_shader.hpp>
 #include <gauge/renderer/shaders/pbr/pbr_shader.hpp>
 #include <gauge/renderer/vulkan/renderer_vulkan.hpp>
+#include <vector>
+#include "gauge/components/component.hpp"
 
 using namespace Gauge;
 
 extern App* gApp;
 
+static std::vector<Component*> components;
+
 template <IsComponent C>
 static void RegisterComponent() {
-    C component;  // TODO: Improve component registration
+    components.emplace_back(new C);  // TODO: Improve component registration
     C::StaticInitialize();
 }
 

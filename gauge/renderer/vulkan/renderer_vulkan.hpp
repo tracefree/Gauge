@@ -1,9 +1,11 @@
 #pragma once
 
 #include <gauge/common.hpp>
+#include <gauge/core/handle.hpp>
 #include <gauge/core/pool.hpp>
 #include <gauge/math/common.hpp>
 #include <gauge/renderer/common.hpp>
+#include <gauge/renderer/gltf.hpp>
 #include <gauge/renderer/renderer.hpp>
 #include <gauge/renderer/shaders/shader.hpp>
 #include <gauge/renderer/texture.hpp>
@@ -14,19 +16,15 @@
 
 #include <SDL3/SDL_video.h>
 #include <sys/types.h>
-#include <vulkan/vulkan_core.h>
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <print>
 #include <string>
 #include <typeindex>
 #include <unordered_map>
 #include <vector>
 
-#include "gauge/core/handle.hpp"
-#include "gauge/math/common.hpp"
-#include "gauge/renderer/gltf.hpp"
+#include "ktxvulkan.h"
 #include "thirdparty/tracy/public/tracy/TracyVulkan.hpp"
 
 namespace Gauge {
@@ -40,6 +38,7 @@ struct RendererVulkan : public Renderer {
     const uint MAX_DESCRIPTOR_SETS = 16536;
 
     VulkanContext ctx{};
+    ktxVulkanDeviceInfo ktx_context{};
 
     struct FrameData {
         VkCommandPool cmd_pool{};
@@ -267,6 +266,7 @@ struct RendererVulkan : public Renderer {
     Result<GPUImage> CreateDepthImage(const uint p_width, const uint p_height, VkSampleCountFlagBits p_sample_count = VK_SAMPLE_COUNT_1_BIT) const;
     Result<Viewport> CreateViewport(const ViewportSettings& p_settings) const;
     Result<GPUBuffer> CreateBuffer(size_t p_allocation_size, VkBufferUsageFlags usage, VmaMemoryUsage memory_usage) const;
+    Result<> CreateKTXContext();
 
     void DestroyImage(GPUImage& p_image) const;
 
@@ -292,7 +292,7 @@ struct RendererVulkan : public Renderer {
 
     Result<GPUMesh> UploadMeshToGPU(const CPUMesh& mesh) const;
     Result<GPUMesh> UploadMeshToGPU(const glTF::Primitive& primitive) const;
-    Result<GPUImage> UploadTextureToGPU(const Texture& p_texture) const;
+    Result<GPUImage> UploadTextureToGPU(const Texture& p_texture);
 
     static VkSampleCountFlagBits SampleCountFromMSAA(MSAA p_msaa);
 

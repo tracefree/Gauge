@@ -3,13 +3,17 @@ project(gauge VERSION 0.0.1 LANGUAGES CXX C)
 
 # --- Setup ---
 find_program(CCACHE_FOUND ccache)
-
 if(CCACHE_FOUND)
   set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif()
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_C_COMPILER "/usr/bin/clang")
 set(CMAKE_CXX_COMPILER "/usr/bin/clang++")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0")
+set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+if(CMAKE_CXX_FLAGS_RELEASE)
+  set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+endif()
 
 # --- Dependencies ---
 

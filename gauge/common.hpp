@@ -2,6 +2,7 @@
 
 #include <expected>
 #include <memory>
+#include <print>
 
 namespace Gauge {
 

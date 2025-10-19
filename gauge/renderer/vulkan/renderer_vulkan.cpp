@@ -30,6 +30,8 @@
 #include <SDL3/SDL_video.h>
 #include <SDL3/SDL_vulkan.h>
 
+#include "ktx.h"
+
 #include "thirdparty/glm/glm/ext/matrix_clip_space.hpp"
 #include "thirdparty/glm/glm/matrix.hpp"
 #include "thirdparty/glm/glm/packing.hpp"
@@ -38,10 +40,12 @@
 
 #include "thirdparty/imgui/imgui.h"
 
+#include "thirdparty/KTX-Software/include/ktxvulkan.h"
 #include "thirdparty/imgui/backends/imgui_impl_sdl3.h"
 #include "thirdparty/imgui/backends/imgui_impl_vulkan.h"
 
 #include <sys/types.h>
+#include <vulkan/vulkan_core.h>
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -379,6 +383,7 @@ RendererVulkan::CreateFrameData() {
 }
 
 void RendererVulkan::RenderImGui(CommandBufferVulkan* cmd, uint p_next_image_index) const {
+    return;
     ZoneScoped;
     TracyVkZone(GetCurrentFrame().tracy_context, cmd->GetHandle(), "ImGui");
 
@@ -501,6 +506,21 @@ RendererVulkan::CreateSampler(VkFilter p_filter_mode) const {
     VK_CHECK_RET(vkCreateSampler(ctx.device, &sampler_info, nullptr, &sampler),
                  "Could not create sampler");
     return sampler;
+}
+
+Result<> RendererVulkan::CreateKTXContext() {
+    auto result = ktxVulkanDeviceInfo_Construct(
+        &ktx_context,
+        ctx.physical_device,
+        ctx.device,
+        ctx.graphics_queue,
+        immediate_command.pool,
+        nullptr);
+    if (result == KTX_SUCCESS) {
+        return {};
+    } else {
+        return Error(std::format("Could not create KTX Vulkan context. Error: {}", ktxErrorString(result)));
+    }
 }
 
 Result<> RendererVulkan::InitializeGlobalResources() {
@@ -697,6 +717,7 @@ RendererVulkan::Initialize(void (*p_create_surface)(VkInstance p_instance, VkSur
     VK_CHECK_RET(vkCreateFence(ctx.device, &fence_info, nullptr, &immediate_command.fence),
                  "Could not create immediate submit fence");
 
+    CHECK_RET(CreateKTXContext());
     CHECK_RET(InitializeGlobalResources());
 
     // VMA Pool
@@ -801,8 +822,9 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
         .pColorAttachments = &color_attachement_info,
     };
 
+    VkRenderingAttachmentInfo depth_attachement_info;
     if (p_viewport.settings.use_depth) {
-        VkRenderingAttachmentInfo depth_attachement_info{
+        depth_attachement_info = {
             .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
             .imageView = p_viewport.depth.view,
             .imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
@@ -811,7 +833,6 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
             .clearValue = {
                 .depthStencil = {.depth = 0.0f},
             }};
-        rendering_info.pDepthAttachment = &depth_attachement_info;
 
         if (p_viewport.settings.msaa != MSAA::OFF) {
             depth_attachement_info.imageView = p_viewport.depth_multisampled.view;
@@ -819,6 +840,7 @@ void RendererVulkan::RenderViewport(const CommandBufferVulkan& cmd, const Viewpo
             depth_attachement_info.resolveImageView = p_viewport.depth.view;
             depth_attachement_info.resolveImageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
         }
+        rendering_info.pDepthAttachment = &depth_attachement_info;
     }
 
     const VkViewport vk_viewport{
@@ -1281,51 +1303,84 @@ RendererVulkan::CreateImage(
 }
 
 Result<GPUImage>
-RendererVulkan::UploadTextureToGPU(const Texture& p_texture) const {
+RendererVulkan::UploadTextureToGPU(const Texture& p_texture) {
+    vkDeviceWaitIdle(ctx.device);
     GPUImage image{};
-    GPUBuffer staging_buffer{};
-    const VkExtent3D image_extent = {.width = p_texture.width, .height = p_texture.height, .depth = 1};
-    return CreateImage(
-               image_extent,
-               p_texture.use_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM,
-               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
-        .and_then([&](GPUImage p_image) {
-            image = p_image;
-            return CreateBuffer(
-                p_texture.GetSize(),
-                VK_BUFFER_USAGE_2_TRANSFER_SRC_BIT,
-                VMA_MEMORY_USAGE_CPU_TO_GPU);
-        })
-        .and_then([&](GPUBuffer p_staging_buffer) {
-            staging_buffer = p_staging_buffer;
-            memcpy(staging_buffer.allocation.info.pMappedData, p_texture.data, p_texture.GetSize());
-            return ImmediateSubmit([&](CommandBufferVulkan cmd) {
-                cmd.TransitionImage(
-                    image.handle,
-                    VK_IMAGE_LAYOUT_UNDEFINED,
-                    VK_IMAGE_LAYOUT_GENERAL);
-                const VkBufferImageCopy buffer_image_copy{
-                    .imageSubresource = {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .layerCount = 1,
-                    },
-                    .imageExtent = image_extent};
-                vkCmdCopyBufferToImage(
-                    cmd.GetHandle(),
-                    staging_buffer.handle,
-                    image.handle,
-                    VK_IMAGE_LAYOUT_GENERAL,
-                    1, &buffer_image_copy);
-                cmd.TransitionImage(
-                    image.handle,
-                    VK_IMAGE_LAYOUT_GENERAL,
-                    VK_IMAGE_LAYOUT_GENERAL);
+
+    if (p_texture.ktx_texture != nullptr) {
+        ktxVulkanTexture ktx_vk_texture{};
+        auto result = ktxTexture2_VkUploadEx(p_texture.ktx_texture, &ktx_context, &ktx_vk_texture, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        if (result != KTX_SUCCESS) {
+            return Error(std::format("Could not upload Vulkan KTX texture to GPU. Error: {}", ktxErrorString(result)));
+        }
+        image.handle = ktx_vk_texture.image;
+        image.format = ktx_vk_texture.imageFormat;
+
+        const VkImageViewCreateInfo view_info{
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = image.handle,
+            .viewType = ktx_vk_texture.viewType,
+            .format = image.format,
+            .subresourceRange = VkImageSubresourceRange{
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = ktx_vk_texture.levelCount,
+                .baseArrayLayer = 0,
+                .layerCount = ktx_vk_texture.layerCount,
+            }};
+
+        VK_CHECK(vkCreateImageView(ctx.device, &view_info, nullptr, &image.view),
+                 "Could not create image view");
+
+        return image;
+
+    } else if (p_texture.data != nullptr) {
+        GPUBuffer staging_buffer{};
+        const VkExtent3D image_extent = {.width = p_texture.width, .height = p_texture.height, .depth = 1};
+        return CreateImage(
+                   image_extent,
+                   p_texture.use_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM,
+                   VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+            .and_then([&](GPUImage p_image) {
+                image = p_image;
+                return CreateBuffer(
+                    p_texture.GetSize(),
+                    VK_BUFFER_USAGE_2_TRANSFER_SRC_BIT,
+                    VMA_MEMORY_USAGE_CPU_TO_GPU);
+            })
+            .and_then([&](GPUBuffer p_staging_buffer) {
+                staging_buffer = p_staging_buffer;
+                memcpy(staging_buffer.allocation.info.pMappedData, p_texture.data, p_texture.GetSize());
+                return ImmediateSubmit([&](CommandBufferVulkan cmd) {
+                    cmd.TransitionImage(
+                        image.handle,
+                        VK_IMAGE_LAYOUT_UNDEFINED,
+                        VK_IMAGE_LAYOUT_GENERAL);
+                    const VkBufferImageCopy buffer_image_copy{
+                        .imageSubresource = {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .layerCount = 1,
+                        },
+                        .imageExtent = image_extent};
+                    vkCmdCopyBufferToImage(
+                        cmd.GetHandle(),
+                        staging_buffer.handle,
+                        image.handle,
+                        VK_IMAGE_LAYOUT_GENERAL,
+                        1, &buffer_image_copy);
+                    cmd.TransitionImage(
+                        image.handle,
+                        VK_IMAGE_LAYOUT_GENERAL,
+                        VK_IMAGE_LAYOUT_GENERAL);
+                });
+            })
+            .and_then([&]() -> Result<GPUImage> {
+                vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
+                return image;
             });
-        })
-        .and_then([&]() -> Result<GPUImage> {
-            vmaDestroyBuffer(ctx.allocator, staging_buffer.handle, staging_buffer.allocation.handle);
-            return image;
-        });
+    }
+
+    return Error("Invalid texture");
 }
 
 Result<>

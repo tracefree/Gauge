@@ -41,7 +41,7 @@ struct Camera final : public Component {
 
     Camera(Mode p_mode) : mode(p_mode) {}
 
-    static void StaticInitialize();
+    static void StaticInitialize() {}
     COMPONENT_FACTORY_HEADER(Camera);
 };
 
